@@ -8,3 +8,110 @@
 export interface HealthStatus {
   status: string;
 }
+
+export interface ErrorResponse {
+  error: string;
+}
+
+export interface AnalyzeScanRequest {
+  imageBase64: string;
+}
+
+export type ScanResultGlycemicImpact =
+  (typeof ScanResultGlycemicImpact)[keyof typeof ScanResultGlycemicImpact];
+
+export const ScanResultGlycemicImpact = {
+  low: "low",
+  moderate: "moderate",
+  high: "high",
+  very_high: "very_high",
+} as const;
+
+export type ScanResultStatus =
+  (typeof ScanResultStatus)[keyof typeof ScanResultStatus];
+
+export const ScanResultStatus = {
+  optimal: "optimal",
+  stable: "stable",
+  risky: "risky",
+  damaging: "damaging",
+} as const;
+
+export interface ShortTermImpact {
+  energyResponse: string;
+  bloodSugarResponse: string;
+  bodyReaction: string;
+  hydrationImpact: string;
+}
+
+export interface MediumTermImpact {
+  energyStability: string;
+  physicalChanges: string;
+  habitRisk: string;
+  sleepQuality: string;
+}
+
+export interface LongTermImpact {
+  healthTrend: string;
+  metabolicImpact: string;
+  riskAccumulation: string;
+  nutritionalBalance: string;
+}
+
+export type IngredientHealthRole =
+  (typeof IngredientHealthRole)[keyof typeof IngredientHealthRole];
+
+export const IngredientHealthRole = {
+  positive: "positive",
+  neutral: "neutral",
+  concerning: "concerning",
+} as const;
+
+export type IngredientRiskLevel =
+  (typeof IngredientRiskLevel)[keyof typeof IngredientRiskLevel];
+
+export const IngredientRiskLevel = {
+  low: "low",
+  medium: "medium",
+  high: "high",
+} as const;
+
+export interface Ingredient {
+  name: string;
+  function: string;
+  healthRole: IngredientHealthRole;
+  riskLevel: IngredientRiskLevel;
+}
+
+export interface Composition {
+  calories: number;
+  sugarGrams: number;
+  caffeineMg: number;
+  additives: string[];
+  ingredients: Ingredient[];
+}
+
+export interface ScanResult {
+  id: string;
+  detectedProduct: string;
+  brand?: string | null;
+  category: string;
+  /**
+   * @minimum 0
+   * @maximum 100
+   */
+  impactScore: number;
+  /**
+   * @minimum 0
+   * @maximum 100
+   */
+  hydrationLevel: number;
+  glycemicImpact: ScanResultGlycemicImpact;
+  status: ScanResultStatus;
+  aiInsight: string;
+  viralStatement: string;
+  shortTermImpact: ShortTermImpact;
+  mediumTermImpact: MediumTermImpact;
+  longTermImpact: LongTermImpact;
+  composition: Composition;
+}

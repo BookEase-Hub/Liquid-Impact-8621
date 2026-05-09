@@ -1,0 +1,70 @@
+You are an expert full-stack mobile + backend engineer. I have a complete "Liquid Impact" app — an iOS drink scanner using SwiftUI that analyzes beverages for health impact, hydration, glycemic response, short/medium/long-term effects, etc.
+
+I need you to turn this into a **production-ready app** suitable for App Store + Play Store (iOS + future Android) with a robust, scalable backend.
+
+Here is the full codebase (SwiftUI views, models, services + Node.js/Express + Prisma backend files): [PASTE THE ENTIRE FILE CONTENT HERE]
+
+### TASK LIST — Perform in this exact order:
+
+### Phase 1: Backend Architecture & Database (Supabase)
+1. **Migrate from Prisma/Postgres to Supabase** (PostgreSQL + Auth + Storage + Edge Functions).
+2. **Design and create all necessary database tables** with proper schemas, RLS policies, indexes, and triggers:
+   - users (profile, preferences, onboarding status)
+   - scans (core drink scan records)
+   - compositions + ingredients (many-to-one)
+   - reports (short/medium/long term impacts, AI insights)
+   - streaks
+   - missions / daily_missions
+   - subscriptions / entitlements
+   - analytics_events
+   - sessions (if needed)
+3. **Set up Supabase Auth** (email/password + Apple + Google sign-in).
+4. **Implement Row Level Security (RLS)** policies for all tables.
+5. **Create Storage buckets** for drink images with proper policies.
+
+### Phase 2: Backend APIs (Supabase Edge Functions + REST)
+6. **Generate complete REST + Edge Function APIs** covering:
+   - Auth (signup, signin, social, refresh, signout)
+   - Scans (upload image → process → return result)
+   - Reports (detailed impact report)
+   - User profile, preferences, stats
+   - Streaks & missions
+   - Analytics tracking
+   - Subscription management (RevenueCat + Supabase sync)
+7. **Implement AI orchestration** (OpenAI GPT-4o + Vision for image analysis + structured output for reports).
+8. **Add background job / queue system** (Supabase + Edge Functions or PgBouncer + Redis if needed) for scan processing.
+9. **Add rate limiting, security headers, input validation (Zod), error handling, logging**.
+
+### Phase 3: Fix & Polish iOS Frontend
+10. **Fix and complete all SwiftUI views** so the app compiles and runs smoothly.
+11. **Integrate with Supabase** (Supabase Swift client):
+    - Authentication flow
+    - Real-time subscriptions (scans, missions, streaks)
+    - Storage uploads/downloads
+12. **Implement camera + photo library** scanning flow with proper permissions.
+13. **Connect to RevenueCat** for subscriptions (Free / Pro / Elite tiers).
+14. **Add push notifications** (via APNs + Supabase or RevenueCat).
+15. **Implement deep linking, haptic feedback, animations, dark mode, accessibility**.
+
+### Phase 4: Production Readiness
+16. **Add comprehensive error handling, loading states, empty states, offline support**.
+17. **Implement analytics** (Mixpanel / PostHog / Supabase).
+18. **Add feature flags** and A/B testing capability.
+19. **Security audit**: Sanitize inputs, protect API keys, secure storage.
+20. **Performance optimization**: Image compression, lazy loading, caching.
+21. **Localization** (English + at least one more language).
+22. **App Icon, Launch Screen, App Store assets**.
+
+### Phase 5: Deployment
+23. **Deploy backend** on Supabase (Edge Functions + Database).
+24. **Set up CI/CD** (GitHub Actions).
+25. **Prepare iOS app** for TestFlight + App Store submission (App Store Connect checklist, privacy manifest, etc.).
+26. **(Bonus) Generate Flutter/React Native version** structure for future Android support.
+
+**Output Format:**
+- First, show the complete Supabase SQL schema (with RLS).
+- Then, list all Edge Functions / API routes with their code.
+- Then, provide updated SwiftUI files that integrate with the new backend.
+- Finally, give deployment and App Store checklist.
+
+Start with Phase 1 and confirm when each phase is complete before moving to the next. Ask for clarification only if absolutely necessary. Make everything production-grade, secure, scalable, and beautiful.

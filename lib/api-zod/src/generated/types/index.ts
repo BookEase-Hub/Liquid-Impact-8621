@@ -6,4 +6,16 @@
  * OpenAPI spec version: 0.1.0
  */
 
+export * from "./analyzeScanRequest";
+export * from "./composition";
+export * from "./errorResponse";
 export * from "./healthStatus";
+export * from "./ingredient";
+export * from "./ingredientHealthRole";
+export * from "./ingredientRiskLevel";
+export * from "./longTermImpact";
+export * from "./mediumTermImpact";
+export * from "./scanResult";
+export * from "./scanResultGlycemicImpact";
+export * from "./scanResultStatus";
+export * from "./shortTermImpact";

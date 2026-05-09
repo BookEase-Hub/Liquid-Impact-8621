@@ -10,6 +10,8 @@ servers:
 tags:
   - name: health
     description: Health operations
+  - name: scans
+    description: Drink scan operations
 paths:
   /healthz:
     get:
@@ -24,6 +26,30 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/HealthStatus"
+  /scans/analyze:
+    post:
+      operationId: analyzeScan
+      tags: [scans]
+      summary: Analyze a drink image using AI
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AnalyzeScanRequest"
+      responses:
+        "200":
+          description: Scan analysis result
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ScanResult"
+        "500":
+          description: Analysis failed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
 components:
   schemas:
     HealthStatus:
@@ -33,4 +59,158 @@ components:
           type: string
       required:
         - status
-
+    ErrorResponse:
+      type: object
+      properties:
+        error:
+          type: string
+      required:
+        - error
+    AnalyzeScanRequest:
+      type: object
+      required:
+        - imageBase64
+      properties:
+        imageBase64:
+          type: string
+    ScanResult:
+      type: object
+      required:
+        - id
+        - detectedProduct
+        - category
+        - impactScore
+        - hydrationLevel
+        - glycemicImpact
+        - status
+        - aiInsight
+        - viralStatement
+        - shortTermImpact
+        - mediumTermImpact
+        - longTermImpact
+        - composition
+      properties:
+        id:
+          type: string
+        detectedProduct:
+          type: string
+        brand:
+          type: string
+          nullable: true
+        category:
+          type: string
+        impactScore:
+          type: integer
+          minimum: 0
+          maximum: 100
+        hydrationLevel:
+          type: integer
+          minimum: 0
+          maximum: 100
+        glycemicImpact:
+          type: string
+          enum: [low, moderate, high, very_high]
+        status:
+          type: string
+          enum: [optimal, stable, risky, damaging]
+        aiInsight:
+          type: string
+        viralStatement:
+          type: string
+        shortTermImpact:
+          $ref: "#/components/schemas/ShortTermImpact"
+        mediumTermImpact:
+          $ref: "#/components/schemas/MediumTermImpact"
+        longTermImpact:
+          $ref: "#/components/schemas/LongTermImpact"
+        composition:
+          $ref: "#/components/schemas/Composition"
+    ShortTermImpact:
+      type: object
+      required:
+        - energyResponse
+        - bloodSugarResponse
+        - bodyReaction
+        - hydrationImpact
+      properties:
+        energyResponse:
+          type: string
+        bloodSugarResponse:
+          type: string
+        bodyReaction:
+          type: string
+        hydrationImpact:
+          type: string
+    MediumTermImpact:
+      type: object
+      required:
+        - energyStability
+        - physicalChanges
+        - habitRisk
+        - sleepQuality
+      properties:
+        energyStability:
+          type: string
+        physicalChanges:
+          type: string
+        habitRisk:
+          type: string
+        sleepQuality:
+          type: string
+    LongTermImpact:
+      type: object
+      required:
+        - healthTrend
+        - metabolicImpact
+        - riskAccumulation
+        - nutritionalBalance
+      properties:
+        healthTrend:
+          type: string
+        metabolicImpact:
+          type: string
+        riskAccumulation:
+          type: string
+        nutritionalBalance:
+          type: string
+    Composition:
+      type: object
+      required:
+        - calories
+        - sugarGrams
+        - caffeineMg
+        - ingredients
+        - additives
+      properties:
+        calories:
+          type: integer
+        sugarGrams:
+          type: number
+        caffeineMg:
+          type: number
+        additives:
+          type: array
+          items:
+            type: string
+        ingredients:
+          type: array
+          items:
+            $ref: "#/components/schemas/Ingredient"
+    Ingredient:
+      type: object
+      required:
+        - name
+        - function
+        - healthRole
+        - riskLevel
+      properties:
+        name:
+          type: string
+        function:
+          type: string
+        healthRole:
+          type: string
+          enum: [positive, neutral, concerning]
+        riskLevel:
+          type: string
+          enum: [low, medium, high]

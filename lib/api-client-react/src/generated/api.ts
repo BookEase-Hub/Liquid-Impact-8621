@@ -5,18 +5,26 @@
  * API specification
  * OpenAPI spec version: 0.1.0
  */
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import type {
+  MutationFunction,
   QueryFunction,
   QueryKey,
+  UseMutationOptions,
+  UseMutationResult,
   UseQueryOptions,
   UseQueryResult,
 } from "@tanstack/react-query";
 
-import type { HealthStatus } from "./api.schemas";
+import type {
+  AnalyzeScanRequest,
+  ErrorResponse,
+  HealthStatus,
+  ScanResult,
+} from "./api.schemas";
 
 import { customFetch } from "../custom-fetch";
-import type { ErrorType } from "../custom-fetch";
+import type { ErrorType, BodyType } from "../custom-fetch";
 
 type AwaitedInput<T> = PromiseLike<T> | T;
 
@@ -99,3 +107,89 @@ export function useHealthCheck<
 
   return { ...query, queryKey: queryOptions.queryKey };
 }
+
+/**
+ * @summary Analyze a drink image using AI
+ */
+export const getAnalyzeScanUrl = () => {
+  return `/api/scans/analyze`;
+};
+
+export const analyzeScan = async (
+  analyzeScanRequest: AnalyzeScanRequest,
+  options?: RequestInit,
+): Promise<ScanResult> => {
+  return customFetch<ScanResult>(getAnalyzeScanUrl(), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(analyzeScanRequest),
+  });
+};
+
+export const getAnalyzeScanMutationOptions = <
+  TError = ErrorType<ErrorResponse>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof analyzeScan>>,
+    TError,
+    { data: BodyType<AnalyzeScanRequest> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof analyzeScan>>,
+  TError,
+  { data: BodyType<AnalyzeScanRequest> },
+  TContext
+> => {
+  const mutationKey = ["analyzeScan"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof analyzeScan>>,
+    { data: BodyType<AnalyzeScanRequest> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return analyzeScan(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type AnalyzeScanMutationResult = NonNullable<
+  Awaited<ReturnType<typeof analyzeScan>>
+>;
+export type AnalyzeScanMutationBody = BodyType<AnalyzeScanRequest>;
+export type AnalyzeScanMutationError = ErrorType<ErrorResponse>;
+
+/**
+ * @summary Analyze a drink image using AI
+ */
+export const useAnalyzeScan = <
+  TError = ErrorType<ErrorResponse>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof analyzeScan>>,
+    TError,
+    { data: BodyType<AnalyzeScanRequest> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof analyzeScan>>,
+  TError,
+  { data: BodyType<AnalyzeScanRequest> },
+  TContext
+> => {
+  return useMutation(getAnalyzeScanMutationOptions(options));
+};

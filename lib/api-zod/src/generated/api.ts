@@ -14,3 +14,67 @@ import * as zod from "zod";
 export const HealthCheckResponse = zod.object({
   status: zod.string(),
 });
+
+/**
+ * @summary Analyze a drink image using AI
+ */
+export const AnalyzeScanBody = zod.object({
+  imageBase64: zod.string(),
+});
+
+export const analyzeScanResponseImpactScoreMin = 0;
+export const analyzeScanResponseImpactScoreMax = 100;
+
+export const analyzeScanResponseHydrationLevelMin = 0;
+export const analyzeScanResponseHydrationLevelMax = 100;
+
+export const AnalyzeScanResponse = zod.object({
+  id: zod.string(),
+  detectedProduct: zod.string(),
+  brand: zod.string().nullish(),
+  category: zod.string(),
+  impactScore: zod
+    .number()
+    .min(analyzeScanResponseImpactScoreMin)
+    .max(analyzeScanResponseImpactScoreMax),
+  hydrationLevel: zod
+    .number()
+    .min(analyzeScanResponseHydrationLevelMin)
+    .max(analyzeScanResponseHydrationLevelMax),
+  glycemicImpact: zod.enum(["low", "moderate", "high", "very_high"]),
+  status: zod.enum(["optimal", "stable", "risky", "damaging"]),
+  aiInsight: zod.string(),
+  viralStatement: zod.string(),
+  shortTermImpact: zod.object({
+    energyResponse: zod.string(),
+    bloodSugarResponse: zod.string(),
+    bodyReaction: zod.string(),
+    hydrationImpact: zod.string(),
+  }),
+  mediumTermImpact: zod.object({
+    energyStability: zod.string(),
+    physicalChanges: zod.string(),
+    habitRisk: zod.string(),
+    sleepQuality: zod.string(),
+  }),
+  longTermImpact: zod.object({
+    healthTrend: zod.string(),
+    metabolicImpact: zod.string(),
+    riskAccumulation: zod.string(),
+    nutritionalBalance: zod.string(),
+  }),
+  composition: zod.object({
+    calories: zod.number(),
+    sugarGrams: zod.number(),
+    caffeineMg: zod.number(),
+    additives: zod.array(zod.string()),
+    ingredients: zod.array(
+      zod.object({
+        name: zod.string(),
+        function: zod.string(),
+        healthRole: zod.enum(["positive", "neutral", "concerning"]),
+        riskLevel: zod.enum(["low", "medium", "high"]),
+      }),
+    ),
+  }),
+});
