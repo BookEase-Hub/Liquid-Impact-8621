@@ -24,7 +24,6 @@ function InitialLayout() {
 
   useEffect(() => {
     if (state.hasOnboarded === null) return;
-    const inTabs = segments[0] === "(tabs)";
     const inOnboarding = segments[0] === "onboarding";
 
     if (!state.hasOnboarded && !inOnboarding) {
@@ -40,19 +39,15 @@ function InitialLayout() {
       <Stack.Screen name="onboarding" options={{ headerShown: false }} />
       <Stack.Screen
         name="report"
-        options={{
-          headerShown: false,
-          presentation: "modal",
-          animation: "slide_from_bottom",
-        }}
+        options={{ headerShown: false, presentation: "modal", animation: "slide_from_bottom" }}
       />
       <Stack.Screen
         name="paywall"
-        options={{
-          headerShown: false,
-          presentation: "modal",
-          animation: "slide_from_bottom",
-        }}
+        options={{ headerShown: false, presentation: "modal", animation: "slide_from_bottom" }}
+      />
+      <Stack.Screen
+        name="settings"
+        options={{ headerShown: false, animation: "slide_from_right" }}
       />
       <Stack.Screen name="+not-found" />
     </Stack>

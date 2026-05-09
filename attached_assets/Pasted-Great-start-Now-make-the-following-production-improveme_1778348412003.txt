@@ -1,0 +1,107 @@
+Great start! Now make the following production improvements:
+
+1. Fix Zod/v4 import issue permanently (use Zod v3 or remove if causing problems)
+2. Add proper error handling and loading states everywhere (especially scan flow)
+3. Implement Clerk authentication fully (signup, login, protected routes)
+4. Add Supabase or better PostgreSQL connection with Drizzle schema + RLS
+5. Replace mock data with real database calls
+6. Add image upload to Supabase Storage (or Replit storage) before sending to GPT-4o
+7. Improve AI prompt for more accurate drink analysis (include the detailed models from original Swift code)
+8. Add RevenueCat integration for subscriptions (Free/Pro/Elite)
+9. Implement push notifications
+10. Add deep linking and proper navigation (use Expo Router)
+
+Also generate:
+- Proper database schema (users, scans, compositions, ingredients, reports, streaks, missions, subscriptions)
+- All missing API routes
+- Polish UI to match the original beautiful glassmorphism + cyan/purple aesthetic
+Fix the FontFaceObserver timeout error (6000ms timeout exceeded). 
+
+This is happening because of font loading. Please:
+1. Disable or remove FontFaceObserver if not necessary
+2. Use Expo's built-in font loading with useFonts and SplashScreen
+3. Make sure all custom fonts are properly loaded using @expo-google-fonts or local fonts
+4. Add proper error handling so font loading failure doesn't crash the app
+
+Also, make the app more stable on web preview.
+The AI drink analysis is not accurate yet. When I scanned oil, it thought it was tea or herbal infusion.
+
+Improve the GPT-4o prompt and analysis logic immediately:
+
+1. Make the system prompt much more robust for ANY liquid in a bottle/container (including oils, vinegars, syrups, etc.)
+2. Add clear instructions to detect if it's a beverage vs cooking oil vs other liquids.
+3. Improve structured JSON output with better fields.
+4. Add fallback logic if confidence is low.
+5. Show me the current /api/scans/analyze code so I can review it.
+
+Then test with olive oil or cooking oil image.
+Fix the AI analysis logic:
+
+The app should primarily analyze beverages/drinks, but gracefully handle other liquids like cooking oils, vinegars, syrups, etc.
+
+Update the GPT-4o system prompt with these instructions:
+- First determine if it's a beverage/drink or a cooking/condiment liquid.
+- If it's cooking oil, clearly state it's not meant for drinking and give appropriate health notes (e.g., high calorie density, not for hydration, etc.).
+- Improve category detection: beverage vs non-beverage liquid.
+- Make the response more accurate for oils.
+
+Show me the updated analyze route code after changing it.
+The AI analysis has low accuracy. Example: scanning olive oil or cooking oil returns "tea" or "herbal infusion".
+
+Fix this immediately by updating the system prompt in the /api/scans/analyze route.
+
+Use this improved system prompt:
+
+"""
+You are an expert beverage and liquid analyst specializing in health and nutrition.
+
+Analyze the image and first determine:
+1. Is this a drink/beverage meant for consumption? (water, soda, juice, tea, coffee, energy drink, milk, etc.)
+2. Or is it a cooking liquid / condiment? (olive oil, vegetable oil, vinegar, syrup, etc.)
+
+Then return a detailed JSON with this exact structure:
+
+{
+  "detectedProduct": "string",
+  "category": "beverage" | "cooking_oil" | "condiment" | "other",
+  "impactScore": number (0-100),
+  "status": "optimal" | "stable" | "risky" | "damaging",
+  "hydrationLevel": number (0-100),
+  "glycemicImpact": "low" | "medium" | "high",
+  "shortTerm": "string",
+  "mediumTerm": "string",
+  "longTerm": "string",
+  "keyIngredients": ["array of strings"],
+  "aiInsight": "string",
+  "confidence": number (0-1)
+}
+
+If it's cooking oil or not meant for drinking, clearly state that in the insight and lower the hydration score significantly. Be precise and realistic.
+"""
+
+Replace the current prompt with this one. Then show me the full updated analyze route code.
+Test it again with an oil image.
+
+Review and improve the ProfileScreen.tsx, NotificationsScreen.tsx and PrivacyScreen.tsx:
+
+1. Connect them to real data (use a global auth/context instead of mocks)
+2. Add proper loading states
+3. Improve error handling
+4. Make navigation more robust (add actual screens or use @react-navigation/bottom-tabs)
+5. Add real auth logout logic
+6. Polish the UI to be even closer to the original SwiftUI glassmorphism + cyan/purple gradient feel
+7. Add skeleton loaders for stats
+
+Keep the beautiful dark theme and glass effect.
+Review the full Liquid Impact SwiftUI codebase I just provided.
+
+It is very comprehensive. Now complete it by:
+
+1. Implementing real OpenAI GPT-4o Vision analysis in ScanService.swift (use the strong prompt we discussed earlier)
+2. Connect APIService to Supabase (or keep REST if preferred)
+3. Add RevenueCat integration in Subscription flow
+4. Add proper push notification setup
+5. Polish any remaining screens (especially ReportView and Paywall)
+6. Add loading states and error handling where missing
+
+Confirm when the app is fully production-ready.

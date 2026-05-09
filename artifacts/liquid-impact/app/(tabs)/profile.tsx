@@ -1,20 +1,25 @@
 import React from "react";
-import { ScrollView, Text, TouchableOpacity, View, Alert } from "react-native";
+import { ScrollView, Text, TouchableOpacity, View } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { useColors } from "@/hooks/useColors";
-import { useApp } from "@/context/AppContext";
-import { GlassCard } from "@/components/ui";
+import { useApp, SUBSCRIPTION_LIMITS } from "@/context/AppContext";
+import { GlassCard, MissionRow, SectionHeader } from "@/components/ui";
+
+function tierIcon(tier: string): keyof typeof Ionicons.glyphMap {
+  switch (tier) {
+    case "starter": return "flash";
+    case "pro": return "trophy";
+    case "elite": return "sparkles";
+    case "family": return "people";
+    default: return "water-outline";
+  }
+}
 
 function SettingRow({
-  icon,
-  iconColor,
-  title,
-  subtitle,
-  onPress,
-  badge,
+  icon, iconColor, title, subtitle, onPress, badge,
 }: {
   icon: keyof typeof Ionicons.glyphMap;
   iconColor: string;
@@ -25,50 +30,17 @@ function SettingRow({
 }) {
   const colors = useColors();
   return (
-    <TouchableOpacity
-      onPress={onPress}
-      activeOpacity={0.7}
-      style={{
-        flexDirection: "row",
-        alignItems: "center",
-        gap: 14,
-        paddingVertical: 14,
-      }}
-    >
-      <View
-        style={{
-          width: 40,
-          height: 40,
-          borderRadius: 12,
-          backgroundColor: `${iconColor}18`,
-          justifyContent: "center",
-          alignItems: "center",
-        }}
-      >
+    <TouchableOpacity onPress={onPress} activeOpacity={0.7} style={{ flexDirection: "row", alignItems: "center", gap: 14, paddingVertical: 14 }}>
+      <View style={{ width: 40, height: 40, borderRadius: 12, backgroundColor: `${iconColor}18`, justifyContent: "center", alignItems: "center" }}>
         <Ionicons name={icon} size={18} color={iconColor} />
       </View>
       <View style={{ flex: 1 }}>
-        <Text style={{ color: colors.foreground, fontSize: 15, fontWeight: "600" }}>
-          {title}
-        </Text>
-        {subtitle && (
-          <Text style={{ color: colors.mutedForeground, fontSize: 12, marginTop: 1 }}>
-            {subtitle}
-          </Text>
-        )}
+        <Text style={{ color: colors.foreground, fontSize: 15, fontWeight: "600" }}>{title}</Text>
+        {subtitle && <Text style={{ color: colors.mutedForeground, fontSize: 12, marginTop: 1 }}>{subtitle}</Text>}
       </View>
       {badge && (
-        <View
-          style={{
-            paddingHorizontal: 8,
-            paddingVertical: 3,
-            borderRadius: 8,
-            backgroundColor: `${colors.primary}18`,
-          }}
-        >
-          <Text style={{ color: colors.primary, fontSize: 11, fontWeight: "700" }}>
-            {badge}
-          </Text>
+        <View style={{ paddingHorizontal: 8, paddingVertical: 3, borderRadius: 8, backgroundColor: `${colors.primary}18` }}>
+          <Text style={{ color: colors.primary, fontSize: 11, fontWeight: "700" }}>{badge}</Text>
         </View>
       )}
       <Ionicons name="chevron-forward" size={16} color={colors.mutedForeground} />
@@ -78,38 +50,27 @@ function SettingRow({
 
 function Divider() {
   const colors = useColors();
-  return (
-    <View
-      style={{
-        height: 1,
-        backgroundColor: colors.border,
-        marginLeft: 54,
-      }}
-    />
-  );
+  return <View style={{ height: 1, backgroundColor: colors.border, marginLeft: 54 }} />;
 }
 
 export default function ProfileScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const router = useRouter();
-  const { state, avgScore } = useApp();
+  const { state, avgScore, xpTotal, todayScanCount, monthScanCount } = useApp();
 
-  const tierLabel =
-    state.subscription === "free"
-      ? "Free"
-      : state.subscription === "starter"
-      ? "Starter"
-      : state.subscription === "pro"
-      ? "Pro"
-      : "Elite";
+  const tierInfo = SUBSCRIPTION_LIMITS[state.subscription];
+  const tc = (() => {
+    switch (state.subscription) {
+      case "starter": return colors.primary;
+      case "pro": return colors.secondary;
+      case "elite": return "#FFD700";
+      case "family": return "#FF6B9D";
+      default: return colors.mutedForeground;
+    }
+  })();
 
-  const tierColor =
-    state.subscription === "free"
-      ? colors.mutedForeground
-      : state.subscription === "elite"
-      ? "#FFD700"
-      : colors.primary;
+  const completedMissions = state.missions.filter((m) => m.completed).length;
 
   return (
     <View style={{ flex: 1, backgroundColor: colors.background }}>
@@ -119,222 +80,135 @@ export default function ProfileScreen() {
           paddingTop: insets.top + 16,
           paddingBottom: insets.bottom + 100,
           paddingHorizontal: 20,
-          gap: 24,
+          gap: 22,
         }}
       >
-        {/* Avatar */}
-        <View style={{ alignItems: "center", gap: 12, paddingTop: 8 }}>
-          <View style={{ borderRadius: 52, overflow: "hidden", padding: 3 }}>
-            <LinearGradient
-              colors={["#00B4D8", "#7B2CBF"]}
-              style={{
-                width: 96,
-                height: 96,
-                borderRadius: 48,
-                justifyContent: "center",
-                alignItems: "center",
-              }}
-            >
+        {/* Avatar + Name */}
+        <View style={{ alignItems: "center", gap: 14, paddingTop: 8 }}>
+          <View style={{ padding: 3, borderRadius: 52, overflow: "hidden" }}>
+            <LinearGradient colors={["#00B4D8", "#7B2CBF"]}
+              style={{ width: 96, height: 96, borderRadius: 48, justifyContent: "center", alignItems: "center" }}>
               <Ionicons name="person" size={44} color="#fff" />
             </LinearGradient>
           </View>
-          <View style={{ alignItems: "center" }}>
-            <Text
-              style={{
-                color: colors.foreground,
-                fontSize: 20,
-                fontWeight: "800",
-                fontFamily: "Inter_700Bold",
-              }}
-            >
+          <View style={{ alignItems: "center", gap: 6 }}>
+            <Text style={{ color: colors.foreground, fontSize: 22, fontWeight: "800", fontFamily: "Inter_700Bold" }}>
               Health Explorer
             </Text>
-            <View
-              style={{
-                flexDirection: "row",
-                alignItems: "center",
-                gap: 4,
-                marginTop: 4,
-                paddingHorizontal: 12,
-                paddingVertical: 4,
-                borderRadius: 10,
-                backgroundColor: `${tierColor}18`,
-              }}
-            >
-              <Ionicons
-                name={state.subscription === "free" ? "person-outline" : "crown"}
-                size={12}
-                color={tierColor}
-              />
-              <Text style={{ color: tierColor, fontSize: 12, fontWeight: "700" }}>
-                {tierLabel} Plan
-              </Text>
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 14, paddingVertical: 5, borderRadius: 12, backgroundColor: `${tc}14`, borderWidth: 1, borderColor: `${tc}25` }}>
+              <Ionicons name={tierIcon(state.subscription)} size={13} color={tc} />
+              <Text style={{ color: tc, fontSize: 13, fontWeight: "700" }}>{tierInfo.label} Plan</Text>
             </View>
+            {xpTotal > 0 && (
+              <Text style={{ color: colors.mutedForeground, fontSize: 12 }}>{xpTotal} XP earned today</Text>
+            )}
           </View>
         </View>
 
-        {/* Stats */}
-        <View style={{ flexDirection: "row", gap: 10 }}>
+        {/* Stats Row */}
+        <View style={{ flexDirection: "row", gap: 8 }}>
           {[
             { label: "Total Scans", value: String(state.scans.length), color: colors.primary },
             { label: "Day Streak", value: `${state.streak}`, color: colors.scoreMedium },
             { label: "Avg Score", value: avgScore > 0 ? String(avgScore) : "—", color: colors.scoreHigh },
             { label: "Best Streak", value: `${state.longestStreak}`, color: colors.secondary },
           ].map((s) => (
-            <View
-              key={s.label}
-              style={{
-                flex: 1,
-                backgroundColor: colors.backgroundSecondary,
-                borderRadius: 16,
-                padding: 10,
-                alignItems: "center",
-                gap: 4,
-                borderWidth: 1,
-                borderColor: colors.border,
-              }}
-            >
-              <Text
-                style={{
-                  color: s.color,
-                  fontSize: 20,
-                  fontWeight: "800",
-                  fontFamily: "Inter_700Bold",
-                }}
-              >
-                {s.value}
-              </Text>
-              <Text style={{ color: colors.mutedForeground, fontSize: 9, textAlign: "center" }}>
-                {s.label}
-              </Text>
+            <View key={s.label} style={{ flex: 1, backgroundColor: colors.backgroundSecondary, borderRadius: 16, padding: 10, alignItems: "center", gap: 4, borderWidth: 1, borderColor: colors.border }}>
+              <Text style={{ color: s.color, fontSize: 20, fontWeight: "800", fontFamily: "Inter_700Bold" }}>{s.value}</Text>
+              <Text style={{ color: colors.mutedForeground, fontSize: 9, textAlign: "center" }}>{s.label}</Text>
             </View>
           ))}
         </View>
 
-        {/* Upgrade card (if free) */}
-        {state.subscription === "free" && (
-          <TouchableOpacity
-            onPress={() => router.push("/paywall")}
-            activeOpacity={0.85}
-            style={{ borderRadius: 24, overflow: "hidden" }}
-          >
-            <LinearGradient
-              colors={["rgba(0,180,216,0.15)", "rgba(123,44,191,0.15)"]}
-              style={{
-                padding: 20,
-                flexDirection: "row",
-                alignItems: "center",
-                gap: 14,
-                borderRadius: 24,
-                borderWidth: 1,
-                borderColor: `${colors.primary}30`,
-              }}
+        {/* Subscription info */}
+        <GlassCard style={{ borderColor: `${tc}25` }}>
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 14 }}>
+            <View style={{ width: 52, height: 52, borderRadius: 16, backgroundColor: `${tc}14`, justifyContent: "center", alignItems: "center", borderWidth: 1, borderColor: `${tc}25` }}>
+              <Ionicons name={tierIcon(state.subscription)} size={24} color={tc} />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={{ color: colors.foreground, fontSize: 16, fontWeight: "800", fontFamily: "Inter_700Bold" }}>
+                {tierInfo.label} Plan
+              </Text>
+              <Text style={{ color: colors.mutedForeground, fontSize: 12, marginTop: 2 }}>
+                {tierInfo.daily !== null
+                  ? `${todayScanCount}/${tierInfo.daily} scans today`
+                  : tierInfo.monthly !== null
+                  ? `${monthScanCount}/${tierInfo.monthly} scans this month`
+                  : "Unlimited scans"}
+              </Text>
+            </View>
+            <TouchableOpacity
+              onPress={() => router.push("/paywall")}
+              style={{ paddingHorizontal: 14, paddingVertical: 8, borderRadius: 12, backgroundColor: colors.primaryDim, borderWidth: 1, borderColor: `${colors.primary}30` }}
             >
-              <View
-                style={{
-                  width: 48,
-                  height: 48,
-                  borderRadius: 14,
-                  backgroundColor: "rgba(255,215,0,0.15)",
-                  justifyContent: "center",
-                  alignItems: "center",
-                }}
-              >
-                <Ionicons name="crown" size={22} color="#FFD700" />
+              <Text style={{ color: colors.primary, fontSize: 13, fontWeight: "700" }}>
+                {state.subscription === "free" ? "Upgrade" : "Manage"}
+              </Text>
+            </TouchableOpacity>
+          </View>
+        </GlassCard>
+
+        {/* Upgrade card (free only) */}
+        {state.subscription === "free" && (
+          <TouchableOpacity onPress={() => router.push("/paywall")} activeOpacity={0.85} style={{ borderRadius: 24, overflow: "hidden" }}>
+            <LinearGradient
+              colors={["rgba(0,180,216,0.12)", "rgba(123,44,191,0.12)"]}
+              style={{ padding: 20, flexDirection: "row", alignItems: "center", gap: 14, borderRadius: 24, borderWidth: 1, borderColor: `${colors.primary}25` }}
+            >
+              <View style={{ width: 48, height: 48, borderRadius: 14, backgroundColor: "rgba(255,215,0,0.15)", justifyContent: "center", alignItems: "center" }}>
+                <Ionicons name="trophy" size={22} color="#FFD700" />
               </View>
               <View style={{ flex: 1 }}>
-                <Text
-                  style={{
-                    color: colors.foreground,
-                    fontSize: 15,
-                    fontWeight: "700",
-                    fontFamily: "Inter_700Bold",
-                  }}
-                >
-                  Upgrade to Pro
-                </Text>
-                <Text style={{ color: colors.mutedForeground, fontSize: 12, marginTop: 2 }}>
-                  Unlimited scans + full analysis
-                </Text>
+                <Text style={{ color: colors.foreground, fontSize: 15, fontWeight: "700", fontFamily: "Inter_700Bold" }}>Upgrade to Pro</Text>
+                <Text style={{ color: colors.mutedForeground, fontSize: 12, marginTop: 2 }}>Unlimited scans + full analysis from $7.99/mo</Text>
               </View>
               <Ionicons name="chevron-forward" size={16} color={colors.primary} />
             </LinearGradient>
           </TouchableOpacity>
         )}
 
-        {/* Missions summary */}
-        <GlassCard>
-          <Text
-            style={{
-              color: colors.foreground,
-              fontSize: 16,
-              fontWeight: "700",
-              fontFamily: "Inter_700Bold",
-              marginBottom: 12,
-            }}
-          >
-            Today's Missions
-          </Text>
+        {/* Missions */}
+        <View style={{ gap: 12 }}>
+          <SectionHeader
+            title="Daily Missions"
+            action={{ label: `${completedMissions}/${state.missions.length} done`, onPress: () => {} }}
+          />
           {state.missions.map((m) => (
-            <View
-              key={m.id}
-              style={{
-                flexDirection: "row",
-                alignItems: "center",
-                gap: 10,
-                paddingVertical: 6,
-              }}
-            >
-              <Ionicons
-                name={m.completed ? "checkmark-circle" : "radio-button-off"}
-                size={20}
-                color={m.completed ? colors.success : colors.mutedForeground}
-              />
-              <Text
-                style={{
-                  flex: 1,
-                  color: m.completed ? colors.success : colors.subtext,
-                  fontSize: 13,
-                  fontWeight: m.completed ? "700" : "500",
-                  textDecorationLine: m.completed ? "line-through" : "none",
-                }}
-              >
-                {m.title}
-              </Text>
-              <Text style={{ color: colors.mutedForeground, fontSize: 11 }}>
-                +{m.xp} XP
-              </Text>
-            </View>
+            <MissionRow key={m.id} mission={m} />
           ))}
-        </GlassCard>
+        </View>
 
         {/* Settings */}
         <GlassCard padding={4}>
           <View style={{ paddingHorizontal: 12 }}>
             <SettingRow
-              icon="notifications"
+              icon="settings"
               iconColor={colors.primary}
+              title="Settings"
+              subtitle="Preferences, privacy, account"
+              onPress={() => router.push("/settings")}
+            />
+            <Divider />
+            <SettingRow
+              icon="notifications"
+              iconColor={colors.secondary}
               title="Notifications"
-              subtitle="Daily reminders and insights"
+              subtitle="Reminders and insights"
+              onPress={() => router.push("/settings")}
             />
             <Divider />
             <SettingRow
               icon="shield-checkmark"
-              iconColor={colors.secondary}
-              title="Privacy"
-              subtitle="Data and permissions"
+              iconColor={colors.scoreHigh}
+              title="Privacy & Data"
+              onPress={() => router.push("/settings")}
             />
             <Divider />
             <SettingRow
               icon="help-circle"
               iconColor={colors.scoreMedium}
               title="Help & Support"
-            />
-            <Divider />
-            <SettingRow
-              icon="document-text"
-              iconColor={colors.scoreHigh}
-              title="Terms of Service"
             />
             <Divider />
             <SettingRow
@@ -346,15 +220,8 @@ export default function ProfileScreen() {
           </View>
         </GlassCard>
 
-        {/* Version */}
-        <Text
-          style={{
-            color: colors.mutedForeground,
-            fontSize: 12,
-            textAlign: "center",
-          }}
-        >
-          Liquid Impact v1.0.0
+        <Text style={{ color: colors.mutedForeground, fontSize: 12, textAlign: "center" }}>
+          Liquid Impact v1.0.0 · Made with AI ✨
         </Text>
       </ScrollView>
     </View>
