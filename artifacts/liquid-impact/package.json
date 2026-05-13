@@ -54,5 +54,9 @@
     "typescript": "~5.9.2",
     "zod": "catalog:",
     "zod-validation-error": "^3.4.0"
+  },
+  "dependencies": {
+    "react-native-purchases": "^10.1.0",
+    "zustand": "^5.0.13"
   }
 }
