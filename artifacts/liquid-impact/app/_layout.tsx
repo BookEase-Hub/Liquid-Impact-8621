@@ -14,6 +14,7 @@ import { SafeAreaProvider } from "react-native-safe-area-context";
 
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { AppProvider, useApp } from "@/context/AppContext";
+import { useAuthStore } from "@/features/auth/store";
 
 SplashScreen.preventAutoHideAsync();
 
@@ -21,21 +22,46 @@ function InitialLayout() {
   const { state } = useApp();
   const segments = useSegments();
   const router = useRouter();
+  const { user, initialized, initialize, cleanup } = useAuthStore();
+
+  // Initialize auth session once on mount
+  useEffect(() => {
+    initialize();
+    return () => cleanup();
+  }, []);
 
   useEffect(() => {
-    if (state.hasOnboarded === null) return;
-    const inOnboarding = segments[0] === "onboarding";
+    // Wait for both auth and app state to resolve before routing
+    if (!initialized || state.hasOnboarded === null) return;
 
-    if (!state.hasOnboarded && !inOnboarding) {
-      router.replace("/onboarding");
-    } else if (state.hasOnboarded && inOnboarding) {
-      router.replace("/(tabs)");
+    const seg0 = segments[0] as string | undefined;
+    const inAuth = seg0 === "auth";
+    const inOnboarding = seg0 === "onboarding";
+    const inTabs = seg0 === "(tabs)";
+
+    // Not authenticated → send to auth
+    if (!user && !inAuth) {
+      router.replace("/auth" as never);
+      return;
     }
-  }, [state.hasOnboarded, segments]);
+
+    // Authenticated but not onboarded → onboarding
+    if (user && !state.hasOnboarded && !inOnboarding) {
+      router.replace("/onboarding");
+      return;
+    }
+
+    // Authenticated + onboarded + on auth or onboarding screen → main app
+    if (user && state.hasOnboarded && (inAuth || inOnboarding)) {
+      router.replace("/(tabs)");
+      return;
+    }
+  }, [user, initialized, state.hasOnboarded, segments]);
 
   return (
     <Stack screenOptions={{ headerShown: false, animation: "fade" }}>
       <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+      <Stack.Screen name="auth" options={{ headerShown: false }} />
       <Stack.Screen name="onboarding" options={{ headerShown: false }} />
       <Stack.Screen
         name="report"

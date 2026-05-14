@@ -1,0 +1,376 @@
+⚠️ CRITICAL FIXES STILL NEEDED
+These matter.
+🚨 1. Syntax Errors Exist In Your Code
+You accidentally lost some object destructuring.
+You wrote:
+TypeScript
+const {  { session } } = await supabase.auth.getSession();
+Correct:
+TypeScript
+const { data: { session } } = await supabase.auth.getSession();
+AND:
+You wrote:
+TypeScript
+const {  { subscription } } = supabase.auth.onAuthStateChange(...)
+Correct:
+TypeScript
+const { data: { subscription } } = supabase.auth.onAuthStateChange(...)
+AND:
+You wrote:
+TypeScript
+options: {
+   { display_name: displayName },
+},
+Correct:
+TypeScript
+options: {
+  data: {
+    display_name: displayName,
+  },
+},
+These are compile-breaking errors.
+🚨 2. initialize() Returning Cleanup Function Is Wrong
+Inside Zustand store:
+TypeScript
+initialize: async () => {
+  return () => subscription.unsubscribe();
+}
+This cleanup function will never properly execute because Zustand actions are not React effects.
+Instead:
+Store the subscription globally or create a dedicated cleanup method.
+Correct pattern:
+TypeScript
+let authSubscription: any;
+
+initialize: async () => {
+  authSubscription = supabase.auth.onAuthStateChange(...);
+},
+
+cleanup: () => {
+  authSubscription?.data.subscription.unsubscribe();
+}
+This is important.
+🚨 3. Google OAuth IDs Are Wrong
+You used:
+TypeScript
+expoClientId: process.env.EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID,
+This is incorrect.
+You need separate IDs:
+Expo client ID
+iOS client ID
+Android client ID
+Web client ID
+Correct structure:
+TypeScript
+expoClientId
+iosClientId
+androidClientId
+webClientId
+Google OAuth becomes unstable otherwise.
+🚨 4. Apple Sign-In Requires Real Device
+Apple auth:
+TypeScript
+expo-apple-authentication
+will NOT work:
+Android emulator
+iOS simulator
+Only:
+physical iPhone/iPad
+Important for testing.
+🚨 5. Missing Refresh Token Recovery Handling
+You should also listen for:
+TypeScript
+TOKEN_REFRESHED
+SIGNED_OUT
+USER_UPDATED
+inside:
+TypeScript
+onAuthStateChange
+especially for long-lived sessions.
+🚨 6. Your Scan History JSONB Needs Structure
+This:
+SQL
+analysis jsonb
+works.
+But eventually you should standardize it:
+JSON
+{
+  "score": 82,
+  "sugar": 14,
+  "caffeine": 120,
+  "warnings": [],
+  "ingredients": []
+}
+because random JSON structures become hard to query later.
+🚨 7. Missing Database Constraints
+You should add:
+SQL
+check (subscription_tier in ('free','pro','elite'))
+AND:
+SQL
+check (subscription_status in ('active','expired','grace_period','billing_retry'))
+This prevents corrupted database values.
+🚨 8. You Still Need RevenueCat Webhooks
+Right now: your database is auth-ready.
+But subscription syncing still requires:
+RevenueCat webhooks
+Supabase Edge Functions or backend API
+entitlement syncing
+Otherwise: subscription states can become inconsistent.
+🚨 9. Google Play + Apple Store Still Need Native Setup
+Even with this code: you still must configure:
+Android
+SHA-1 fingerprints
+google-services.json
+OAuth credentials
+package name matching
+iOS
+Apple capability
+Sign In with Apple entitlement
+Bundle ID matching
+Associated domains
+Code alone is not enough.
+What Is NOT Fully Built Yet
+The schema is only the foundation.
+You still must build the actual backend logic that USES the schema.
+Think of Prisma schema like:
+the skeleton
+the database blueprint
+the contract
+But not the actual backend brain.
+What Still Needs Real Backend Code
+1. Authentication API Logic
+You still need:
+signup endpoints
+login endpoints
+refresh token handling
+session handling
+OAuth callback handling
+Apple auth verification
+Google auth verification
+password reset flow
+email verification flow
+Your frontend calls these systems.
+2. RevenueCat Webhook Backend
+You already created:
+Prisma
+model WebhookEvent
+But you still need:
+webhook endpoint
+signature verification
+entitlement syncing
+subscription updates
+grace period handling
+cancellation handling
+expiration handling
+Example flow:
+RevenueCat webhook → backend receives event → validates signature → updates Subscription table → updates User access
+That logic still must be coded.
+3. AI Scan Pipeline
+You created:
+Prisma
+Scan
+Composition
+Ingredient
+Report
+AIInsightRecord
+But you still need backend orchestration:
+Image upload → OCR/Vision AI → ingredient extraction → GPT analysis → report generation → save to DB → return frontend payload
+That orchestration layer is one of the hardest parts.
+4. Background Job Workers
+You created:
+Prisma
+BackgroundJob
+But you still need:
+queue processor
+retry system
+worker execution
+delayed jobs
+failed job recovery
+Usually powered by:
+BullMQ
+Redis
+Trigger.dev
+Inngest
+Temporal
+5. Storage System
+You still need:
+image upload backend
+CDN
+image compression
+signed URLs
+cleanup jobs
+Usually:
+Supabase Storage
+Cloudflare R2
+AWS S3
+6. Analytics Engine
+You created analytics tables.
+But you still need logic calculating:
+average impact score
+sugar trends
+hydration trends
+streak logic
+behavioral scoring
+7. Security Layer
+Still required:
+✅ rate limiting
+✅ API validation
+✅ Zod validation
+✅ helmet
+✅ CORS
+✅ bot protection
+✅ abuse throttling
+✅ request logging
+✅ JWT validation
+✅ webhook HMAC validation
+8. Admin Backend
+You created:
+Prisma
+AdminUser
+AdminLog
+But still need:
+admin dashboard
+RBAC permissions
+moderation endpoints
+user banning
+subscription override tools
+9. Production Infrastructure
+Still needed:
+Deployment
+Possible stack:
+Railway
+Render
+Fly.io
+Supabase
+Cloudflare
+Database Hosting
+PostgreSQL hosting
+backups
+monitoring
+failover
+connection pooling
+What You Still Need To Build Yourself
+🚨 1. RevenueCat Webhook Backend
+This is VERY important.
+Your app purchases happen in:
+App Store
+Google Play
+But your database does not magically know subscription changes.
+You still need:
+Plain text
+RevenueCat → webhook → Supabase
+This backend:
+updates subscription status
+updates expiry dates
+handles renewals
+handles cancellations
+handles grace periods
+handles billing retry
+handles refunds
+Without this: your subscription system is incomplete.
+🚨 2. AI Scan Backend
+Your app is:
+AI-powered drink intelligence
+That means eventually you need backend processing for:
+OCR
+AI analysis
+ingredient parsing
+nutrition intelligence
+moderation/safety
+caching
+prompt handling
+This usually becomes:
+Supabase Edge Functions OR
+Node.js backend OR
+Python AI backend
+depending on scale.
+🚨 3. Secure API Layer
+You eventually need:
+rate limiting
+abuse protection
+request validation
+API keys
+anti-spam protection
+especially if AI is expensive.
+🚨 4. Storage Backend
+If users upload:
+drink photos
+barcode images
+avatars
+you still need:
+Supabase Storage buckets
+compression
+upload policies
+CDN setup
+🚨 5. Admin / Analytics Backend
+Eventually you may want:
+user dashboard
+subscription analytics
+scan analytics
+moderation tools
+support tools
+Not necessary initially.
+App Store backend infrastructure
+secure production scaling
+webhook systems
+AI infrastructure
+enterprise DevOps
+Phase 1 — Finish Auth + Database
+You are here now.
+Complete:
+Google auth
+Apple auth
+email verification
+RLS testing
+deep linking
+secure sessions
+Phase 2 — Finish Subscription Infrastructure
+Next most important.
+Build:
+RevenueCat webhooks
+entitlement syncing
+subscription state syncing
+restore purchase handling
+Phase 3 — Build AI Scan Backend
+Then:
+image upload
+AI analysis pipeline
+OCR
+caching
+moderation
+Phase 4 — Production Hardening
+Finally:
+monitoring
+logging
+crash reporting
+analytics
+rate limiting
+admin dashboard
+What about now, should it be like this
+ 
+## 📦 1. Updated Supabase Schema (SQL)
+ 
+*Includes INSERT/DELETE RLS, UNIQUE constraints, indexes, `updated_at` triggers, and expanded subscription columns.*
+ `-- 1. Enhanced Profiles Table   create table public.profiles (     id uuid references auth.users(id) on delete cascade primary key,     email text unique,     display_name text,     avatar_url text,     subscription_tier text default 'free',     subscription_status text default 'active',     subscription_platform text, -- 'apple', 'google', 'stripe', 'promo'     subscription_expires_at timestamptz,     entitlement_id text,     product_id text,     created_at timestamptz default now(),     updated_at timestamptz default now()   );      -- 2. Preferences (UNIQUE user_id constraint added)   create table public.user_preferences (     id uuid primary key default gen_random_uuid(),     user_id uuid unique references public.profiles(id) on delete cascade,     theme text default 'dark',     notifications_enabled boolean default true,     created_at timestamptz default now(),     updated_at timestamptz default now()   );      -- 3. Scan History   create table public.scan_history (     id uuid primary key default gen_random_uuid(),     user_id uuid references public.profiles(id) on delete cascade,     drink_name text,     analysis jsonb,     created_at timestamptz default now()   );      -- 4. Indexes for Performance   create index idx_scan_history_user_id on public.scan_history(user_id);   create index idx_scan_history_created_at on public.scan_history(created_at desc);      -- 5. Row Level Security (RLS) - COMPLETE   alter table public.profiles enable row level security;   alter table public.user_preferences enable row level security;   alter table public.scan_history enable row level security;      -- Profiles Policies   create policy "Users can view own profile" on public.profiles for select using (auth.uid() = id);   create policy "Users can update own profile" on public.profiles for update using (auth.uid() = id);   create policy "Users can insert own profile" on public.profiles for insert with check (auth.uid() = id);   create policy "Users can delete own profile" on public.profiles for delete using (auth.uid() = id);      -- Preferences Policies   create policy "Users can view own preferences" on public.user_preferences for select using (auth.uid() = user_id);   create policy "Users can update own preferences" on public.user_preferences for update using (auth.uid() = user_id);   create policy "Users can insert own preferences" on public.user_preferences for insert with check (auth.uid() = user_id);   create policy "Users can delete own preferences" on public.user_preferences for delete using (auth.uid() = user_id);      -- Scan History Policies   create policy "Users can view own scans" on public.scan_history for select using (auth.uid() = user_id);   create policy "Users can insert own scans" on public.scan_history for insert with check (auth.uid() = user_id);   create policy "Users can delete own scans" on public.scan_history for delete using (auth.uid() = user_id);      -- 6. Auto-Create Profile Trigger (Existing + Enhanced)   create or replace function public.handle_new_user()   returns trigger as $$   begin     insert into public.profiles (id, email, display_name)     values (new.id, new.email, new.raw_user_meta_data->>'display_name');     insert into public.user_preferences (user_id)     values (new.id);     return new;   end;   $$ language plpgsql security definer;   create trigger on_auth_user_created after insert on auth.users for each row execute procedure public.handle_new_user();      -- 7. Auto `updated_at` Trigger   create or replace function public.handle_updated_at()   returns trigger as $$   begin     new.updated_at = now();     return new;   end;   $$ language plpgsql;   create trigger set_profiles_updated_at before update on public.profiles for each row execute procedure public.handle_updated_at();   create trigger set_preferences_updated_at before update on public.user_preferences for each row execute procedure public.handle_updated_at();   `  
+## 📱 2. `src/lib/supabase.ts` (Unchanged but production-ready)
+ `import { createClient } from '@supabase/supabase-js';   import * as SecureStore from 'expo-secure-store';   import { Platform } from 'react-native';      const ExpoSecureStoreAdapter = {     getItem: (key: string) => SecureStore.getItemAsync(key),     setItem: (key: string, value: string) => SecureStore.setItemAsync(key, value),     removeItem: (key: string) => SecureStore.deleteItemAsync(key),   };      const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL!;   const supabaseAnonKey = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY!;      export const supabase = createClient(supabaseUrl, supabaseAnonKey, {     auth: {       storage: ExpoSecureStoreAdapter,       autoRefreshToken: true,       persistSession: true,       detectSessionInUrl: false,       flowType: 'pkce',     },   });      export type { User, Session } from '@supabase/supabase-js';   `  
+## 🗃️ 3. `src/store/authStore.ts` (Fixed session leak + email verification guard)
+ `import { create } from 'zustand';   import { User, Session } from '@supabase/supabase-js';   import { supabase } from '@/lib/supabase';   import { Alert } from 'react-native';      interface AuthState {     user: User | null;     session: Session | null;     loading: boolean;     initialized: boolean;     setSession: (session: Session | null) => void;     signOut: () => Promise<void>;     initialize: () => Promise<void>;   }      export const useAuthStore = create<AuthState>((set) => ({     user: null,     session: null,     loading: true,     initialized: false,        setSession: (session) => set({ session, user: session?.user ?? null }),        signOut: async () => {       await supabase.auth.signOut();       set({ session: null, user: null });     },        initialize: async () => {       try {         set({ loading: true });         const {  { session } } = await supabase.auth.getSession();                  // Email verification guard         if (session?.user && !session.user.email_confirmed_at) {           Alert.alert('Verify Email', 'Please check your inbox and click the verification link before continuing.');           set({ loading: false, initialized: true });           return;         }            set({ session, user: session?.user ?? null, initialized: true });            // ✅ FIX: Properly unsubscribe to prevent memory leaks         const {  { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {           set({ session, user: session?.user ?? null });         });            // Cleanup on store reset/app unmount         return () => subscription.unsubscribe();       } catch (error) {         console.error('Auth initialization error:', error);         set({ initialized: true });       } finally {         set({ loading: false });       }     },   }));   `  
+## 🔗 4. `src/hooks/useGoogleAuth.ts` (New: Correct Hook Architecture)
+ 
+*Hooks cannot live in static classes. This custom hook safely manages the OAuth flow.*
+ `import { useEffect } from 'react';   import * as Google from 'expo-auth-session/providers/google';   import { makeRedirectUri } from 'expo-linking';   import { supabase } from '@/lib/supabase';   import { useRouter } from 'expo-router';      export function useGoogleAuth() {     const router = useRouter();     const redirectUri = makeRedirectUri({ scheme: 'liquidimpact' });        const [request, response, promptAsync] = Google.useAuthRequest({       expoClientId: process.env.EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID,       iosClientId: process.env.EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID,       androidClientId: process.env.EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID,       redirectUri,     });        useEffect(() => {       if (response?.type === 'success') {         const { id_token } = response.params;         handleGoogleLogin(id_token);       }     }, [response]);        const handleGoogleLogin = async (id_token: string) => {       try {         const { data, error } = await supabase.auth.signInWithIdToken({           provider: 'google',           token: id_token,         });         if (error) throw error;         // Supabase OAuth auto-verifies, but guard just in case         if (data.user?.email && !data.user.email_confirmed_at) return;         router.replace('/(app)');       } catch (error: any) {         console.error('Google auth failed:', error.message);         // Handle UI error via context/store       }     };        return { promptAsync, request, loading: false };   }   `  
+## 🛠️ 5. `src/services/auth.service.ts` (Cleaned: No hooks inside classes)
+ `import { supabase } from '@/lib/supabase';   import { LoginData, RegisterData } from '@/validation/auth';   import * as AppleAuthentication from 'expo-apple-authentication';   import Crypto from 'expo-crypto';   import { Platform } from 'react-native';      export class AuthService {     static async signIn({ email, password }: LoginData) {       const { data, error } = await supabase.auth.signInWithPassword({ email, password });       if (error) throw error;       // Email verification check       if (data.user && !data.user.email_confirmed_at) {         throw new Error('Please verify your email address before signing in.');       }       return data;     }        static async signUp({ email, password, displayName }: RegisterData) {       const { data, error } = await supabase.auth.signUp({         email,         password,         options: {            { display_name: displayName },         },       });       if (error) throw error;       return data;     }        static async signInWithApple() {       if (Platform.OS !== 'ios') throw new Error('Apple Sign In is only available on iOS');          const nonce = Math.random().toString(36).substring(2, 10);       const hashedNonce = await Crypto.digestStringAsync(         Crypto.CryptoDigestAlgorithm.SHA256,         nonce       );          const credential = await AppleAuthentication.signInAsync({         requestedScopes: [AppleAuthentication.AppleAuthenticationScope.FULL_NAME, AppleAuthentication.AppleAuthenticationScope.EMAIL],         nonce: hashedNonce,       });          const { data, error } = await supabase.auth.signInWithIdToken({         provider: 'apple',         token: credential.identityToken!,         nonce,       });          if (error) throw error;       return data;     }        static async resetPassword(email: string) {       const { error } = await supabase.auth.resetPasswordForEmail(email);       if (error) throw error;     }   }   `  
+## 📝 6. `src/screens/AuthScreen.tsx` (Updated to use `useGoogleAuth`)
+ `import React, { useState, useEffect } from 'react';   import {     View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, KeyboardAvoidingView, Platform   } from 'react-native';   import { useSafeAreaInsets } from 'react-native-safe-area-context';   import { useRouter } from 'expo-router';   import { useForm, Controller } from 'react-hook-form';   import { zodResolver } from '@hookform/resolvers/zod';   import * as Haptics from 'expo-haptics';      import { AuthService } from '@/services/auth.service';   import { useAuthStore } from '@/store/authStore';   import { useGoogleAuth } from '@/hooks/useGoogleAuth';   import { loginSchema, registerSchema, LoginData, RegisterData } from '@/validation/auth';   import { AuthInput } from '../components/AuthInput';   import { AuthButton } from '../components/AuthButton';      export default function AuthScreen() {     const router = useRouter();     const insets = useSafeAreaInsets();     const { initialize, loading: authLoading } = useAuthStore();        const [isSignIn, setIsSignIn] = useState(true);     const [loading, setLoading] = useState(false);     const [error, setError] = useState<string | null>(null);          const { control, handleSubmit, reset, formState: { errors } } = useForm<LoginData | RegisterData>({       resolver: zodResolver(isSignIn ? loginSchema : registerSchema),       defaultValues: { email: '', password: '', displayName: '' },     });        // ✅ Correct Google Auth Hook Usage     const { promptAsync, request, loading: googleLoading } = useGoogleAuth();        useEffect(() => {       initialize();     }, []);        const onSubmit = async (data: LoginData | RegisterData) => {       setLoading(true);       setError(null);       await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);          try {         if (isSignIn) {           await AuthService.signIn(data as LoginData);         } else {           await AuthService.signUp(data as RegisterData);           Alert.alert('Check your email', 'We sent a verification link. Please verify before signing in.');           setIsSignIn(true);         }       } catch (err: any) {         setError(err.message || 'Authentication failed');         await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);       } finally {         setLoading(false);       }     };        const handleAppleSignIn = async () => {       setLoading(true);       setError(null);       await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);       try {         await AuthService.signInWithApple();         router.replace('/(app)');       } catch (err: any) {         if (err.message !== 'Canceled by user') setError(err.message);       } finally { setLoading(false); }     };        const toggleAuthMode = () => {       setIsSignIn(!isSignIn);       reset();       setError(null);       Haptics.selectionAsync();     };        return (       <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1, backgroundColor: '#020617' }}>         <ScrollView contentContainerStyle={{ flexGrow: 1, paddingTop: insets.top + 40, paddingBottom: 40 }} keyboardShouldPersistTaps="handled">           <View style={styles.container}>             {/* Header */}             <View style={styles.header}>               <View style={styles.logoContainer}>                 <Text style={styles.logoEmoji}>💧</Text>               </View>               <Text style={styles.title}>Liquid Impact</Text>               <Text style={styles.subtitle}>AI-Powered Drink Intelligence</Text>             </View>                {/* Form */}             <View style={styles.form}>               {!isSignIn && (                 <Controller control={control} name="displayName" render={({ field: { onChange, value } }) => (                   <AuthInput placeholder="Display Name" value={value} onChangeText={onChange} autoCapitalize="words" error={errors.displayName?.message} />                 )} />               )}               <Controller control={control} name="email" render={({ field: { onChange, value } }) => (                 <AuthInput placeholder="Email" value={value} onChangeText={onChange} keyboardType="email-address" autoCapitalize="none" error={errors.email?.message} />               )} />               <Controller control={control} name="password" render={({ field: { onChange, value } }) => (                 <AuthInput placeholder="Password" value={value} onChangeText={onChange} secureTextEntry error={errors.password?.message} />               )} />                  {error && <View style={styles.errorContainer}><Text style={styles.errorText}>{error}</Text></View>}                  <AuthButton title={isSignIn ? 'Sign In' : 'Create Account'} onPress={handleSubmit(onSubmit as any)} loading={loading} />                  <View style={styles.dividerRow}>                 <View style={styles.dividerLine} />                 <Text style={styles.dividerText}>Or continue with</Text>                 <View style={styles.dividerLine} />               </View>                  <View style={styles.socialRow}>                 <AuthButton title="Apple" variant="secondary" onPress={handleAppleSignIn} loading={loading} />                 <AuthButton                    title="Google"                    variant="secondary"                    onPress={() => promptAsync()}                    loading={googleLoading || !request}                    disabled={!request}                  />               </View>                  <TouchableOpacity onPress={toggleAuthMode} style={styles.toggleContainer}>                 <Text style={styles.toggleText}>                   {isSignIn ? "Don't have an account? " : "Already have an account? "}                   <Text style={styles.toggleLink}>{isSignIn ? 'Sign Up' : 'Sign In'}</Text>                 </Text>               </TouchableOpacity>             </View>                {/* Footer */}             <View style={styles.footer}>               <TouchableOpacity><Text style={styles.footerLink}>Terms</Text></TouchableOpacity>               <TouchableOpacity><Text style={styles.footerLink}>Privacy</Text></TouchableOpacity>             </View>           </View>         </ScrollView>       </KeyboardAvoidingView>     );   }      const styles = StyleSheet.create({     container: { flex: 1, paddingHorizontal: 24, alignItems: 'center' },     header: { alignItems: 'center', marginBottom: 32, marginTop: 20 },     logoContainer: { width: 80, height: 80, borderRadius: 24, alignItems: 'center', justifyContent: 'center', marginBottom: 16, backgroundColor: '#06b6d4', shadowColor: '#06b6d4', shadowOffset: { width: 0, height: 12 }, shadowOpacity: 0.4, shadowRadius: 30 },     logoEmoji: { fontSize: 36 },     title: { fontSize: 28, fontWeight: '800', color: '#fff', letterSpacing: 0.5 },     subtitle: { fontSize: 14, color: 'rgba(255,255,255,0.6)', marginTop: 4 },     form: { width: '100%', maxWidth: 400 },     errorContainer: { backgroundColor: 'rgba(255,61,0,0.1)', padding: 12, borderRadius: 12, marginBottom: 16, borderWidth: 1, borderColor: 'rgba(255,61,0,0.3)' },     errorText: { color: '#FF3D00', fontSize: 13, textAlign: 'center' },     dividerRow: { flexDirection: 'row', alignItems: 'center', marginVertical: 24 },     dividerLine: { flex: 1, height: 1, backgroundColor: 'rgba(255,255,255,0.1)' },     dividerText: { color: 'rgba(255,255,255,0.5)', fontSize: 12, marginHorizontal: 12 },     socialRow: { flexDirection: 'row', gap: 12, marginBottom: 24 },     toggleContainer: { alignItems: 'center', padding: 8 },     toggleText: { color: 'rgba(255,255,255,0.6)', fontSize: 14 },     toggleLink: { color: '#00B4D8', fontWeight: '700' },     footer: { flexDirection: 'row', gap: 24, marginTop: 32 },     footerLink: { color: 'rgba(255,255,255,0.4)', fontSize: 12 },   });   `  
+## ⚙️ 7. `app.json` (Deep Linking & Plugin Config)
+ `{     "expo": {       "name": "Liquid Impact",       "slug": "liquid-impact",       "scheme": "liquidimpact",       "version": "1.0.0",       "orientation": "portrait",       "icon": "./assets/icon.png",       "userInterfaceStyle": "dark",       "splash": { "image": "./assets/splash.png", "resizeMode": "contain", "backgroundColor": "#020617" },       "plugins": [         ["expo-build-properties", { "ios": { "deploymentTarget": "15.1" } }],         ["expo-apple-authentication"],         ["expo-secure-store"]       ],       "android": {         "adaptiveIcon": { "foregroundImage": "./assets/adaptive-icon.png", "backgroundColor": "#020617" },         "package": "com.liquidimpact.app"       },       "ios": {         "bundleIdentifier": "com.liquidimpact.app",         "usesAppleSignIn": true       }     }   }   `  
+## 🛠️ 8. Generate Supabase Types (Run in Terminal)
+ `npx supabase gen types typescript \     --project-id your-supabase-project-id \     > src/types/supabase.ts   ` 
+*Import in your code: `import { Database } from '@/types/supabase';` for 100% type safety on queries.*
+This is now complete for auth backend
+ 
+## 📦 Complete `prisma/schema.prisma`
+ `generator client {     provider        = "prisma-client-js"     previewFeatures = ["fullTextSearch"]   }      datasource db {     provider = "postgresql"     url      = env("DATABASE_URL")   }      // ============================================================   // Enums   // ============================================================      enum SubscriptionTier {     FREE     STARTER     PRO     ELITE     FAMILY   }      enum SubscriptionStatus {     ACTIVE     CANCELED     PAST_DUE     EXPIRED   }      enum BillingCycle {     MONTHLY     YEARLY   }      enum SubscriptionPlatform {     APPLE     GOOGLE     STRIPE     PROMO   }      enum ScanStatus {     OPTIMAL     STABLE     RISKY     DAMAGING   }      enum GlycemicImpact {     LOW     MEDIUM     HIGH   }      enum HealthRole {     POSITIVE     NEUTRAL     CONCERNING   }      enum RiskLevel {     LOW     MEDIUM     HIGH   }      enum MissionType {     SCAN     SUGAR     HYDRATION     WATER_FIRST     CLEAN_DRINK   }      enum UserStage {     WEEK1     WEEK2     VETERAN   }      enum JobStatus {     PENDING     PROCESSING     SUCCESS     FAILED   }      enum AnalysisType {     VISION        // OpenAI Vision     GPT4_REPORT   // GPT-4 report generation     INSIGHT       // Insight engine     MISSION       // Mission update     STREAK        // Streak update   }      // ============================================================   // Core Models   // ============================================================      model User {     id           String    @id @default(cuid())     email        String    @unique     displayName  String?     avatarUrl    String?     provider     String    @default("email") // email, apple, google     createdAt    DateTime  @default(now())     lastLoginAt  DateTime  @default(now())     streak       Int       @default(0)     lastScanDate DateTime?     stage        UserStage @default(WEEK1)        // Relations     scans           Scan[]     subscription    Subscription?     missions        Mission[]     analytics       Analytics?     feedback        UserFeedback[]     adminUser       AdminUser?       // optional – staff/admin     rateLimitLogs   RateLimitLog[]     abuseReports    AbuseReport[]     errorLogs       ErrorLog[]     backgroundJobs  BackgroundJob[]   }      model Subscription {     id                    String              @id @default(cuid())     userId                String              @unique     user                  User                @relation(fields: [userId], references: [id])     tier                  SubscriptionTier    @default(FREE)     status                SubscriptionStatus  @default(ACTIVE)     price                 Decimal             @db.Decimal(10,2) @default(0)     billingCycle          BillingCycle        @default(MONTHLY)     platform              SubscriptionPlatform?     revenueCatCustomerId  String?     storeProductId        String?     storeTransactionId    String?     originalTransactionId String?     currentPeriodStart    DateTime            @default(now())     currentPeriodEnd      DateTime?     canceledAt            DateTime?     createdAt             DateTime            @default(now())     updatedAt             DateTime            @updatedAt   }      model Scan {     id               String         @id @default(cuid())     userId           String     user             User           @relation(fields: [userId], references: [id])     imageUrl         String     detectedProduct  String     brand            String?     category         String     confidenceScore  Float          @default(0.0)     impactScore      Int            @default(0)     hydrationLevel   Int            @default(0)     glycemicImpact   GlycemicImpact @default(LOW)     scannedAt        DateTime       @default(now())     createdAt        DateTime       @default(now())     status           ScanStatus     @default(STABLE)        // Relations     compositionId String?     composition   Composition? @relation(fields: [compositionId], references: [id])     reportId      String?     report        Report?      @relation(fields: [reportId], references: [id])     aiInsightId   String?     aiInsight     AIInsightRecord? @relation(fields: [aiInsightId], references: [id])        // Quick access for analytics (denormalized)     sugarGrams Float?        // Index for fast user scans     @@index([userId, scannedAt(sort: Desc)])   }      model Composition {     id                   String       @id @default(cuid())     calories             Int          @default(0)     sugarGrams           Float        @default(0)     caffeineMg           Float        @default(0)     sodiumMg             Float        @default(0)     fatGrams             Float        @default(0)     proteinGrams         Float        @default(0)     additives            String[]     artificialSweeteners Boolean     @default(false)     servingSize          Float       @default(0)     servingUnit          String      @default("ml")     scan                 Scan?     ingredients          Ingredient[]   }      model Ingredient {     id             String     @id @default(cuid())     name           String     function       String?     healthRole     HealthRole @default(NEUTRAL)     riskLevel      RiskLevel  @default(LOW)     description    String?     aiNote         String?     position       Int        @default(0)     compositionId  String     composition    Composition @relation(fields: [compositionId], references: [id])   }      model Report {     id                      String @id @default(cuid())     shortTermEnergy         String     shortTermBloodSugar     String     shortTermBodyReaction   String     shortTermHydration      String     mediumEnergyStability   String     mediumPhysicalChanges   String     mediumHabitRisk         String     mediumSleepQuality      String     longTermHealthTrend     String     longTermMetabolic       String     longTermRiskAccumulation String     longTermNutritional     String     viralStatement          String     tiktokHook              String     scan                    Scan?   }      model AIInsightRecord {     id      String @id @default(cuid())     insight String     summary String     scan    Scan?   }      model Mission {     id            String      @id @default(cuid())     userId        String     user          User        @relation(fields: [userId], references: [id])     title         String     description   String     type          MissionType @default(SCAN)     target        Int         @default(1)     progress      Int         @default(0)     rewardScore   Int         @default(0)     rewardImpact  Int         @default(0)     rewardText    String?     expiresAt     DateTime     completed     Boolean     @default(false)     completedAt   DateTime?     createdAt     DateTime    @default(now())        @@index([userId, createdAt(sort: Desc)])   }      model Analytics {     id                String   @id @default(cuid())     userId            String   @unique     user              User     @relation(fields: [userId], references: [id])     totalScans        Int      @default(0)     avgImpactScore    Float    @default(0)     avgHydrationLevel Float    @default(0)     weeklySugarTrend  Float    @default(0)     energyCrashRatio  Float    @default(0)     consistencyTrend  Float    @default(0)     updatedAt         DateTime @updatedAt   }      // ============================================================   // Missing Features Models   // ============================================================      // -------------------- Webhooks (RevenueCat + Admin) --------------------   model WebhookEvent {     id        String   @id @default(cuid())     source    String   // 'revenuecat', 'stripe', 'admin'     eventType String   // e.g. "INITIAL_PURCHASE", "RENEWAL", "CANCELLATION"     appUserId String?     productId String?     payload   Json     processed Boolean @default(false)     processedAt DateTime?     createdAt DateTime @default(now())        @@index([source, createdAt(sort: Desc)])   }      // -------------------- Background Jobs (Queue) --------------------   model BackgroundJob {     id            String        @id @default(cuid())     userId        String?     user          User?         @relation(fields: [userId], references: [id])     type          AnalysisType     status        JobStatus     @default(PENDING)     payload       Json          // job-specific data (e.g. scanId, imageUrl)     result        Json?         // output of the job     errorMessage  String?     retryCount    Int           @default(0)     maxRetries    Int           @default(3)     priority      Int           @default(0)     createdAt     DateTime      @default(now())     startedAt     DateTime?     completedAt   DateTime?     scheduledAt   DateTime?     // for delayed jobs        @@index([status, priority, createdAt(sort: Asc)])     @@index([userId, createdAt(sort: Desc)])   }      // -------------------- Monitoring & Logging --------------------   model ErrorLog {     id        String   @id @default(cuid())     userId    String?     user      User?    @relation(fields: [userId], references: [id])     source    String   // 'ai_service', 'scan_orchestrator', 'api', 'webhook', etc.     message   String     stackTrace String?     metadata  Json?     level     String   @default("error") // 'error', 'warn', 'info'     createdAt DateTime @default(now())        @@index([source, createdAt(sort: Desc)])     @@index([userId])   }      model RateLimitLog {     id        String   @id @default(cuid())     userId    String?     user      User?    @relation(fields: [userId], references: [id])     endpoint  String     ip        String     timestamp DateTime @default(now())     action    String   // 'api_limit', 'scan_limit', 'auth_limit'     blocked   Boolean  @default(false)        @@index([userId, timestamp(sort: Desc)])     @@index([ip, timestamp(sort: Desc)])   }      // -------------------- Abuse Protection --------------------   model AbuseReport {     id            String   @id @default(cuid())     userId        String?     user          User?    @relation(fields: [userId], references: [id])     reporterId    String?  // admin or auto-detected     reason        String   // 'excessive_scans', 'spam_scan', 'fake_product', etc.     description   String?     evidence      Json?    // links to scans, logs     status        String   @default("open") // 'open', 'under_review', 'resolved', 'dismissed'     resolvedAt    DateTime?     createdAt     DateTime @default(now())        @@index([userId])     @@index([status, createdAt(sort: Desc)])   }      // -------------------- Admin Backend --------------------   model AdminUser {     id        String   @id @default(cuid())     userId    String   @unique     user      User     @relation(fields: [userId], references: [id])     role      String   @default("admin") // 'admin', 'moderator', 'support'     permissions Json?  // granular permissions (e.g. ["manage_users","view_logs"])     createdAt DateTime @default(now())     updatedAt DateTime @updatedAt   }      model AdminLog {     id        String   @id @default(cuid())     adminId   String     admin     AdminUser @relation(fields: [adminId], references: [id])     action    String   // 'update_subscription', 'ban_user', 'resolve_report'     targetType String?  // 'user', 'scan', 'subscription' etc.     targetId  String?     details   Json?     createdAt DateTime @default(now())        @@index([adminId, createdAt(sort: Desc)])   }      // -------------------- User Feedback (AI improvement) --------------------   model UserFeedback {     id        String   @id @default(cuid())     userId    String     user      User     @relation(fields: [userId], references: [id])     scanId    String?     scan      Scan?    @relation(fields: [scanId], references: [id])     feedback  String   // e.g. "energy crash", "accurate", "wrong"     createdAt DateTime @default(now())        @@index([userId, createdAt(sort: Desc)])   }   `
