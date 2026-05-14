@@ -5,18 +5,35 @@
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
-    "scheme": "liquid-impact",
-    "userInterfaceStyle": "automatic",
+    "scheme": "liquidimpact",
+    "userInterfaceStyle": "dark",
     "newArchEnabled": true,
     "splash": {
       "image": "./assets/images/icon.png",
       "resizeMode": "contain",
-      "backgroundColor": "#ffffff"
+      "backgroundColor": "#0a0a0f"
     },
     "ios": {
-      "supportsTablet": false
+      "supportsTablet": false,
+      "bundleIdentifier": "com.liquidimpact.app",
+      "infoPlist": {
+        "NSCameraUsageDescription": "Liquid Impact needs camera access to scan your drinks and analyze their health impact.",
+        "NSPhotoLibraryUsageDescription": "Liquid Impact needs photo library access so you can choose an existing photo of your drink to scan.",
+        "NSPhotoLibraryAddUsageDescription": "Liquid Impact saves scanned drink images to your photo library."
+      }
     },
-    "android": {},
+    "android": {
+      "package": "com.liquidimpact.app",
+      "permissions": [
+        "android.permission.CAMERA",
+        "android.permission.READ_EXTERNAL_STORAGE",
+        "android.permission.WRITE_EXTERNAL_STORAGE"
+      ],
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/images/icon.png",
+        "backgroundColor": "#0a0a0f"
+      }
+    },
     "web": {
       "favicon": "./assets/images/icon.png"
     },
@@ -28,7 +45,16 @@
         }
       ],
       "expo-font",
-      "expo-web-browser"
+      "expo-web-browser",
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Liquid Impact needs photo library access so you can choose an existing photo of your drink to scan.",
+          "cameraPermission": "Liquid Impact needs camera access to scan your drinks and analyze their health impact."
+        }
+      ],
+      "expo-secure-store",
+      "expo-apple-authentication"
     ],
     "experiments": {
       "typedRoutes": true,
