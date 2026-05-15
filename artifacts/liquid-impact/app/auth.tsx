@@ -176,7 +176,27 @@ function SignInForm({ onSuccess }: { onSuccess: () => void }) {
           )}
         </LinearGradient>
       </TouchableOpacity>
+
+      <ForgotPasswordLink />
     </View>
+  );
+}
+
+function ForgotPasswordLink() {
+  const router = useRouter();
+  return (
+    <TouchableOpacity
+      onPress={() => router.push("/forgot-password")}
+      style={{ alignItems: "center", paddingVertical: 4 }}
+      activeOpacity={0.7}
+    >
+      <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+        <Ionicons name="key-outline" size={14} color="rgba(0,180,216,0.80)" />
+        <Text style={{ color: "rgba(0,180,216,0.80)", fontSize: 13, fontWeight: "600" }}>
+          Forgot Password?
+        </Text>
+      </View>
+    </TouchableOpacity>
   );
 }
 
@@ -406,8 +426,20 @@ export default function AuthScreen() {
         <Animated.View entering={FadeInDown.delay(220).springify()}>
           <Text style={[styles.legal, { color: C.mutedForeground }]}>
             By continuing you agree to our{" "}
-            <Text style={{ color: C.primary }}>Terms of Use</Text> and{" "}
-            <Text style={{ color: C.primary }}>Privacy Policy</Text>.
+            <Text
+              style={{ color: C.primary }}
+              onPress={() => router.push("/terms")}
+            >
+              Terms of Use
+            </Text>
+            {" "}and{" "}
+            <Text
+              style={{ color: C.primary }}
+              onPress={() => router.push("/privacy")}
+            >
+              Privacy Policy
+            </Text>
+            .
           </Text>
         </Animated.View>
       </ScrollView>

@@ -25,6 +25,8 @@ export const usersTable = pgTable(
     displayName: text("display_name"),
     avatarUrl: text("avatar_url"),
     refreshTokenHash: text("refresh_token_hash"),
+    passwordResetTokenHash: text("password_reset_token_hash"),
+    passwordResetExpiresAt: timestamp("password_reset_expires_at"),
     createdAt: timestamp("created_at").defaultNow().notNull(),
     updatedAt: timestamp("updated_at").defaultNow().notNull(),
   },

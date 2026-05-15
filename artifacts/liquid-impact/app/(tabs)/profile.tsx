@@ -1,9 +1,11 @@
-import React from "react";
-import { ScrollView, Text, TouchableOpacity, View } from "react-native";
+import React, { useCallback } from "react";
+import { Alert, Linking, Platform, ScrollView, Share, Text, TouchableOpacity, View } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
+import * as Haptics from "expo-haptics";
+import * as StoreReview from "expo-store-review";
 import { useColors } from "@/hooks/useColors";
 import { useApp, SUBSCRIPTION_LIMITS } from "@/context/AppContext";
 import { GlassCard, MissionRow, SectionHeader } from "@/components/ui";
@@ -58,6 +60,24 @@ export default function ProfileScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { state, avgScore, xpTotal, todayScanCount, monthScanCount } = useApp();
+
+  const handleRateApp = useCallback(async () => {
+    await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    try {
+      const hasAction = await StoreReview.hasAction();
+      if (hasAction) {
+        await StoreReview.requestReview();
+      } else {
+        const url =
+          Platform.OS === "ios"
+            ? "https://apps.apple.com/app/liquid-impact"
+            : "https://play.google.com/store/apps/details?id=com.liquidimpact.app";
+        await Linking.openURL(url);
+      }
+    } catch {
+      Alert.alert("Rate App", "Thank you for your support! 🌟");
+    }
+  }, []);
 
   const tierInfo = SUBSCRIPTION_LIMITS[state.subscription];
   const tc = (() => {
@@ -216,6 +236,7 @@ export default function ProfileScreen() {
               iconColor="#FFD700"
               title="Rate the App"
               badge="New"
+              onPress={handleRateApp}
             />
           </View>
         </GlassCard>

@@ -1,0 +1,5116 @@
+
+
+### `QuickActionCard.tsx`
+
+```typescript
+// src/features/settings/components/QuickActionCard.tsx
+import React from 'react';
+import { TouchableOpacity, Text, StyleSheet, View } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
+import { THEME } from '../theme/colors';
+
+interface QuickActionCardProps {
+  icon: string;
+  title: string;
+  subtitle: string;
+  onPress: () => void;
+  color: string;
+}
+
+export const QuickActionCard: React.FC<QuickActionCardProps> = ({
+  icon,
+  title,
+  subtitle,
+  onPress,
+  color,
+}) => {
+  return (
+    <TouchableOpacity 
+      style={[styles.card, { backgroundColor: `${color}08`, borderColor: `${color}20` }]} 
+      onPress={onPress}
+      activeOpacity={0.7}
+    >
+      <View style={[styles.iconContainer, { backgroundColor: `${color}15` }]}>
+        <Ionicons name={icon as any} size={24} color={color} />
+      </View>
+      <Text style={styles.title}>{title}</Text>
+      <Text style={styles.subtitle}>{subtitle}</Text>
+    </TouchableOpacity>
+  );
+};
+
+const styles = StyleSheet.create({
+  card: {
+    width: '47%',
+    padding: 16,
+    borderRadius: 20,
+    borderWidth: 1,
+    alignItems: 'center',
+    gap: 12,
+  },
+  iconContainer: {
+    width: 48,
+    height: 48,
+    borderRadius: 16,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  title: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: THEME.textPrimary,
+    textAlign: 'center',
+  },
+  subtitle: {
+    fontSize: 11,
+    color: THEME.textMuted,
+    textAlign: 'center',
+    lineHeight: 16,
+  },
+});
+```
+
+---
+
+## 2️⃣ **Hooks Implementation**
+
+### `useApp.ts`
+
+```typescript
+// src/hooks/useApp.ts
+import { useState, useCallback } from 'react';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+
+interface User {
+  id: string;
+  email: string;
+  displayName?: string;
+  avatarUrl?: string;
+}
+
+interface AppState {
+  user: User | null;
+  isAuthenticated: boolean;
+  isLoading: boolean;
+  errorMessage: string | null;
+  subscriptionTier: 'free' | 'starter' | 'pro' | 'elite';
+  dailyScanCount: number;
+  streakDays: number;
+}
+
+const initialState: AppState = {
+  user: null,
+  isAuthenticated: false,
+  isLoading: false,
+  errorMessage: null,
+  subscriptionTier: 'free',
+  dailyScanCount: 0,
+  streakDays: 0,
+};
+
+export function useApp() {
+  const [state, setState] = useState<AppState>(initialState);
+
+  const authenticate = useCallback(async (email: string, password: string) => {
+    setState(prev => ({ ...prev, isLoading: true, errorMessage: null }));
+    try {
+      // TODO: Replace with actual API call
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      
+      const mockUser: User = {
+        id: 'user_123',
+        email,
+        displayName: 'Demo User',
+      };
+      
+      await AsyncStorage.setItem('@user', JSON.stringify(mockUser));
+      await AsyncStorage.setItem('@auth_token', 'mock_token');
+      
+      setState(prev => ({
+        ...prev,
+        user: mockUser,
+        isAuthenticated: true,
+        isLoading: false,
+      }));
+    } catch (error: any) {
+      setState(prev => ({
+        ...prev,
+        errorMessage: error.message || 'Authentication failed',
+        isLoading: false,
+      }));
+      throw error;
+    }
+  }, []);
+
+  const register = useCallback(async (email: string, password: string, displayName: string) => {
+    setState(prev => ({ ...prev, isLoading: true, errorMessage: null }));
+    try {
+      // TODO: Replace with actual API call
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      
+      const mockUser: User = {
+        id: 'user_123',
+        email,
+        displayName,
+      };
+      
+      await AsyncStorage.setItem('@user', JSON.stringify(mockUser));
+      await AsyncStorage.setItem('@auth_token', 'mock_token');
+      
+      setState(prev => ({
+        ...prev,
+        user: mockUser,
+        isAuthenticated: true,
+        isLoading: false,
+      }));
+    } catch (error: any) {
+      setState(prev => ({
+        ...prev,
+        errorMessage: error.message || 'Registration failed',
+        isLoading: false,
+      }));
+      throw error;
+    }
+  }, []);
+
+  const logout = useCallback(async () => {
+    try {
+      await AsyncStorage.multiRemove(['@user', '@auth_token']);
+      setState(initialState);
+    } catch (error) {
+      console.error('Logout error:', error);
+    }
+  }, []);
+
+  const updateUser = useCallback(async (updates: Partial<User>) => {
+    if (!state.user) return;
+    
+    const updatedUser = { ...state.user, ...updates };
+    await AsyncStorage.setItem('@user', JSON.stringify(updatedUser));
+    setState(prev => ({ ...prev, user: updatedUser }));
+  }, [state.user]);
+
+  const loadUser = useCallback(async () => {
+    try {
+      const userJson = await AsyncStorage.getItem('@user');
+      if (userJson) {
+        const user: User = JSON.parse(userJson);
+        setState(prev => ({
+          ...prev,
+          user,
+          isAuthenticated: true,
+        }));
+      }
+    } catch (error) {
+      console.error('Load user error:', error);
+    }
+  }, []);
+
+  return {
+    ...state,
+    authenticate,
+    register,
+    logout,
+    updateUser,
+    loadUser,
+  };
+}
+```
+
+### `useAuth.ts`
+
+```typescript
+// src/hooks/useAuth.ts
+import { useApp } from './useApp';
+
+export function useAuth() {
+  const { 
+    user, 
+    isAuthenticated, 
+    isLoading, 
+    errorMessage,
+    authenticate, 
+    register, 
+    logout 
+  } = useApp();
+
+  const signOut = async () => {
+    await logout();
+  };
+
+  return {
+    user,
+    isAuthenticated,
+    isLoading,
+    errorMessage,
+    signIn: authenticate,
+    signUp: register,
+    signOut,
+  };
+}
+```
+
+---
+
+## 3️⃣ **Enhanced Theme System**
+
+### `theme.ts` (Updated)
+
+```typescript
+// src/features/settings/theme/colors.ts
+export const THEME = {
+  // Backgrounds
+  background: '#0A0A0F',
+  surface: '#151520',
+  surfaceTertiary: '#1E1E2E',
+  
+  // Text
+  textPrimary: '#FFFFFF',
+  textSecondary: 'rgba(255,255,255,0.7)',
+  textMuted: 'rgba(255,255,255,0.4)',
+  
+  // Accents
+  accentCyan: '#00B4D8',
+  accentPurple: '#7B2CBF',
+  accentPink: '#FF6B9D',
+  accentGreen: '#10b981',
+  accentOrange: '#f59e0b',
+  accentYellow: '#FFD600',
+  accentBlue: '#2196F3',
+  accentRed: '#ef4444',
+  
+  // Glassmorphism - CONSISTENT ACROSS ALL CARDS
+  glassBg: 'rgba(255,255,255,0.06)',
+  glassBorder: 'rgba(255,255,255,0.08)',
+  glassBorderActive: 'rgba(255,255,255,0.12)',
+  
+  // Glow Effects
+  glowCyan: 'rgba(0,180,216,0.25)',
+  glowPurple: 'rgba(123,44,191,0.2)',
+  glowGreen: 'rgba(16,185,129,0.2)',
+  
+  // Shadows - CONSISTENT
+  shadowColor: 'rgba(0,0,0,0.3)',
+  shadowOffset: { width: 0, height: 4 },
+  shadowRadius: 12,
+  
+  // Spacing - CONSISTENT
+  spacing: {
+    xs: 4,
+    sm: 8,
+    md: 12,
+    lg: 16,
+    xl: 20,
+    xxl: 24,
+    xxxl: 32,
+  },
+  
+  // Typography - CONSISTENT
+  typography: {
+    display: { fontSize: 28, fontWeight: '800' as const, lineHeight: 34 },
+    heading: { fontSize: 20, fontWeight: '700' as const, lineHeight: 26 },
+    subheading: { fontSize: 17, fontWeight: '600' as const, lineHeight: 22 },
+    body: { fontSize: 14, fontWeight: '400' as const, lineHeight: 20 },
+    caption: { fontSize: 11, fontWeight: '500' as const, lineHeight: 16 },
+  },
+};
+
+// Export individual colors for easy access
+export const { 
+  background, surface, surfaceTertiary, 
+  textPrimary, textSecondary, textMuted,
+  accentCyan, accentPurple, accentPink, accentGreen, accentOrange, 
+  accentYellow, accentBlue, accentRed,
+  glassBg, glassBorder, glassBorderActive,
+  glowCyan, glowPurple, glowGreen,
+  shadowColor, shadowOffset, shadowRadius,
+  spacing, typography 
+} = THEME;
+```
+
+---
+
+## 4️⃣ **Ambient Glow Background Component**
+
+### `AmbientBackground.tsx`
+
+```typescript
+// src/features/settings/components/AmbientBackground.tsx
+import React, { useRef, useEffect } from 'react';
+import { View, StyleSheet, Animated } from 'react-native';
+import { THEME } from '../theme/colors';
+
+export const AmbientBackground: React.FC = () => {
+  const orb1Anim = useRef(new Animated.Value(0)).current;
+  const orb2Anim = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    // Gentle floating animation
+    const animateOrb = (anim: Animated.Value, duration: number, offset: number) => {
+      Animated.loop(
+        Animated.sequence([
+          Animated.timing(anim, { toValue: 1, duration, delay: offset, useNativeDriver: true }),
+          Animated.timing(anim, { toValue: 0, duration, delay: offset, useNativeDriver: true }),
+        ])
+      ).start();
+    };
+    
+    animateOrb(orb1Anim, 4000, 0);
+    animateOrb(orb2Anim, 5000, 1000);
+    
+    return () => { 
+      orb1Anim.stopAnimation(); 
+      orb2Anim.stopAnimation(); 
+    };
+  }, [orb1Anim, orb2Anim]);
+
+  return (
+    <View style={styles.container} pointerEvents="none">
+      <Animated.View style={[
+        styles.orb,
+        {
+          backgroundColor: THEME.glowCyan,
+          transform: [
+            { translateX: orb1Anim.interpolate({ inputRange: [0, 1], outputRange: [-30, 30] }) },
+            { translateY: orb1Anim.interpolate({ inputRange: [0, 1], outputRange: [-20, 20] }) },
+          ],
+        },
+      ]} />
+      <Animated.View style={[
+        styles.orb,
+        {
+          backgroundColor: THEME.glowPurple,
+          right: 20,
+          bottom: 100,
+          width: 180,
+          height: 180,
+          transform: [
+            { translateX: orb2Anim.interpolate({ inputRange: [0, 1], outputRange: [20, -20] }) },
+            { translateY: orb2Anim.interpolate({ inputRange: [0, 1], outputRange: [30, -30] }) },
+          ],
+        },
+      ]} />
+    </View>
+  );
+};
+
+const styles = StyleSheet.create({
+  container: {
+    ...StyleSheet.absoluteFillObject,
+    overflow: 'hidden',
+  },
+  orb: {
+    position: 'absolute',
+    width: 220,
+    height: 220,
+    borderRadius: 110,
+    opacity: 0.15,
+    left: -50,
+    top: 100,
+  },
+});
+```
+
+---
+
+## 5️⃣ **Dark Mode Toggle Component**
+
+### `DarkModeToggle.tsx`
+
+```typescript
+// src/features/settings/components/DarkModeToggle.tsx
+import React, { useState, useEffect } from 'react';
+import { View, Text, Switch, StyleSheet } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { THEME } from '../theme/colors';
+
+const DARK_MODE_KEY = '@settings_dark_mode';
+
+export const DarkModeToggle: React.FC = () => {
+  const [isDarkMode, setIsDarkMode] = useState(true);
+
+  useEffect(() => {
+    loadDarkModePreference();
+  }, []);
+
+  const loadDarkModePreference = async () => {
+    try {
+      const saved = await AsyncStorage.getItem(DARK_MODE_KEY);
+      if (saved !== null) {
+        setIsDarkMode(JSON.parse(saved));
+      }
+    } catch (error) {
+      console.error('Failed to load dark mode preference:', error);
+    }
+  };
+
+  const toggleDarkMode = async (value: boolean) => {
+    setIsDarkMode(value);
+    try {
+      await AsyncStorage.setItem(DARK_MODE_KEY, JSON.stringify(value));
+      // TODO: Update theme context/provider here
+    } catch (error) {
+      console.error('Failed to save dark mode preference:', error);
+    }
+  };
+
+  return (
+    <View style={styles.container}>
+      <View style={styles.iconContainer}>
+        <View style={[styles.icon, { backgroundColor: `${THEME.accentPurple}15` }]}>
+          {isDarkMode ? (
+            <View style={styles.darkIcon}>
+              <View style={styles.moon} />
+            </View>
+          ) : (
+            <View style={[styles.sun, { backgroundColor: THEME.accentOrange }]} />
+          )}
+        </View>
+      </View>
+      <View style={styles.textContainer}>
+        <Text style={styles.title}>Dark Mode</Text>
+        <Text style={styles.subtitle}>
+          {isDarkMode ? 'Dark theme enabled' : 'Light theme enabled'}
+        </Text>
+      </View>
+      <Switch
+        value={isDarkMode}
+        onValueChange={toggleDarkMode}
+        trackColor={{ false: THEME.glassBorder, true: `${THEME.accentPurple}40` }}
+        thumbColor={isDarkMode ? THEME.accentPurple : '#fff'}
+        ios_backgroundColor={THEME.glassBorder}
+        style={{ transform: [{ scaleX: 1.1 }, { scaleY: 1.1 }] }}
+      />
+    </View>
+  );
+};
+
+const styles = StyleSheet.create({
+  container: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 16,
+    paddingHorizontal: 20,
+    backgroundColor: THEME.glassBg,
+    borderWidth: 1,
+    borderColor: THEME.glassBorder,
+    borderRadius: 20,
+    marginBottom: 12,
+  },
+  iconContainer: {
+    marginRight: 14,
+  },
+  icon: {
+    width: 40,
+    height: 40,
+    borderRadius: 12,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  darkIcon: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: THEME.accentPurple,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  moon: {
+    width: 16,
+    height: 16,
+    borderRadius: 8,
+    backgroundColor: THEME.surface,
+  },
+  sun: {
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+  },
+  textContainer: {
+    flex: 1,
+  },
+  title: {
+    fontSize: 17,
+    fontWeight: '600',
+    color: THEME.textPrimary,
+    marginBottom: 2,
+  },
+  subtitle: {
+    fontSize: 13,
+    color: THEME.textSecondary,
+  },
+});
+```
+
+---
+
+## 6️⃣ **Delete Account Screen**
+
+### `DeleteAccountScreen.tsx`
+
+```typescript
+// src/features/settings/screens/DeleteAccountScreen.tsx
+import React, { useState } from 'react';
+import {
+  View,
+  Text,
+  ScrollView,
+  TouchableOpacity,
+  TextInput,
+  StyleSheet,
+  Alert,
+} from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useRouter } from 'expo-router';
+import { Ionicons } from '@expo/vector-icons';
+import * as Haptics from 'expo-haptics';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { THEME } from '../theme/colors';
+
+export default function DeleteAccountScreen() {
+  const router = useRouter();
+  const insets = useSafeAreaInsets();
+  const [confirmText, setConfirmText] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
+
+  const handleDeleteAccount = async () => {
+    if (confirmText.toLowerCase() !== 'delete my account') {
+      Alert.alert('Invalid Confirmation', 'Please type "DELETE MY ACCOUNT" to confirm.');
+      return;
+    }
+
+    Alert.alert(
+      'Final Warning',
+      'This action cannot be undone. All your data, scans, and progress will be permanently deleted.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete Forever',
+          style: 'destructive',
+          onPress: async () => {
+            setIsLoading(true);
+            await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+            
+            try {
+              // TODO: Call API to delete account
+              // await api.deleteAccount();
+              
+              // Clear local storage
+              await AsyncStorage.multiRemove([
+                '@user',
+                '@auth_token',
+                '@settings_dark_mode',
+                '@settings_notifications',
+                '@settings_weekly_digest',
+                '@settings_analytics',
+                '@scans_history',
+              ]);
+              
+              Alert.alert('Account Deleted', 'Your account has been permanently deleted.');
+              router.replace('/auth');
+            } catch (error) {
+              Alert.alert('Error', 'Failed to delete account. Please try again.');
+            } finally {
+              setIsLoading(false);
+            }
+          },
+        },
+      ]
+    );
+  };
+
+  return (
+    <View style={[styles.container, { paddingTop: insets.top }]}>
+      {/* Header */}
+      <View style={styles.header}>
+        <TouchableOpacity
+          onPress={() => router.back()}
+          style={styles.backButton}
+          accessibilityLabel="Go back"
+        >
+          <Ionicons name="chevron.back" size={24} color={THEME.textPrimary} />
+        </TouchableOpacity>
+        <Text style={styles.headerTitle}>Delete Account</Text>
+        <View style={{ width: 40 }} />
+      </View>
+
+      <ScrollView showsVerticalScrollIndicator={false}>
+        {/* Warning Card */}
+        <View style={[styles.warningCard, { backgroundColor: `${THEME.accentRed}10`, borderColor: `${THEME.accentRed}30` }]}>
+          <Ionicons name="warning" size={32} color={THEME.accentRed} />
+          <Text style={[styles.warningTitle, { color: THEME.accentRed }]}>
+            Permanent Deletion
+          </Text>
+          <Text style={[styles.warningText, { color: THEME.textSecondary }]}>
+            This action cannot be undone. All your data including:
+          </Text>
+          <View style={styles.warningList}>
+            <Text style={[styles.warningItem, { color: THEME.textSecondary }]}>• All scan history</Text>
+            <Text style={[styles.warningItem, { color: THEME.textSecondary }]}>• Personal insights and progress</Text>
+            <Text style={[styles.warningItem, { color: THEME.textSecondary }]}>• Account settings and preferences</Text>
+            <Text style={[styles.warningItem, { color: THEME.textSecondary }]}>• Subscription data</Text>
+          </View>
+        </View>
+
+        {/* What Happens Section */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>What happens when you delete your account?</Text>
+          <View style={styles.infoCard}>
+            <Text style={styles.infoText}>
+              Your account and all associated data will be permanently removed from our servers within 30 days. 
+              You will lose access to all your scan history, insights, and progress tracking.
+            </Text>
+          </View>
+        </View>
+
+        {/* Data Export Option */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Want to keep your data?</Text>
+          <TouchableOpacity 
+            style={styles.exportButton}
+            onPress={() => Alert.alert('Export Data', 'Download your data feature coming soon')}
+          >
+            <Ionicons name="download" size={20} color={THEME.accentCyan} />
+            <Text style={styles.exportButtonText}>Export My Data</Text>
+          </TouchableOpacity>
+          <Text style={styles.exportHint}>
+            Download a copy of your scan history and insights before deleting.
+          </Text>
+        </View>
+
+        {/* Confirmation Input */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Confirm Deletion</Text>
+          <Text style={styles.confirmLabel}>
+            Type <Text style={{ color: THEME.accentRed, fontWeight: '700' }}>DELETE MY ACCOUNT</Text> to confirm:
+          </Text>
+          <TextInput
+            style={styles.input}
+            value={confirmText}
+            onChangeText={setConfirmText}
+            placeholder="DELETE MY ACCOUNT"
+            placeholderTextColor={THEME.textMuted}
+            autoCapitalize="none"
+            autoCorrect={false}
+          />
+        </View>
+
+        {/* Delete Button */}
+        <TouchableOpacity
+          onPress={handleDeleteAccount}
+          style={[
+            styles.deleteButton,
+            { 
+              opacity: confirmText.toLowerCase() === 'delete my account' ? 1 : 0.5,
+              backgroundColor: THEME.accentRed,
+            }
+          ]}
+          disabled={confirmText.toLowerCase() !== 'delete my account' || isLoading}
+          accessibilityLabel="Delete account permanently"
+        >
+          <Text style={styles.deleteButtonText}>
+            {isLoading ? 'Deleting...' : 'Delete My Account'}
+          </Text>
+        </TouchableOpacity>
+
+        <View style={{ height: 40 }} />
+      </ScrollView>
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: THEME.background,
+  },
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 20,
+    paddingVertical: 16,
+  },
+  backButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 12,
+    backgroundColor: THEME.glassBg,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  headerTitle: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: THEME.textPrimary,
+  },
+  warningCard: {
+    margin: 20,
+    padding: 20,
+    borderRadius: 20,
+    borderWidth: 1,
+    alignItems: 'center',
+    gap: 12,
+  },
+  warningTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+  },
+  warningText: {
+    fontSize: 14,
+    textAlign: 'center',
+  },
+  warningList: {
+    alignItems: 'flex-start',
+    gap: 6,
+  },
+  warningItem: {
+    fontSize: 13,
+  },
+  section: {
+    paddingHorizontal: 20,
+    marginBottom: 24,
+  },
+  sectionTitle: {
+    fontSize: 17,
+    fontWeight: '700',
+    color: THEME.textPrimary,
+    marginBottom: 12,
+  },
+  infoCard: {
+    padding: 16,
+    backgroundColor: THEME.glassBg,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: THEME.glassBorder,
+  },
+  infoText: {
+    fontSize: 14,
+    color: THEME.textSecondary,
+    lineHeight: 20,
+  },
+  exportButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    padding: 16,
+    backgroundColor: `${THEME.accentCyan}10`,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: `${THEME.accentCyan}30`,
+    marginBottom: 8,
+  },
+  exportButtonText: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: THEME.accentCyan,
+  },
+  exportHint: {
+    fontSize: 12,
+    color: THEME.textMuted,
+  },
+  confirmLabel: {
+    fontSize: 14,
+    color: THEME.textSecondary,
+    marginBottom: 12,
+    lineHeight: 20,
+  },
+  input: {
+    backgroundColor: THEME.glassBg,
+    borderWidth: 1,
+    borderColor: THEME.glassBorder,
+    borderRadius: 16,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    fontSize: 16,
+    color: THEME.textPrimary,
+  },
+  deleteButton: {
+    marginHorizontal: 20,
+    paddingVertical: 18,
+    borderRadius: 20,
+    alignItems: 'center',
+  },
+  deleteButtonText: {
+    color: '#fff',
+    fontSize: 17,
+    fontWeight: '700',
+  },
+});
+```
+
+---
+
+## 7️⃣ **Updated SettingsScreen with All Features**
+
+### `SettingsScreen.tsx` (Updated)
+
+```typescript
+// src/features/settings/screens/SettingsScreen.tsx
+// Add these imports at the top:
+import { QuickActionCard } from '../components/QuickActionCard';
+import { AmbientBackground } from '../components/AmbientBackground';
+import { DarkModeToggle } from '../components/DarkModeToggle';
+
+// Then in the main component, add to the render:
+
+// Inside the ScrollView, add before the footer:
+<DarkModeToggle />
+
+{/* Delete Account Section */}
+<View style={styles.section}>
+  <Text style={styles.sectionHeader}>DANGER ZONE</Text>
+  <TouchableOpacity
+    style={styles.deleteAccountButton}
+    onPress={() => router.push('/settings/delete-account')}
+    accessibilityLabel="Delete your account"
+  >
+    <View style={styles.deleteAccountLeft}>
+      <View style={[styles.deleteIcon, { backgroundColor: `${THEME.accentRed}15` }]}>
+        <Ionicons name="trash" size={20} color={THEME.accentRed} />
+      </View>
+      <View>
+        <Text style={[styles.deleteAccountTitle, { color: THEME.accentRed }]}>
+          Delete Account
+        </Text>
+        <Text style={[styles.deleteAccountSubtitle, { color: THEME.textMuted }]}>
+          Permanently delete your account and all data
+        </Text>
+      </View>
+    </View>
+    <Ionicons name="chevron.forward" size={18} color={THEME.textMuted} />
+  </TouchableOpacity>
+</View>
+
+// Add these styles:
+deleteAccountButton: {
+  flexDirection: 'row',
+  alignItems: 'center',
+  justifyContent: 'space-between',
+  padding: 16,
+  backgroundColor: `${THEME.accentRed}08`,
+  borderRadius: 20,
+  borderWidth: 1,
+  borderColor: `${THEME.accentRed}20`,
+  marginBottom: 12,
+},
+deleteAccountLeft: {
+  flexDirection: 'row',
+  alignItems: 'center',
+  gap: 14,
+},
+deleteIcon: {
+  width: 40,
+  height: 40,
+  borderRadius: 12,
+  justifyContent: 'center',
+  alignItems: 'center',
+},
+deleteAccountTitle: {
+  fontSize: 17,
+  fontWeight: '600',
+},
+deleteAccountSubtitle: {
+  fontSize: 13,
+  marginTop: 2,
+},
+```
+
+---
+
+## 8️⃣ **Consistent Glass Card Component**
+
+### `GlassCard.tsx`
+
+```typescript
+// src/features/settings/components/GlassCard.tsx
+import React from 'react';
+import { View, StyleSheet, ViewStyle } from 'react-native';
+import { THEME } from '../theme/colors';
+
+interface GlassCardProps {
+  children: React.ReactNode;
+  style?: ViewStyle;
+  glow?: 'cyan' | 'purple' | 'green' | 'none';
+  padding?: 'sm' | 'md' | 'lg';
+}
+
+export const GlassCard: React.FC<GlassCardProps> = ({ 
+  children, 
+  style, 
+  glow = 'none',
+  padding = 'md'
+}) => {
+  const glowColor = glow === 'cyan' ? THEME.glowCyan : 
+                    glow === 'purple' ? THEME.glowPurple : 
+                    glow === 'green' ? THEME.glowGreen : 'transparent';
+
+  const paddingValue = padding === 'sm' ? 12 : padding === 'lg' ? 24 : 16;
+
+  return (
+    <View 
+      style={[
+        styles.container,
+        { 
+          shadowColor: glowColor,
+          padding: paddingValue,
+        },
+        style
+      ]}
+    >
+      {children}
+    </View>
+  );
+};
+
+const styles = StyleSheet.create({
+  container: {
+    backgroundColor: THEME.glassBg,
+    borderRadius: 24,
+    borderWidth: 1,
+    borderColor: THEME.glassBorder,
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.3,
+    shadowRadius: 24,
+    elevation: 8,
+    marginBottom: 12,
+  },
+});
+```
+#
+
+## 📱 1. Enhanced Settings Screen (Updated)
+
+```typescript
+// src/features/settings/screens/SettingsScreen.tsx
+import React, { useState, useCallback, useEffect } from 'react';
+import {
+  View,
+  Text,
+  ScrollView,
+  TouchableOpacity,
+  Switch,
+  StyleSheet,
+  StatusBar,
+  Alert,
+  Linking,
+  Share,
+  Platform,
+} from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useRouter } from 'expo-router';
+import { Ionicons } from '@expo/vector-icons';
+import * as Haptics from 'expo-haptics';
+import * as StoreReview from 'expo-store-review';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { useApp } from '@/context/AppContext';
+import { useAuth } from '@/hooks/useAuth';
+
+// ── Theme Constants ──
+const THEME = {
+  background: '#0A0A0F',
+  surface: '#151520',
+  surfaceTertiary: '#1E1E2E',
+  textPrimary: '#FFFFFF',
+  textSecondary: 'rgba(255,255,255,0.7)',
+  textMuted: 'rgba(255,255,255,0.4)',
+  accentCyan: '#00B4D8',
+  accentPurple: '#7B2CBF',
+  accentPink: '#FF6B9D',
+  accentGreen: '#10b981',
+  accentOrange: '#f59e0b',
+  accentYellow: '#FFD600',
+  accentBlue: '#2196F3',
+  accentRed: '#ef4444',
+  glassBg: 'rgba(255,255,255,0.06)',
+  glassBorder: 'rgba(255,255,255,0.08)',
+  divider: 'rgba(255,255,255,0.08)',
+};
+
+// ── Premium Toggle Component ──
+interface PremiumToggleProps {
+  value: boolean;
+  onValueChange: (value: boolean) => void;
+  accentColor: string;
+  testID?: string;
+}
+
+const PremiumToggle: React.FC<PremiumToggleProps> = ({ value, onValueChange, accentColor }) => {
+  return (
+    <Switch
+      value={value}
+      onValueChange={onValueChange}
+      trackColor={{ false: THEME.glassBorder, true: `${accentColor}40` }}
+      thumbColor={value ? accentColor : '#fff'}
+      ios_backgroundColor={THEME.glassBorder}
+      style={{ transform: [{ scaleX: 1.05 }, { scaleY: 1.05 }] }}
+    />
+  );
+};
+
+// ── Settings Row Component ──
+interface SettingsRowProps {
+  icon: string;
+  iconColor: string;
+  title: string;
+  subtitle?: string;
+  rightElement?: React.ReactNode;
+  onPress?: () => void;
+  showDivider?: boolean;
+  testID?: string;
+}
+
+const SettingsRow: React.FC<SettingsRowProps> = ({
+  icon,
+  iconColor,
+  title,
+  subtitle,
+  rightElement,
+  onPress,
+  showDivider = true,
+}) => {
+  const handlePress = useCallback(() => {
+    if (onPress) {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+      onPress();
+    }
+  }, [onPress]);
+
+  return (
+    <>
+      <TouchableOpacity
+        onPress={handlePress}
+        activeOpacity={0.7}
+        style={styles.row}
+        accessibilityRole="button"
+        accessibilityLabel={title}
+        accessibilityHint={subtitle}
+      >
+        <View style={styles.rowLeft}>
+          <View style={[styles.iconContainer, { backgroundColor: `${iconColor}15` }]}>
+            <Ionicons name={icon as any} size={20} color={iconColor} />
+          </View>
+          <View style={styles.rowText}>
+            <Text style={styles.rowTitle}>{title}</Text>
+            {subtitle && <Text style={styles.rowSubtitle}>{subtitle}</Text>}
+          </View>
+        </View>
+        {rightElement || <Ionicons name="chevron.forward" size={18} color={THEME.textMuted} />}
+      </TouchableOpacity>
+      {showDivider && <View style={styles.divider} />}
+    </>
+  );
+};
+
+// ── Main Settings Screen ──
+export default function SettingsScreen() {
+  const router = useRouter();
+  const insets = useSafeAreaInsets();
+  const { user, logout } = useApp();
+  const { signOut } = useAuth();
+  
+  // ── State with Persistence ──
+  const [notificationsEnabled, setNotificationsEnabled] = useState(true);
+  const [weeklyDigestEnabled, setWeeklyDigestEnabled] = useState(true);
+  const [analyticsEnabled, setAnalyticsEnabled] = useState(true);
+  const [darkMode, setDarkMode] = useState(true);
+  const [language, setLanguage] = useState('English');
+  const [units, setUnits] = useState('Metric (ml, g, mg)');
+  const [isLoading, setIsLoading] = useState(false);
+
+  // ── Load Settings from Storage ──
+  useEffect(() => {
+    loadSettings();
+  }, []);
+
+  // ── Save Settings to Storage ──
+  useEffect(() => {
+    saveSettings();
+  }, [notificationsEnabled, weeklyDigestEnabled, analyticsEnabled, darkMode, language, units]);
+
+  const loadSettings = async () => {
+    try {
+      const [
+        notifications,
+        weeklyDigest,
+        analytics,
+        theme,
+        lang,
+        unit,
+      ] = await AsyncStorage.multiGet([
+        '@settings_notifications',
+        '@settings_weekly_digest',
+        '@settings_analytics',
+        '@settings_dark_mode',
+        '@settings_language',
+        '@settings_units',
+      ]);
+
+      if (notifications[1]) setNotificationsEnabled(JSON.parse(notifications[1]));
+      if (weeklyDigest[1]) setWeeklyDigestEnabled(JSON.parse(weeklyDigest[1]));
+      if (analytics[1]) setAnalyticsEnabled(JSON.parse(analytics[1]));
+      if (theme[1]) setDarkMode(JSON.parse(theme[1]));
+      if (lang[1]) setLanguage(lang[1]);
+      if (unit[1]) setUnits(unit[1]);
+    } catch (error) {
+      console.error('Failed to load settings:', error);
+    }
+  };
+
+  const saveSettings = async () => {
+    try {
+      await AsyncStorage.multiSet([
+        ['@settings_notifications', JSON.stringify(notificationsEnabled)],
+        ['@settings_weekly_digest', JSON.stringify(weeklyDigestEnabled)],
+        ['@settings_analytics', JSON.stringify(analyticsEnabled)],
+        ['@settings_dark_mode', JSON.stringify(darkMode)],
+        ['@settings_language', language],
+        ['@settings_units', units],
+      ]);
+    } catch (error) {
+      console.error('Failed to save settings:', error);
+    }
+  };
+
+  // ── Handlers ──
+  const handleLogout = useCallback(async () => {
+    Alert.alert(
+      'Sign Out',
+      'Are you sure you want to sign out?',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Sign Out',
+          style: 'destructive',
+          onPress: async () => {
+            await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+            try {
+              await signOut();
+              await logout();
+              router.replace('/auth');
+            } catch (error) {
+              Alert.alert('Error', 'Failed to sign out');
+            }
+          },
+        },
+      ]
+    );
+  }, [router, signOut, logout]);
+
+  const handleResetData = useCallback(async () => {
+    Alert.alert(
+      'Reset App Data',
+      'This will clear all your scan history and settings. This action cannot be undone.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Reset',
+          style: 'destructive',
+          onPress: async () => {
+            setIsLoading(true);
+            await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+            try {
+              // Clear all AsyncStorage
+              await AsyncStorage.multiRemove([
+                '@scans_history',
+                '@user_preferences',
+                '@user_stats',
+                '@settings_notifications',
+                '@settings_weekly_digest',
+                '@settings_analytics',
+                '@settings_dark_mode',
+                '@settings_language',
+                '@settings_units',
+              ]);
+              
+              Alert.alert('Success', 'App data has been reset');
+              router.replace('/');
+            } catch (error) {
+              Alert.alert('Error', 'Failed to reset data');
+            } finally {
+              setIsLoading(false);
+            }
+          },
+        },
+      ]
+    );
+  }, [router]);
+
+  const handleRateApp = useCallback(async () => {
+    try {
+      if (await StoreReview.hasAction()) {
+        await StoreReview.requestReview();
+      } else {
+        // Fallback to share
+        await Share.share({
+          message: 'Rate Liquid Impact on the App Store! 🌊',
+          url: Platform.OS === 'ios' 
+            ? 'https://apps.apple.com/app/liquid-impact' 
+            : 'https://play.google.com/store/apps/details?id=com.liquidimpact',
+        });
+      }
+    } catch (error) {
+      console.error('Rate app error:', error);
+    }
+  }, []);
+
+  const handleShare = useCallback(async () => {
+    try {
+      await Share.share({
+        message: 'Track your drink impact with Liquid Impact! 🌊',
+        url: 'https://liquidimpact.app',
+      });
+    } catch (error) {
+      console.error('Share error:', error);
+    }
+  }, []);
+
+  const handleContactUs = useCallback(async () => {
+    const url = 'mailto:support@liquidimpact.app?subject=Liquid Impact Support';
+    const supported = await Linking.canOpenURL(url);
+    if (supported) {
+      await Linking.openURL(url);
+    } else {
+      Alert.alert('Email', 'Could not open email app');
+    }
+  }, []);
+
+  const handleOpenURL = useCallback(async (url: string) => {
+    const supported = await Linking.canOpenURL(url);
+    if (supported) {
+      await Linking.openURL(url);
+    } else {
+      Alert.alert('Error', 'Could not open link');
+    }
+  }, []);
+
+  // ── Render ──
+  return (
+    <View style={[styles.container, { paddingTop: insets.top }]}>
+      <StatusBar barStyle="light-content" backgroundColor={THEME.background} />
+      
+      {/* Header */}
+      <View style={styles.header}>
+        <TouchableOpacity
+          onPress={() => router.back()}
+          style={styles.backButton}
+          accessibilityLabel="Go back"
+          accessibilityRole="button"
+        >
+          <Ionicons name="chevron.back" size={24} color={THEME.textPrimary} />
+        </TouchableOpacity>
+        <Text style={styles.headerTitle}>Settings</Text>
+        <View style={{ width: 40 }} />
+      </View>
+      
+      <ScrollView
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={{ paddingBottom: insets.bottom + 40 }}
+      >
+        {/* ACCOUNT SECTION */}
+        <View style={styles.section}>
+          <Text style={styles.sectionHeader}>ACCOUNT</Text>
+          <View style={styles.card}>
+            <SettingsRow
+              icon="person.circle"
+              iconColor={THEME.accentCyan}
+              title="Edit Profile"
+              subtitle="Name, avatar, email"
+              onPress={() => router.push('/settings/profile')}
+            />
+            <SettingsRow
+              icon="lock.closed"
+              iconColor={THEME.accentPurple}
+              title="Change Password"
+              onPress={() => router.push('/settings/password')}
+            />
+            <SettingsRow
+              icon="creditcard"
+              iconColor={THEME.accentGreen}
+              title="Billing & Payments"
+              subtitle="Manage payment methods"
+              onPress={() => router.push('/settings/billing')}
+              showDivider={false}
+            />
+          </View>
+        </View>
+        
+        {/* PREFERENCES SECTION */}
+        <View style={styles.section}>
+          <Text style={styles.sectionHeader}>PREFERENCES</Text>
+          <View style={styles.card}>
+            <SettingsRow
+              icon="bell"
+              iconColor={THEME.accentCyan}
+              title="Push Notifications"
+              subtitle="Daily reminders and insights"
+              rightElement={
+                <PremiumToggle
+                  value={notificationsEnabled}
+                  onValueChange={setNotificationsEnabled}
+                  accentColor={THEME.accentCyan}
+                />
+              }
+              showDivider={false}
+            />
+            <View style={styles.divider} />
+            <SettingsRow
+              icon="document.text"
+              iconColor={THEME.accentPurple}
+              title="Weekly Health Digest"
+              subtitle="Summary of your week"
+              rightElement={
+                <PremiumToggle
+                  value={weeklyDigestEnabled}
+                  onValueChange={setWeeklyDigestEnabled}
+                  accentColor={THEME.accentPurple}
+                />
+              }
+              showDivider={false}
+            />
+            <View style={styles.divider} />
+            <SettingsRow
+              icon="translate"
+              iconColor={THEME.accentOrange}
+              title="Language"
+              subtitle={language}
+              onPress={() => router.push('/settings/language')}
+              showDivider={false}
+            />
+            <View style={styles.divider} />
+            <SettingsRow
+              icon="ruler"
+              iconColor={THEME.accentGreen}
+              title="Units"
+              subtitle={units}
+              onPress={() => router.push('/settings/units')}
+              showDivider={false}
+            />
+          </View>
+        </View>
+        
+        {/* PRIVACY & DATA SECTION */}
+        <View style={styles.section}>
+          <Text style={styles.sectionHeader}>PRIVACY & DATA</Text>
+          <View style={styles.card}>
+            <SettingsRow
+              icon="shield.checkmark"
+              iconColor={THEME.accentGreen}
+              title="Privacy Policy"
+              onPress={() => router.push('/settings/privacy')}
+            />
+            <View style={styles.divider} />
+            <SettingsRow
+              icon="doc.text"
+              iconColor={THEME.accentBlue}
+              title="Terms of Service"
+              onPress={() => router.push('/settings/terms')}
+            />
+            <View style={styles.divider} />
+            <SettingsRow
+              icon="chart.bar.xaxis"
+              iconColor={THEME.accentPurple}
+              title="Analytics & Crash Reports"
+              subtitle="Help improve the app"
+              rightElement={
+                <PremiumToggle
+                  value={analyticsEnabled}
+                  onValueChange={setAnalyticsEnabled}
+                  accentColor={THEME.accentPurple}
+                />
+              }
+              showDivider={false}
+            />
+            <View style={styles.divider} />
+            <SettingsRow
+              icon="arrow.triangle.2.circlepath"
+              iconColor={THEME.accentOrange}
+              title="Reset App Data"
+              subtitle="Clear scan history and settings"
+              onPress={handleResetData}
+              showDivider={false}
+            />
+          </View>
+        </View>
+        
+        {/* SUPPORT SECTION */}
+        <View style={styles.section}>
+          <Text style={styles.sectionHeader}>SUPPORT</Text>
+          <View style={styles.card}>
+            <SettingsRow
+              icon="questionmark.circle"
+              iconColor={THEME.accentCyan}
+              title="Help Center"
+              onPress={() => router.push('/settings/help')}
+            />
+            <View style={styles.divider} />
+            <SettingsRow
+              icon="message"
+              iconColor={THEME.accentPurple}
+              title="Contact Us"
+              subtitle="support@liquidimpact.app"
+              onPress={handleContactUs}
+            />
+            <View style={styles.divider} />
+            <SettingsRow
+              icon="star"
+              iconColor={THEME.accentYellow}
+              title="Rate the App"
+              onPress={handleRateApp}
+            />
+            <View style={styles.divider} />
+            <SettingsRow
+              icon="share.social"
+              iconColor={THEME.accentGreen}
+              title="Share with Friends"
+              onPress={handleShare}
+              showDivider={false}
+            />
+          </View>
+        </View>
+        
+        {/* Sign Out Button */}
+        <View style={styles.signOutSection}>
+          <TouchableOpacity
+            onPress={handleLogout}
+            style={styles.signOutButton}
+            accessibilityLabel="Sign out of your account"
+            accessibilityRole="button"
+            disabled={isLoading}
+          >
+            <Text style={styles.signOutText}>Sign Out</Text>
+          </TouchableOpacity>
+        </View>
+        
+        {/* App Version */}
+        <Text style={styles.versionText}>
+          Liquid Impact v1.0.0
+        </Text>
+      </ScrollView>
+    </View>
+  );
+}
+
+// ── Premium Styles ──
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: THEME.background,
+  },
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 20,
+    paddingVertical: 16,
+  },
+  backButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 12,
+    backgroundColor: THEME.glassBg,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  headerTitle: {
+    fontSize: 28,
+    fontWeight: '800',
+    color: THEME.textPrimary,
+    letterSpacing: -0.5,
+  },
+  section: {
+    paddingHorizontal: 20,
+    marginTop: 24,
+  },
+  sectionHeader: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: THEME.textMuted,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+    marginBottom: 12,
+    marginLeft: 4,
+  },
+  card: {
+    borderRadius: 24,
+    backgroundColor: THEME.glassBg,
+    borderWidth: 1,
+    borderColor: THEME.glassBorder,
+    overflow: 'hidden',
+  },
+  row: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 16,
+    paddingHorizontal: 20,
+    minHeight: 64,
+  },
+  rowLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+  },
+  iconContainer: {
+    width: 40,
+    height: 40,
+    borderRadius: 12,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 14,
+  },
+  rowText: {
+    flex: 1,
+  },
+  rowTitle: {
+    fontSize: 17,
+    fontWeight: '600',
+    color: THEME.textPrimary,
+    marginBottom: 2,
+  },
+  rowSubtitle: {
+    fontSize: 13,
+    fontWeight: '400',
+    color: THEME.textSecondary,
+  },
+  divider: {
+    height: 1,
+    backgroundColor: THEME.divider,
+    marginLeft: 74,
+  },
+  signOutSection: {
+    paddingHorizontal: 20,
+    marginTop: 32,
+    marginBottom: 20,
+  },
+  signOutButton: {
+    paddingVertical: 16,
+    borderRadius: 20,
+    alignItems: 'center',
+    backgroundColor: `${THEME.accentRed}10`,
+    borderWidth: 1,
+    borderColor: `${THEME.accentRed}30`,
+  },
+  signOutText: {
+    color: THEME.accentRed,
+    fontSize: 17,
+    fontWeight: '600',
+  },
+  versionText: {
+    textAlign: 'center',
+    color: THEME.textMuted,
+    fontSize: 12,
+    fontWeight: '500',
+    marginTop: 8,
+  },
+});
+```
+
+---
+
+## 👤 2. Edit Profile Screen
+
+```typescript
+// src/features/settings/screens/ProfileScreen.tsx
+import React, { useState, useEffect } from 'react';
+import {
+  View,
+  Text,
+  ScrollView,
+  TouchableOpacity,
+  TextInput,
+  StyleSheet,
+  StatusBar,
+  Image,
+  Alert,
+  ActivityIndicator,
+} from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useRouter } from 'expo-router';
+import { Ionicons } from '@expo/vector-icons';
+import * as Haptics from 'expo-haptics';
+import * as ImagePicker from 'expo-image-picker';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { useApp } from '@/context/AppContext';
+
+const THEME = {
+  background: '#0A0A0F',
+  surface: '#151520',
+  textPrimary: '#FFFFFF',
+  textSecondary: 'rgba(255,255,255,0.7)',
+  textMuted: 'rgba(255,255,255,0.4)',
+  accentCyan: '#00B4D8',
+  accentPurple: '#7B2CBF',
+  accentGreen: '#10b981',
+  glassBg: 'rgba(255,255,255,0.06)',
+  glassBorder: 'rgba(255,255,255,0.08)',
+};
+
+export default function ProfileScreen() {
+  const router = useRouter();
+  const insets = useSafeAreaInsets();
+  const { user, updateUser } = useApp();
+  
+  const [displayName, setDisplayName] = useState(user?.displayName || '');
+  const [email, setEmail] = useState(user?.email || '');
+  const [avatarUrl, setAvatarUrl] = useState(user?.avatarUrl || '');
+  const [isLoading, setIsLoading] = useState(false);
+  const [isUploading, setIsUploading] = useState(false);
+
+  useEffect(() => {
+    if (user) {
+      setDisplayName(user.displayName || '');
+      setEmail(user.email || '');
+      setAvatarUrl(user.avatarUrl || '');
+    }
+  }, [user]);
+
+  const handlePickImage = async () => {
+    const permissionResult = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    
+    if (permissionResult.granted === false) {
+      Alert.alert('Permission Required', 'Permission to access camera roll is required!');
+      return;
+    }
+
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      allowsEditing: true,
+      aspect: [1, 1],
+      quality: 0.8,
+    });
+
+    if (!result.canceled && result.assets[0]) {
+      setIsUploading(true);
+      await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+      
+      // In production, upload to S3/Cloudinary here
+      // For now, use local URI
+      setAvatarUrl(result.assets[0].uri);
+      setIsUploading(false);
+    }
+  };
+
+  const handleSave = async () => {
+    if (!displayName.trim()) {
+      Alert.alert('Error', 'Display name is required');
+      return;
+    }
+
+    setIsLoading(true);
+    await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+
+    try {
+      // In production, call API to update profile
+      // await api.updateProfile({ displayName, avatarUrl });
+      
+      // For now, update local state
+      await updateUser({ displayName, avatarUrl });
+      
+      // Persist to AsyncStorage
+      await AsyncStorage.setItem('@user_profile', JSON.stringify({
+        displayName,
+        avatarUrl,
+      }));
+
+      Alert.alert('Success', 'Profile updated successfully');
+      router.back();
+    } catch (error) {
+      Alert.alert('Error', 'Failed to update profile');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  return (
+    <View style={[styles.container, { paddingTop: insets.top }]}>
+      <StatusBar barStyle="light-content" backgroundColor={THEME.background} />
+      
+      {/* Header */}
+      <View style={styles.header}>
+        <TouchableOpacity
+          onPress={() => router.back()}
+          style={styles.backButton}
+          accessibilityLabel="Go back"
+        >
+          <Ionicons name="chevron.back" size={24} color={THEME.textPrimary} />
+        </TouchableOpacity>
+        <Text style={styles.headerTitle}>Edit Profile</Text>
+        <TouchableOpacity
+          onPress={handleSave}
+          style={styles.saveButton}
+          disabled={isLoading}
+          accessibilityLabel="Save changes"
+        >
+          {isLoading ? (
+            <ActivityIndicator color="#fff" size="small" />
+          ) : (
+            <Text style={styles.saveText}>Save</Text>
+          )}
+        </TouchableOpacity>
+      </View>
+
+      <ScrollView showsVerticalScrollIndicator={false}>
+        {/* Avatar Section */}
+        <View style={styles.avatarSection}>
+          <TouchableOpacity onPress={handlePickImage} activeOpacity={0.8}>
+            <View style={styles.avatarContainer}>
+              {avatarUrl ? (
+                <Image source={{ uri: avatarUrl }} style={styles.avatar} />
+              ) : (
+                <View style={[styles.avatar, styles.avatarPlaceholder]}>
+                  <Ionicons name="person" size={48} color={THEME.textMuted} />
+                </View>
+              )}
+              {isUploading && (
+                <View style={styles.uploadOverlay}>
+                  <ActivityIndicator color="#fff" size="small" />
+                </View>
+              )}
+              <View style={styles.cameraIcon}>
+                <Ionicons name="camera" size={16} color="#fff" />
+              </View>
+            </View>
+          </TouchableOpacity>
+          <Text style={styles.avatarHint}>Tap to change photo</Text>
+        </View>
+
+        {/* Form Section */}
+        <View style={styles.formSection}>
+          <View style={styles.inputGroup}>
+            <Text style={styles.label}>Display Name</Text>
+            <TextInput
+              style={styles.input}
+              value={displayName}
+              onChangeText={setDisplayName}
+              placeholder="Enter your name"
+              placeholderTextColor={THEME.textMuted}
+              autoCapitalize="words"
+              autoCorrect={false}
+            />
+          </View>
+
+          <View style={styles.inputGroup}>
+            <Text style={styles.label}>Email</Text>
+            <TextInput
+              style={[styles.input, styles.inputDisabled]}
+              value={email}
+              editable={false}
+              placeholderTextColor={THEME.textMuted}
+            />
+            <Text style={styles.hint}>Email cannot be changed</Text>
+          </View>
+
+          <View style={styles.inputGroup}>
+            <Text style={styles.label}>Member Since</Text>
+            <Text style={styles.infoText}>
+              {user?.createdAt ? new Date(user.createdAt).toLocaleDateString('en-US', {
+                month: 'long',
+                year: 'numeric',
+              }) : 'April 2026'}
+            </Text>
+          </View>
+        </View>
+
+        {/* Stats Section */}
+        <View style={styles.statsSection}>
+          <Text style={styles.sectionTitle}>Your Stats</Text>
+          <View style={styles.statsGrid}>
+            <View style={styles.statCard}>
+              <Text style={styles.statValue}>{user?.totalScans || 0}</Text>
+              <Text style={styles.statLabel}>Total Scans</Text>
+            </View>
+            <View style={styles.statCard}>
+              <Text style={styles.statValue}>{user?.streakDays || 0}</Text>
+              <Text style={styles.statLabel}>Day Streak</Text>
+            </View>
+            <View style={styles.statCard}>
+              <Text style={styles.statValue}>{user?.averageScore || 0}</Text>
+              <Text style={styles.statLabel}>Avg Score</Text>
+            </View>
+          </View>
+        </View>
+      </ScrollView>
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: THEME.background,
+  },
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 20,
+    paddingVertical: 16,
+  },
+  backButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 12,
+    backgroundColor: THEME.glassBg,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  headerTitle: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: THEME.textPrimary,
+  },
+  saveButton: {
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+    backgroundColor: THEME.accentCyan,
+    borderRadius: 12,
+  },
+  saveText: {
+    color: '#fff',
+    fontSize: 15,
+    fontWeight: '600',
+  },
+  avatarSection: {
+    alignItems: 'center',
+    paddingVertical: 32,
+  },
+  avatarContainer: {
+    position: 'relative',
+  },
+  avatar: {
+    width: 120,
+    height: 120,
+    borderRadius: 60,
+  },
+  avatarPlaceholder: {
+    backgroundColor: THEME.surface,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 2,
+    borderColor: THEME.glassBorder,
+  },
+  uploadOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    borderRadius: 60,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  cameraIcon: {
+    position: 'absolute',
+    bottom: 0,
+    right: 0,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: THEME.accentCyan,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 3,
+    borderColor: THEME.background,
+  },
+  avatarHint: {
+    marginTop: 12,
+    color: THEME.textSecondary,
+    fontSize: 13,
+  },
+  formSection: {
+    paddingHorizontal: 20,
+    paddingBottom: 32,
+  },
+  inputGroup: {
+    marginBottom: 24,
+  },
+  label: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: THEME.textSecondary,
+    marginBottom: 8,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+  input: {
+    backgroundColor: THEME.glassBg,
+    borderWidth: 1,
+    borderColor: THEME.glassBorder,
+    borderRadius: 16,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    fontSize: 16,
+    color: THEME.textPrimary,
+  },
+  inputDisabled: {
+    opacity: 0.6,
+  },
+  hint: {
+    marginTop: 6,
+    fontSize: 12,
+    color: THEME.textMuted,
+  },
+  infoText: {
+    fontSize: 16,
+    color: THEME.textPrimary,
+    paddingVertical: 14,
+  },
+  statsSection: {
+    paddingHorizontal: 20,
+    paddingBottom: 40,
+  },
+  sectionTitle: {
+    fontSize: 17,
+    fontWeight: '700',
+    color: THEME.textPrimary,
+    marginBottom: 16,
+  },
+  statsGrid: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  statCard: {
+    flex: 1,
+    backgroundColor: THEME.glassBg,
+    borderWidth: 1,
+    borderColor: THEME.glassBorder,
+    borderRadius: 16,
+    padding: 16,
+    alignItems: 'center',
+  },
+  statValue: {
+    fontSize: 24,
+    fontWeight: '800',
+    color: THEME.accentCyan,
+    marginBottom: 4,
+  },
+  statLabel: {
+    fontSize: 11,
+    color: THEME.textSecondary,
+    textAlign: 'center',
+  },
+});
+```
+
+---
+
+## 🔐 3. Change Password Screen
+
+```typescript
+// src/features/settings/screens/PasswordScreen.tsx
+import React, { useState } from 'react';
+import {
+  View,
+  Text,
+  ScrollView,
+  TouchableOpacity,
+  TextInput,
+  StyleSheet,
+  StatusBar,
+  Alert,
+  ActivityIndicator,
+} from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useRouter } from 'expo-router';
+import { Ionicons } from '@expo/vector-icons';
+import * as Haptics from 'expo-haptics';
+
+const THEME = {
+  background: '#0A0A0F',
+  surface: '#151520',
+  textPrimary: '#FFFFFF',
+  textSecondary: 'rgba(255,255,255,0.7)',
+  textMuted: 'rgba(255,255,255,0.4)',
+  accentCyan: '#00B4D8',
+  accentRed: '#ef4444',
+  accentGreen: '#10b981',
+  glassBg: 'rgba(255,255,255,0.06)',
+  glassBorder: 'rgba(255,255,255,0.08)',
+};
+
+export default function PasswordScreen() {
+  const router = useRouter();
+  const insets = useSafeAreaInsets();
+  
+  const [currentPassword, setCurrentPassword] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [showCurrentPassword, setShowCurrentPassword] = useState(false);
+  const [showNewPassword, setShowNewPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
+
+  const validatePassword = (password: string): string | null => {
+    if (password.length < 8) {
+      return 'Password must be at least 8 characters';
+    }
+    if (!/[A-Z]/.test(password)) {
+      return 'Password must contain at least one uppercase letter';
+    }
+    if (!/[0-9]/.test(password)) {
+      return 'Password must contain at least one number';
+    }
+    return null;
+  };
+
+  const handleChangePassword = async () => {
+    // Validation
+    if (!currentPassword || !newPassword || !confirmPassword) {
+      Alert.alert('Error', 'Please fill in all fields');
+      return;
+    }
+
+    const passwordError = validatePassword(newPassword);
+    if (passwordError) {
+      Alert.alert('Error', passwordError);
+      return;
+    }
+
+    if (newPassword !== confirmPassword) {
+      Alert.alert('Error', 'New passwords do not match');
+      return;
+    }
+
+    if (currentPassword === newPassword) {
+      Alert.alert('Error', 'New password must be different from current password');
+      return;
+    }
+
+    setIsLoading(true);
+    await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+
+    try {
+      // In production, call API to change password
+      // await api.changePassword({ currentPassword, newPassword });
+      
+      // Simulate API call
+      await new Promise(resolve => setTimeout(resolve, 1500));
+      
+      Alert.alert(
+        'Success',
+        'Password changed successfully',
+        [{ text: 'OK', onPress: () => router.back() }]
+      );
+    } catch (error) {
+      Alert.alert('Error', 'Failed to change password. Please check your current password.');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  return (
+    <View style={[styles.container, { paddingTop: insets.top }]}>
+      <StatusBar barStyle="light-content" backgroundColor={THEME.background} />
+      
+      {/* Header */}
+      <View style={styles.header}>
+        <TouchableOpacity
+          onPress={() => router.back()}
+          style={styles.backButton}
+          accessibilityLabel="Go back"
+        >
+          <Ionicons name="chevron.back" size={24} color={THEME.textPrimary} />
+        </TouchableOpacity>
+        <Text style={styles.headerTitle}>Change Password</Text>
+        <View style={{ width: 40 }} />
+      </View>
+
+      <ScrollView showsVerticalScrollIndicator={false}>
+        {/* Security Notice */}
+        <View style={styles.noticeCard}>
+          <Ionicons name="lock.closed" size={24} color={THEME.accentCyan} />
+          <Text style={styles.noticeTitle}>Secure Password Change</Text>
+          <Text style={styles.noticeText}>
+            Your password is encrypted and stored securely. We never store plain text passwords.
+          </Text>
+        </View>
+
+        {/* Form */}
+        <View style={styles.formSection}>
+          <View style={styles.inputGroup}>
+            <Text style={styles.label}>Current Password</Text>
+            <View style={styles.passwordInputContainer}>
+              <TextInput
+                style={styles.passwordInput}
+                value={currentPassword}
+                onChangeText={setCurrentPassword}
+                placeholder="Enter current password"
+                placeholderTextColor={THEME.textMuted}
+                secureTextEntry={!showCurrentPassword}
+                autoCapitalize="none"
+                autoCorrect={false}
+              />
+              <TouchableOpacity
+                onPress={() => setShowCurrentPassword(!showCurrentPassword)}
+                style={styles.eyeButton}
+              >
+                <Ionicons
+                  name={showCurrentPassword ? 'eye-off' : 'eye'}
+                  size={20}
+                  color={THEME.textMuted}
+                />
+              </TouchableOpacity>
+            </View>
+          </View>
+
+          <View style={styles.inputGroup}>
+            <Text style={styles.label}>New Password</Text>
+            <View style={styles.passwordInputContainer}>
+              <TextInput
+                style={styles.passwordInput}
+                value={newPassword}
+                onChangeText={setNewPassword}
+                placeholder="Enter new password"
+                placeholderTextColor={THEME.textMuted}
+                secureTextEntry={!showNewPassword}
+                autoCapitalize="none"
+                autoCorrect={false}
+              />
+              <TouchableOpacity
+                onPress={() => setShowNewPassword(!showNewPassword)}
+                style={styles.eyeButton}
+              >
+                <Ionicons
+                  name={showNewPassword ? 'eye-off' : 'eye'}
+                  size={20}
+                  color={THEME.textMuted}
+                />
+              </TouchableOpacity>
+            </View>
+            <View style={styles.passwordRequirements}>
+              <RequirementItem 
+                met={newPassword.length >= 8} 
+                text="At least 8 characters" 
+              />
+              <RequirementItem 
+                met={/[A-Z]/.test(newPassword)} 
+                text="One uppercase letter" 
+              />
+              <RequirementItem 
+                met={/[0-9]/.test(newPassword)} 
+                text="One number" 
+              />
+            </View>
+          </View>
+
+          <View style={styles.inputGroup}>
+            <Text style={styles.label}>Confirm New Password</Text>
+            <View style={styles.passwordInputContainer}>
+              <TextInput
+                style={styles.passwordInput}
+                value={confirmPassword}
+                onChangeText={setConfirmPassword}
+                placeholder="Confirm new password"
+                placeholderTextColor={THEME.textMuted}
+                secureTextEntry={!showConfirmPassword}
+                autoCapitalize="none"
+                autoCorrect={false}
+              />
+              <TouchableOpacity
+                onPress={() => setShowConfirmPassword(!showConfirmPassword)}
+                style={styles.eyeButton}
+              >
+                <Ionicons
+                  name={showConfirmPassword ? 'eye-off' : 'eye'}
+                  size={20}
+                  color={THEME.textMuted}
+                />
+              </TouchableOpacity>
+            </View>
+            {confirmPassword && newPassword !== confirmPassword && (
+              <Text style={styles.errorText}>Passwords do not match</Text>
+            )}
+          </View>
+
+          <TouchableOpacity
+            onPress={handleChangePassword}
+            style={styles.submitButton}
+            disabled={isLoading}
+          >
+            {isLoading ? (
+              <ActivityIndicator color="#fff" size="small" />
+            ) : (
+              <Text style={styles.submitButtonText}>Change Password</Text>
+            )}
+          </TouchableOpacity>
+        </View>
+
+        {/* Forgot Password */}
+        <View style={styles.forgotSection}>
+          <TouchableOpacity onPress={() => Alert.alert('Forgot Password', 'Password reset functionality coming soon')}>
+            <Text style={styles.forgotText}>Forgot your password?</Text>
+          </TouchableOpacity>
+        </View>
+      </ScrollView>
+    </View>
+  );
+}
+
+interface RequirementItemProps {
+  met: boolean;
+  text: string;
+}
+
+const RequirementItem: React.FC<RequirementItemProps> = ({ met, text }) => (
+  <View style={styles.requirementItem}>
+    <Ionicons
+      name={met ? 'checkmark-circle' : 'close-circle'}
+      size={16}
+      color={met ? THEME.accentGreen : THEME.textMuted}
+    />
+    <Text style={[styles.requirementText, met && styles.requirementMet]}>
+      {text}
+    </Text>
+  </View>
+);
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: THEME.background,
+  },
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 20,
+    paddingVertical: 16,
+  },
+  backButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 12,
+    backgroundColor: THEME.glassBg,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  headerTitle: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: THEME.textPrimary,
+  },
+  noticeCard: {
+    margin: 20,
+    padding: 16,
+    backgroundColor: `${THEME.accentCyan}10`,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: `${THEME.accentCyan}20`,
+    alignItems: 'center',
+  },
+  noticeTitle: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: THEME.accentCyan,
+    marginTop: 8,
+    marginBottom: 4,
+  },
+  noticeText: {
+    fontSize: 12,
+    color: THEME.textSecondary,
+    textAlign: 'center',
+    lineHeight: 18,
+  },
+  formSection: {
+    paddingHorizontal: 20,
+    paddingBottom: 32,
+  },
+  inputGroup: {
+    marginBottom: 24,
+  },
+  label: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: THEME.textSecondary,
+    marginBottom: 8,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+  passwordInputContainer: {
+    position: 'relative',
+  },
+  passwordInput: {
+    backgroundColor: THEME.glassBg,
+    borderWidth: 1,
+    borderColor: THEME.glassBorder,
+    borderRadius: 16,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    paddingRight: 50,
+    fontSize: 16,
+    color: THEME.textPrimary,
+  },
+  eyeButton: {
+    position: 'absolute',
+    right: 12,
+    top: '50%',
+    marginTop: -10,
+    padding: 4,
+  },
+  passwordRequirements: {
+    marginTop: 12,
+    gap: 6,
+  },
+  requirementItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  requirementText: {
+    fontSize: 12,
+    color: THEME.textMuted,
+  },
+  requirementMet: {
+    color: THEME.accentGreen,
+  },
+  errorText: {
+    marginTop: 6,
+    fontSize: 12,
+    color: THEME.accentRed,
+  },
+  submitButton: {
+    backgroundColor: THEME.accentCyan,
+    borderRadius: 16,
+    paddingVertical: 16,
+    alignItems: 'center',
+    marginTop: 8,
+  },
+  submitButtonText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '700',
+  },
+  forgotSection: {
+    alignItems: 'center',
+    paddingBottom: 40,
+  },
+  forgotText: {
+    color: THEME.accentCyan,
+    fontSize: 14,
+    fontWeight: '600',
+  },
+});
+```
+
+---
+
+## 💳 4. Billing & Payments Screen
+
+```typescript
+// src/features/settings/screens/BillingScreen.tsx
+import React, { useState, useEffect } from 'react';
+import {
+  View,
+  Text,
+  ScrollView,
+  TouchableOpacity,
+  StyleSheet,
+  StatusBar,
+  ActivityIndicator,
+  Alert,
+  Linking,
+} from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useRouter } from 'expo-router';
+import { Ionicons } from '@expo/vector-icons';
+import * as Haptics from 'expo-haptics';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { useApp } from '@/context/AppContext';
+
+const THEME = {
+  background: '#0A0A0F',
+  surface: '#151520',
+  textPrimary: '#FFFFFF',
+  textSecondary: 'rgba(255,255,255,0.7)',
+  textMuted: 'rgba(255,255,255,0.4)',
+  accentCyan: '#00B4D8',
+  accentPurple: '#7B2CBF',
+  accentGreen: '#10b981',
+  accentYellow: '#FFD600',
+  accentRed: '#ef4444',
+  glassBg: 'rgba(255,255,255,0.06)',
+  glassBorder: 'rgba(255,255,255,0.08)',
+};
+
+interface Subscription {
+  tier: string;
+  status: 'active' | 'cancelled' | 'expired';
+  currentPeriodEnd: string;
+  billingCycle: 'monthly' | 'yearly';
+  price: string;
+}
+
+export default function BillingScreen() {
+  const router = useRouter();
+  const insets = useSafeAreaInsets();
+  const { user } = useApp();
+  
+  const [subscription, setSubscription] = useState<Subscription | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isCancelling, setIsCancelling] = useState(false);
+
+  useEffect(() => {
+    loadSubscription();
+  }, []);
+
+  const loadSubscription = async () => {
+    setIsLoading(true);
+    try {
+      // In production, fetch from API
+      // const response = await api.getSubscription();
+      
+      // Mock data for now
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      
+      const mockSub: Subscription = {
+        tier: 'Pro',
+        status: 'active',
+        currentPeriodEnd: '2026-12-31',
+        billingCycle: 'yearly',
+        price: '$49.99',
+      };
+      
+      setSubscription(mockSub);
+      
+      // Load from storage
+      const stored = await AsyncStorage.getItem('@subscription');
+      if (stored) {
+        setSubscription(JSON.parse(stored));
+      }
+    } catch (error) {
+      console.error('Failed to load subscription:', error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleManageSubscription = async () => {
+    await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    
+    // In production, open Stripe Customer Portal
+    // const portalUrl = await api.getPortalUrl();
+    // await Linking.openURL(portalUrl);
+    
+    Alert.alert(
+      'Manage Subscription',
+      'This would open the Stripe Customer Portal in production where you can:\n\n• Update payment method\n• Change subscription plan\n• Download invoices\n• Cancel subscription',
+      [{ text: 'OK' }]
+    );
+  };
+
+  const handleCancelSubscription = async () => {
+    Alert.alert(
+      'Cancel Subscription',
+      'Are you sure you want to cancel? You will lose access to Pro features at the end of your billing period.',
+      [
+        { text: 'Keep Subscription', style: 'cancel' },
+        {
+          text: 'Cancel Subscription',
+          style: 'destructive',
+          onPress: async () => {
+            setIsCancelling(true);
+            await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+            
+            try {
+              // In production, call API to cancel
+              // await api.cancelSubscription();
+              
+              await new Promise(resolve => setTimeout(resolve, 1500));
+              
+              if (subscription) {
+                const updated = { ...subscription, status: 'cancelled' as const };
+                setSubscription(updated);
+                await AsyncStorage.setItem('@subscription', JSON.stringify(updated));
+              }
+              
+              Alert.alert('Cancelled', 'Your subscription will end at the end of your billing period.');
+            } catch (error) {
+              Alert.alert('Error', 'Failed to cancel subscription');
+            } finally {
+              setIsCancelling(false);
+            }
+          },
+        },
+      ]
+    );
+  };
+
+  const handleRestorePurchase = async () => {
+    await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    
+    Alert.alert(
+      'Restore Purchase',
+      'Checking for previous purchases...\n\nIn production, this would restore purchases from App Store or Google Play.',
+      [{ text: 'OK' }]
+    );
+  };
+
+  const openSupport = async () => {
+    const url = 'mailto:support@liquidimpact.app?subject=Billing Support';
+    const supported = await Linking.canOpenURL(url);
+    if (supported) {
+      await Linking.openURL(url);
+    }
+  };
+
+  if (isLoading) {
+    return (
+      <View style={[styles.container, styles.loadingContainer]}>
+        <ActivityIndicator color={THEME.accentCyan} size="large" />
+        <Text style={styles.loadingText}>Loading subscription...</Text>
+      </View>
+    );
+  }
+
+  return (
+    <View style={[styles.container, { paddingTop: insets.top }]}>
+      <StatusBar barStyle="light-content" backgroundColor={THEME.background} />
+      
+      {/* Header */}
+      <View style={styles.header}>
+        <TouchableOpacity
+          onPress={() => router.back()}
+          style={styles.backButton}
+          accessibilityLabel="Go back"
+        >
+          <Ionicons name="chevron.back" size={24} color={THEME.textPrimary} />
+        </TouchableOpacity>
+        <Text style={styles.headerTitle}>Billing & Payments</Text>
+        <View style={{ width: 40 }} />
+      </View>
+
+      <ScrollView showsVerticalScrollIndicator={false}>
+        {/* Current Plan */}
+        <View style={styles.section}>
+          <Text style={styles.sectionHeader}>Current Plan</Text>
+          <View style={[styles.planCard, subscription?.tier === 'Pro' && styles.proPlanCard]}>
+            <View style={styles.planHeader}>
+              <View style={styles.planIcon}>
+                <Ionicons 
+                  name={subscription?.tier === 'Pro' ? 'crown' : 'star'} 
+                  size={28} 
+                  color={subscription?.tier === 'Pro' ? THEME.accentYellow : THEME.accentCyan} 
+                />
+              </View>
+              <View style={styles.planInfo}>
+                <Text style={styles.planName}>{subscription?.tier || 'Free'} Plan</Text>
+                <Text style={styles.planPrice}>
+                  {subscription ? `${subscription.price}/${subscription.billingCycle}` : 'Free'}
+                </Text>
+              </View>
+            </View>
+            
+            {subscription && (
+              <>
+                <View style={styles.planStatus}>
+                  <View style={[
+                    styles.statusBadge,
+                    subscription.status === 'active' && styles.statusActive,
+                    subscription.status === 'cancelled' && styles.statusCancelled,
+                  ]}>
+                    <Text style={styles.statusText}>
+                      {subscription.status === 'active' ? 'Active' : 
+                       subscription.status === 'cancelled' ? 'Cancelled' : 'Expired'}
+                    </Text>
+                  </View>
+                  <Text style={styles.renewalDate}>
+                    {subscription.status === 'cancelled' 
+                      ? `Access until ${new Date(subscription.currentPeriodEnd).toLocaleDateString()}`
+                      : `Renews ${new Date(subscription.currentPeriodEnd).toLocaleDateString()}`
+                    }
+                  </Text>
+                </View>
+              </>
+            )}
+          </View>
+        </View>
+
+        {/* Features */}
+        <View style={styles.section}>
+          <Text style={styles.sectionHeader}>Plan Features</Text>
+          <View style={styles.featuresCard}>
+            {subscription?.tier === 'Pro' ? (
+              <>
+                <FeatureItem icon="checkmark-circle" text="Unlimited scans" />
+                <FeatureItem icon="checkmark-circle" text="Long-term health insights" />
+                <FeatureItem icon="checkmark-circle" text="Glycemic impact detection" />
+                <FeatureItem icon="checkmark-circle" text="Weekly trends & export" />
+                <FeatureItem icon="checkmark-circle" text="Ad-free experience" />
+              </>
+            ) : (
+              <>
+                <FeatureItem icon="checkmark-circle" text="3 scans per day" />
+                <FeatureItem icon="checkmark-circle" text="Basic impact score" />
+                <FeatureItem icon="checkmark-circle" text="Short-term insights" />
+                <FeatureItem icon="close-circle" text="Long-term insights" muted />
+                <FeatureItem icon="close-circle" text="Weekly trends" muted />
+              </>
+            )}
+          </View>
+        </View>
+
+        {/* Actions */}
+        <View style={styles.section}>
+          <Text style={styles.sectionHeader}>Actions</Text>
+          <View style={styles.actionsCard}>
+            <TouchableOpacity 
+              style={styles.actionButton}
+              onPress={handleManageSubscription}
+            >
+              <Ionicons name="settings" size={20} color={THEME.accentCyan} />
+              <Text style={styles.actionButtonText}>Manage Subscription</Text>
+              <Ionicons name="chevron.forward" size={20} color={THEME.textMuted} />
+            </TouchableOpacity>
+            
+            <View style={styles.divider} />
+            
+            <TouchableOpacity 
+              style={styles.actionButton}
+              onPress={handleRestorePurchase}
+            >
+              <Ionicons name="refresh" size={20} color={THEME.accentPurple} />
+              <Text style={styles.actionButtonText}>Restore Purchase</Text>
+              <Ionicons name="chevron.forward" size={20} color={THEME.textMuted} />
+            </TouchableOpacity>
+            
+            {subscription && subscription.status === 'active' && (
+              <>
+                <View style={styles.divider} />
+                <TouchableOpacity 
+                  style={styles.actionButton}
+                  onPress={handleCancelSubscription}
+                  disabled={isCancelling}
+                >
+                  {isCancelling ? (
+                    <ActivityIndicator color={THEME.accentRed} size="small" />
+                  ) : (
+                    <Ionicons name="close-circle" size={20} color={THEME.accentRed} />
+                  )}
+                  <Text style={[styles.actionButtonText, styles.cancelText]}>
+                    Cancel Subscription
+                  </Text>
+                  <Ionicons name="chevron.forward" size={20} color={THEME.textMuted} />
+                </TouchableOpacity>
+              </>
+            )}
+          </View>
+        </View>
+
+        {/* Support */}
+        <View style={styles.section}>
+          <Text style={styles.sectionHeader}>Need Help?</Text>
+          <TouchableOpacity style={styles.supportCard} onPress={openSupport}>
+            <Ionicons name="mail" size={24} color={THEME.accentCyan} />
+            <View style={styles.supportInfo}>
+              <Text style={styles.supportTitle}>Billing Support</Text>
+              <Text style={styles.supportEmail}>support@liquidimpact.app</Text>
+            </View>
+            <Ionicons name="open" size={20} color={THEME.textMuted} />
+          </TouchableOpacity>
+        </View>
+
+        {/* Payment Methods */}
+        <View style={styles.section}>
+          <Text style={styles.sectionHeader}>Payment Method</Text>
+          <View style={styles.paymentCard}>
+            <Ionicons name="card" size={32} color={THEME.accentGreen} />
+            <View style={styles.paymentInfo}>
+              <Text style={styles.paymentMethod}>Visa ending in 4242</Text>
+              <Text style={styles.paymentExpiry}>Expires 12/2027</Text>
+            </View>
+            <TouchableOpacity>
+              <Text style={styles.editText}>Edit</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </ScrollView>
+    </View>
+  );
+}
+
+interface FeatureItemProps {
+  icon: string;
+  text: string;
+  muted?: boolean;
+}
+
+const FeatureItem: React.FC<FeatureItemProps> = ({ icon, text, muted }) => (
+  <View style={styles.featureItem}>
+    <Ionicons 
+      name={icon as any} 
+      size={20} 
+      color={muted ? THEME.textMuted : THEME.accentGreen} 
+    />
+    <Text style={[styles.featureText, muted && styles.featureTextMuted]}>
+      {text}
+    </Text>
+  </View>
+);
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: THEME.background,
+  },
+  loadingContainer: {
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  loadingText: {
+    marginTop: 16,
+    color: THEME.textSecondary,
+    fontSize: 14,
+  },
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 20,
+    paddingVertical: 16,
+  },
+  backButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 12,
+    backgroundColor: THEME.glassBg,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  headerTitle: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: THEME.textPrimary,
+  },
+  section: {
+    paddingHorizontal: 20,
+    marginTop: 24,
+  },
+  sectionHeader: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: THEME.textMuted,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+    marginBottom: 12,
+  },
+  planCard: {
+    backgroundColor: THEME.glassBg,
+    borderWidth: 1,
+    borderColor: THEME.glassBorder,
+    borderRadius: 20,
+    padding: 20,
+  },
+  proPlanCard: {
+    borderColor: `${THEME.accentYellow}40`,
+    backgroundColor: `${THEME.accentYellow}08`,
+  },
+  planHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  planIcon: {
+    width: 56,
+    height: 56,
+    borderRadius: 16,
+    backgroundColor: THEME.surface,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 16,
+  },
+  planInfo: {
+    flex: 1,
+  },
+  planName: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: THEME.textPrimary,
+    marginBottom: 4,
+  },
+  planPrice: {
+    fontSize: 14,
+    color: THEME.textSecondary,
+  },
+  planStatus: {
+    gap: 8,
+  },
+  statusBadge: {
+    alignSelf: 'flex-start',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 8,
+    backgroundColor: `${THEME.textMuted}20`,
+  },
+  statusActive: {
+    backgroundColor: `${THEME.accentGreen}20`,
+  },
+  statusCancelled: {
+    backgroundColor: `${THEME.accentRed}20`,
+  },
+  statusText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: THEME.textSecondary,
+  },
+  renewalDate: {
+    fontSize: 12,
+    color: THEME.textMuted,
+  },
+  featuresCard: {
+    backgroundColor: THEME.glassBg,
+    borderWidth: 1,
+    borderColor: THEME.glassBorder,
+    borderRadius: 20,
+    padding: 16,
+    gap: 12,
+  },
+  featureItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  featureText: {
+    fontSize: 14,
+    color: THEME.textPrimary,
+    flex: 1,
+  },
+  featureTextMuted: {
+    color: THEME.textMuted,
+  },
+  actionsCard: {
+    backgroundColor: THEME.glassBg,
+    borderWidth: 1,
+    borderColor: THEME.glassBorder,
+    borderRadius: 20,
+    overflow: 'hidden',
+  },
+  actionButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    padding: 16,
+  },
+  actionButtonText: {
+    flex: 1,
+    fontSize: 15,
+    fontWeight: '600',
+    color: THEME.textPrimary,
+  },
+  cancelText: {
+    color: THEME.accentRed,
+  },
+  divider: {
+    height: 1,
+    backgroundColor: THEME.glassBorder,
+    marginLeft: 48,
+  },
+  supportCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 16,
+    backgroundColor: THEME.glassBg,
+    borderWidth: 1,
+    borderColor: THEME.glassBorder,
+    borderRadius: 20,
+    padding: 16,
+  },
+  supportInfo: {
+    flex: 1,
+  },
+  supportTitle: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: THEME.textPrimary,
+    marginBottom: 2,
+  },
+  supportEmail: {
+    fontSize: 13,
+    color: THEME.textSecondary,
+  },
+  paymentCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 16,
+    backgroundColor: THEME.glassBg,
+    borderWidth: 1,
+    borderColor: THEME.glassBorder,
+    borderRadius: 20,
+    padding: 16,
+  },
+  paymentInfo: {
+    flex: 1,
+  },
+  paymentMethod: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: THEME.textPrimary,
+    marginBottom: 2,
+  },
+  paymentExpiry: {
+    fontSize: 13,
+    color: THEME.textSecondary,
+  },
+  editText: {
+    fontSize: 14,
+    color: THEME.accentCyan,
+    fontWeight: '600',
+  },
+});
+```
+
+---
+
+## 🌍 5. Language Screen
+
+```typescript
+// src/features/settings/screens/LanguageScreen.tsx
+import React, { useState, useEffect } from 'react';
+import {
+  View,
+  Text,
+  ScrollView,
+  TouchableOpacity,
+  StyleSheet,
+  StatusBar,
+  Alert,
+} from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useRouter } from 'expo-router';
+import { Ionicons } from '@expo/vector-icons';
+import * as Haptics from 'expo-haptics';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+
+const THEME = {
+  background: '#0A0A0F',
+  surface: '#151520',
+  textPrimary: '#FFFFFF',
+  textSecondary: 'rgba(255,255,255,0.7)',
+  textMuted: 'rgba(255,255,255,0.4)',
+  accentCyan: '#00B4D8',
+  glassBg: 'rgba(255,255,255,0.06)',
+  glassBorder: 'rgba(255,255,255,0.08)',
+};
+
+interface Language {
+  code: string;
+  name: string;
+  nativeName: string;
+  flag: string;
+}
+
+const LANGUAGES: Language[] = [
+  { code: 'en', name: 'English', nativeName: 'English', flag: '🇺🇸' },
+  { code: 'es', name: 'Spanish', nativeName: 'Español', flag: '🇪🇸' },
+  { code: 'fr', name: 'French', nativeName: 'Français', flag: '🇫🇷' },
+  { code: 'de', name: 'German', nativeName: 'Deutsch', flag: '🇩🇪' },
+  { code: 'it', name: 'Italian', nativeName: 'Italiano', flag: '🇮🇹' },
+  { code: 'pt', name: 'Portuguese', nativeName: 'Português', flag: '🇵' },
+  { code: 'zh', name: 'Chinese', nativeName: '中文', flag: '🇨' },
+  { code: 'ja', name: 'Japanese', nativeName: '日本語', flag: '🇯🇵' },
+  { code: 'ko', name: 'Korean', nativeName: '한국어', flag: '🇰' },
+  { code: 'hi', name: 'Hindi', nativeName: 'हिन्दी', flag: '🇮🇳' },
+];
+
+export default function LanguageScreen() {
+  const router = useRouter();
+  const insets = useSafeAreaInsets();
+  const [selectedLanguage, setSelectedLanguage] = useState('en');
+
+  useEffect(() => {
+    loadLanguage();
+  }, []);
+
+  const loadLanguage = async () => {
+    try {
+      const saved = await AsyncStorage.getItem('@settings_language');
+      if (saved) {
+        setSelectedLanguage(saved);
+      }
+    } catch (error) {
+      console.error('Failed to load language:', error);
+    }
+  };
+
+  const handleLanguageChange = async (code: string) => {
+    await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    setSelectedLanguage(code);
+    
+    try {
+      await AsyncStorage.setItem('@settings_language', code);
+      
+      // In production, update i18n library
+      // i18n.changeLanguage(code);
+      
+      if (code !== 'en') {
+        Alert.alert(
+          'Language Changed',
+          'The app will restart to apply the new language.',
+          [{ text: 'OK', onPress: () => router.back() }]
+        );
+      } else {
+        router.back();
+      }
+    } catch (error) {
+      console.error('Failed to save language:', error);
+    }
+  };
+
+  return (
+    <View style={[styles.container, { paddingTop: insets.top }]}>
+      <StatusBar barStyle="light-content" backgroundColor={THEME.background} />
+      
+      {/* Header */}
+      <View style={styles.header}>
+        <TouchableOpacity
+          onPress={() => router.back()}
+          style={styles.backButton}
+          accessibilityLabel="Go back"
+        >
+          <Ionicons name="chevron.back" size={24} color={THEME.textPrimary} />
+        </TouchableOpacity>
+        <Text style={styles.headerTitle}>Language</Text>
+        <View style={{ width: 40 }} />
+      </View>
+
+      {/* Info Card */}
+      <View style={styles.infoCard}>
+        <Ionicons name="globe" size={24} color={THEME.accentCyan} />
+        <Text style={styles.infoTitle}>Select Language</Text>
+        <Text style={styles.infoText}>
+          Choose your preferred language for the app interface
+        </Text>
+      </View>
+
+      {/* Language List */}
+      <ScrollView showsVerticalScrollIndicator={false}>
+        <View style={styles.languagesList}>
+          {LANGUAGES.map((language) => (
+            <TouchableOpacity
+              key={language.code}
+              onPress={() => handleLanguageChange(language.code)}
+              style={[
+                styles.languageItem,
+                selectedLanguage === language.code && styles.languageItemSelected,
+              ]}
+              accessibilityRole="radio"
+              accessibilityState={{ selected: selectedLanguage === language.code }}
+            >
+              <Text style={styles.flag}>{language.flag}</Text>
+              <View style={styles.languageInfo}>
+                <Text style={styles.languageName}>{language.name}</Text>
+                <Text style={styles.nativeName}>{language.nativeName}</Text>
+              </View>
+              {selectedLanguage === language.code && (
+                <Ionicons name="checkmark-circle" size={24} color={THEME.accentCyan} />
+              )}
+            </TouchableOpacity>
+          ))}
+        </View>
+      </ScrollView>
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: THEME.background,
+  },
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 20,
+    paddingVertical: 16,
+  },
+  backButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 12,
+    backgroundColor: THEME.glassBg,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  headerTitle: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: THEME.textPrimary,
+  },
+  infoCard: {
+    margin: 20,
+    padding: 16,
+    backgroundColor: `${THEME.accentCyan}10`,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: `${THEME.accentCyan}20`,
+    alignItems: 'center',
+  },
+  infoTitle: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: THEME.accentCyan,
+    marginTop: 8,
+    marginBottom: 4,
+  },
+  infoText: {
+    fontSize: 12,
+    color: THEME.textSecondary,
+    textAlign: 'center',
+  },
+  languagesList: {
+    paddingHorizontal: 20,
+    paddingBottom: 40,
+    gap: 8,
+  },
+  languageItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 16,
+    padding: 16,
+    backgroundColor: THEME.glassBg,
+    borderWidth: 1,
+    borderColor: THEME.glassBorder,
+    borderRadius: 16,
+  },
+  languageItemSelected: {
+    borderColor: THEME.accentCyan,
+    backgroundColor: `${THEME.accentCyan}08`,
+  },
+  flag: {
+    fontSize: 28,
+  },
+  languageInfo: {
+    flex: 1,
+  },
+  languageName: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: THEME.textPrimary,
+    marginBottom: 2,
+  },
+  nativeName: {
+    fontSize: 13,
+    color: THEME.textSecondary,
+  },
+});
+```
+
+---
+
+## 📏 6. Units Screen
+
+```typescript
+// src/features/settings/screens/UnitsScreen.tsx
+import React, { useState, useEffect } from 'react';
+import {
+  View,
+  Text,
+  ScrollView,
+  TouchableOpacity,
+  StyleSheet,
+  StatusBar,
+} from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useRouter } from 'expo-router';
+import { Ionicons } from '@expo/vector-icons';
+import * as Haptics from 'expo-haptics';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+
+const THEME = {
+  background: '#0A0A0F',
+  surface: '#151520',
+  textPrimary: '#FFFFFF',
+  textSecondary: 'rgba(255,255,255,0.7)',
+  textMuted: 'rgba(255,255,255,0.4)',
+  accentCyan: '#00B4D8',
+  accentGreen: '#10b981',
+  glassBg: 'rgba(255,255,255,0.06)',
+  glassBorder: 'rgba(255,255,255,0.08)',
+};
+
+interface UnitSystem {
+  id: string;
+  name: string;
+  description: string;
+  examples: {
+    volume: string;
+    weight: string;
+    temperature: string;
+  };
+}
+
+const UNIT_SYSTEMS: UnitSystem[] = [
+  {
+    id: 'metric',
+    name: 'Metric',
+    description: 'International standard units',
+    examples: {
+      volume: 'ml, L',
+      weight: 'g, kg',
+      temperature: '°C',
+    },
+  },
+  {
+    id: 'imperial',
+    name: 'Imperial',
+    description: 'US customary units',
+    examples: {
+      volume: 'fl oz, cup',
+      weight: 'oz, lb',
+      temperature: '°F',
+    },
+  },
+];
+
+export default function UnitsScreen() {
+  const router = useRouter();
+  const insets = useSafeAreaInsets();
+  const [selectedUnit, setSelectedUnit] = useState('metric');
+
+  useEffect(() => {
+    loadUnits();
+  }, []);
+
+  const loadUnits = async () => {
+    try {
+      const saved = await AsyncStorage.getItem('@settings_units');
+      if (saved) {
+        setSelectedUnit(saved.includes('Metric') ? 'metric' : 'imperial');
+      }
+    } catch (error) {
+      console.error('Failed to load units:', error);
+    }
+  };
+
+  const handleUnitChange = async (id: string) => {
+    await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    setSelectedUnit(id);
+    
+    try {
+      const unit = UNIT_SYSTEMS.find(u => u.id === id);
+      const unitString = id === 'metric' ? 'Metric (ml, g, mg)' : 'Imperial (fl oz, oz, °F)';
+      await AsyncStorage.setItem('@settings_units', unitString);
+      router.back();
+    } catch (error) {
+      console.error('Failed to save units:', error);
+    }
+  };
+
+  return (
+    <View style={[styles.container, { paddingTop: insets.top }]}>
+      <StatusBar barStyle="light-content" backgroundColor={THEME.background} />
+      
+      {/* Header */}
+      <View style={styles.header}>
+        <TouchableOpacity
+          onPress={() => router.back()}
+          style={styles.backButton}
+          accessibilityLabel="Go back"
+        >
+          <Ionicons name="chevron.back" size={24} color={THEME.textPrimary} />
+        </TouchableOpacity>
+        <Text style={styles.headerTitle}>Units</Text>
+        <View style={{ width: 40 }} />
+      </View>
+
+      {/* Info Card */}
+      <View style={styles.infoCard}>
+        <Ionicons name="ruler" size={24} color={THEME.accentCyan} />
+        <Text style={styles.infoTitle}>Measurement Units</Text>
+        <Text style={styles.infoText}>
+          Choose your preferred system for displaying measurements
+        </Text>
+      </View>
+
+      {/* Unit Systems */}
+      <ScrollView showsVerticalScrollIndicator={false}>
+        <View style={styles.unitsList}>
+          {UNIT_SYSTEMS.map((system) => (
+            <TouchableOpacity
+              key={system.id}
+              onPress={() => handleUnitChange(system.id)}
+              style={[
+                styles.unitCard,
+                selectedUnit === system.id && styles.unitCardSelected,
+              ]}
+              accessibilityRole="radio"
+              accessibilityState={{ selected: selectedUnit === system.id }}
+            >
+              <View style={styles.unitHeader}>
+                <View style={styles.radioContainer}>
+                  <View style={[
+                    styles.radio,
+                    selectedUnit === system.id && styles.radioSelected,
+                  ]}>
+                    {selectedUnit === system.id && (
+                      <View style={styles.radioDot} />
+                    )}
+                  </View>
+                </View>
+                <View style={styles.unitInfo}>
+                  <Text style={styles.unitName}>{system.name}</Text>
+                  <Text style={styles.unitDescription}>{system.description}</Text>
+                </View>
+              </View>
+              
+              <View style={styles.examplesContainer}>
+                <Text style={styles.examplesTitle}>Examples:</Text>
+                <View style={styles.examplesRow}>
+                  <View style={styles.exampleItem}>
+                    <Ionicons name="water" size={16} color={THEME.textMuted} />
+                    <Text style={styles.exampleText}>{system.examples.volume}</Text>
+                  </View>
+                  <View style={styles.exampleItem}>
+                    <Ionicons name="scale" size={16} color={THEME.textMuted} />
+                    <Text style={styles.exampleText}>{system.examples.weight}</Text>
+                  </View>
+                  <View style={styles.exampleItem}>
+                    <Ionicons name="thermometer" size={16} color={THEME.textMuted} />
+                    <Text style={styles.exampleText}>{system.examples.temperature}</Text>
+                  </View>
+                </View>
+              </View>
+            </TouchableOpacity>
+          ))}
+        </View>
+
+        {/* Conversion Info */}
+        <View style={styles.conversionCard}>
+          <Ionicons name="information-circle" size={20} color={THEME.accentGreen} />
+          <Text style={styles.conversionTitle}>Quick Conversion</Text>
+          <View style={styles.conversionRow}>
+            <Text style={styles.conversionText}>100 ml = 3.38 fl oz</Text>
+            <Text style={styles.conversionText}>1 g = 0.035 oz</Text>
+          </View>
+        </View>
+      </ScrollView>
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: THEME.background,
+  },
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 20,
+    paddingVertical: 16,
+  },
+  backButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 12,
+    backgroundColor: THEME.glassBg,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  headerTitle: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: THEME.textPrimary,
+  },
+  infoCard: {
+    margin: 20,
+    padding: 16,
+    backgroundColor: `${THEME.accentCyan}10`,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: `${THEME.accentCyan}20`,
+    alignItems: 'center',
+  },
+  infoTitle: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: THEME.accentCyan,
+    marginTop: 8,
+    marginBottom: 4,
+  },
+  infoText: {
+    fontSize: 12,
+    color: THEME.textSecondary,
+    textAlign: 'center',
+  },
+  unitsList: {
+    paddingHorizontal: 20,
+    gap: 16,
+  },
+  unitCard: {
+    backgroundColor: THEME.glassBg,
+    borderWidth: 1,
+    borderColor: THEME.glassBorder,
+    borderRadius: 20,
+    padding: 20,
+  },
+  unitCardSelected: {
+    borderColor: THEME.accentCyan,
+    backgroundColor: `${THEME.accentCyan}08`,
+  },
+  unitHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  radioContainer: {
+    marginRight: 16,
+  },
+  radio: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    borderWidth: 2,
+    borderColor: THEME.textMuted,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  radioSelected: {
+    borderColor: THEME.accentCyan,
+  },
+  radioDot: {
+    width: 12,
+    height: 12,
+    borderRadius: 6,
+    backgroundColor: THEME.accentCyan,
+  },
+  unitInfo: {
+    flex: 1,
+  },
+  unitName: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: THEME.textPrimary,
+    marginBottom: 4,
+  },
+  unitDescription: {
+    fontSize: 13,
+    color: THEME.textSecondary,
+  },
+  examplesContainer: {
+    marginTop: 12,
+    paddingTop: 16,
+    borderTopWidth: 1,
+    borderTopColor: THEME.glassBorder,
+  },
+  examplesTitle: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: THEME.textMuted,
+    marginBottom: 8,
+    textTransform: 'uppercase',
+  },
+  examplesRow: {
+    flexDirection: 'row',
+    gap: 16,
+  },
+  exampleItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  exampleText: {
+    fontSize: 12,
+    color: THEME.textSecondary,
+  },
+  conversionCard: {
+    margin: 20,
+    marginTop: 8,
+    padding: 16,
+    backgroundColor: `${THEME.accentGreen}10`,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: `${THEME.accentGreen}20`,
+  },
+  conversionTitle: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: THEME.accentGreen,
+    marginTop: 8,
+    marginBottom: 8,
+  },
+  conversionRow: {
+    gap: 12,
+  },
+  conversionText: {
+    fontSize: 12,
+    color: THEME.textSecondary,
+  },
+});
+```
+
+---
+
+## 🔒 7. Privacy Policy Screen
+
+```typescript
+// src/features/settings/screens/PrivacyScreen.tsx
+import React from 'react';
+import {
+  View,
+  Text,
+  ScrollView,
+  TouchableOpacity,
+  StyleSheet,
+  StatusBar,
+  Linking,
+} from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useRouter } from 'expo-router';
+import { Ionicons } from '@expo/vector-icons';
+
+const THEME = {
+  background: '#0A0A0F',
+  surface: '#151520',
+  textPrimary: '#FFFFFF',
+  textSecondary: 'rgba(255,255,255,0.7)',
+  textMuted: 'rgba(255,255,255,0.4)',
+  accentCyan: '#00B4D8',
+  accentGreen: '#10b981',
+  glassBg: 'rgba(255,255,255,0.06)',
+  glassBorder: 'rgba(255,255,255,0.08)',
+};
+
+export default function PrivacyScreen() {
+  const router = useRouter();
+  const insets = useSafeAreaInsets();
+
+  const openURL = async (url: string) => {
+    const supported = await Linking.canOpenURL(url);
+    if (supported) {
+      await Linking.openURL(url);
+    }
+  };
+
+  return (
+    <View style={[styles.container, { paddingTop: insets.top }]}>
+      <StatusBar barStyle="light-content" backgroundColor={THEME.background} />
+      
+      {/* Header */}
+      <View style={styles.header}>
+        <TouchableOpacity
+          onPress={() => router.back()}
+          style={styles.backButton}
+          accessibilityLabel="Go back"
+        >
+          <Ionicons name="chevron.back" size={24} color={THEME.textPrimary} />
+        </TouchableOpacity>
+        <Text style={styles.headerTitle}>Privacy Policy</Text>
+        <View style={{ width: 40 }} />
+      </View>
+
+      <ScrollView showsVerticalScrollIndicator={false}>
+        {/* Last Updated */}
+        <View style={styles.dateCard}>
+          <Ionicons name="calendar" size={16} color={THEME.textMuted} />
+          <Text style={styles.dateText}>Last updated: January 15, 2026</Text>
+        </View>
+
+        {/* Introduction */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Introduction</Text>
+          <Text style={styles.sectionText}>
+            Welcome to Liquid Impact ("we," "our," or "us"). We are committed to protecting your privacy and ensuring you have a positive experience when using our mobile application.
+          </Text>
+          <Text style={styles.sectionText}>
+            This Privacy Policy explains what information we collect, how we use it, and what rights you have in relation to it.
+          </Text>
+        </View>
+
+        {/* Information We Collect */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Information We Collect</Text>
+          
+          <Text style={styles.subsectionTitle}>Personal Information</Text>
+          <Text style={styles.sectionText}>
+            • Account information (name, email address, password){"\n"}
+            • Profile information (avatar, display name){"\n"}
+            • Payment information (processed securely by Stripe)
+          </Text>
+
+          <Text style={styles.subsectionTitle}>Health & Usage Data</Text>
+          <Text style={styles.sectionText}>
+            • Drink scan history and analysis{"\n"}
+            • Nutritional preferences{"\n"}
+            • App usage patterns and interactions{"\n"}
+            • Device information and settings
+          </Text>
+
+          <Text style={styles.subsectionTitle}>Automatically Collected Data</Text>
+          <Text style={styles.sectionText}>
+            • Device identifiers and IP address{"\n"}
+            • Operating system and app version{"\n"}
+            • Crash reports and performance data{"\n"}
+            • Location data (if enabled)
+          </Text>
+        </View>
+
+        {/* How We Use Your Data */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>How We Use Your Data</Text>
+          <Text style={styles.sectionText}>
+            We use the collected information for the following purposes:
+          </Text>
+          <Text style={styles.sectionText}>
+            • To provide and maintain our service{"\n"}
+            • To personalize your experience{"\n"}
+            • To improve our app and features{"\n"}
+            • To send you notifications and updates{"\n"}
+            • To provide customer support{"\n"}
+            • To analyze usage patterns{"\n"}
+            • To prevent fraud and ensure security
+          </Text>
+        </View>
+
+        {/* Data Sharing */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Data Sharing & Third Parties</Text>
+          <Text style={styles.sectionText}>
+            We do not sell your personal data. We may share information with:
+          </Text>
+          <Text style={styles.sectionText}>
+            • <Text style={styles.link} onPress={() => {}}>Service providers</Text> (hosting, analytics, payment processing){"\n"}
+            • <Text style={styles.link} onPress={() => {}}>Legal authorities</Text> (when required by law){"\n"}
+            • <Text style={styles.link} onPress={() => {}}>Business partners</Text> (with your consent)
+          </Text>
+        </View>
+
+        {/* AI & Data Processing */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>AI & Data Processing</Text>
+          <Text style={styles.sectionText}>
+            Our AI-powered analysis processes drink images to provide nutritional insights. Images are:
+          </Text>
+          <Text style={styles.sectionText}>
+            • Processed securely using OpenAI's GPT-4 Vision{"\n"}
+            • Not stored permanently on our servers{"\n"}
+            • Used only for generating your personalized insights{"\n"}
+            • Never shared with third parties for marketing
+          </Text>
+        </View>
+
+        {/* Data Security */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Data Security</Text>
+          <Text style={styles.sectionText}>
+            We implement industry-standard security measures:
+          </Text>
+          <Text style={styles.sectionText}>
+            • End-to-end encryption for data transmission{"\n"}
+            • Secure storage with encryption at rest{"\n"}
+            • Regular security audits and updates{"\n"}
+            • Limited employee access to personal data{"\n"}
+            • Secure payment processing via Stripe (PCI DSS compliant)
+          </Text>
+        </View>
+
+        {/* Your Rights */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Your Rights</Text>
+          <Text style={styles.sectionText}>
+            You have the right to:
+          </Text>
+          <Text style={styles.sectionText}>
+            • Access your personal data{"\n"}
+            • Correct inaccurate data{"\n"}
+            • Request deletion of your data{"\n"}
+            • Export your data in a portable format{"\n"}
+            • Object to processing of your data{"\n"}
+            • Withdraw consent at any time
+          </Text>
+          <Text style={styles.sectionText}>
+            To exercise these rights, contact us at{' '}
+            <Text style={styles.link} onPress={() => openURL('mailto:privacy@liquidimpact.app')}>
+              privacy@liquidimpact.app
+            </Text>
+          </Text>
+        </View>
+
+        {/* Cookies & Tracking */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Cookies & Analytics</Text>
+          <Text style={styles.sectionText}>
+            We use analytics tools (PostHog, Firebase) to understand app usage and improve our service. You can opt-out of analytics in Settings.
+          </Text>
+        </View>
+
+        {/* Children's Privacy */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Children's Privacy</Text>
+          <Text style={styles.sectionText}>
+            Our service is not intended for children under 13. We do not knowingly collect personal information from children under 13.
+          </Text>
+        </View>
+
+        {/* International Transfers */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>International Data Transfers</Text>
+          <Text style={styles.sectionText}>
+            Your data may be transferred to and processed in countries outside your residence. We ensure appropriate safeguards are in place.
+          </Text>
+        </View>
+
+        {/* Changes to Policy */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Changes to This Policy</Text>
+          <Text style={styles.sectionText}>
+            We may update this Privacy Policy from time to time. We will notify you of any changes by posting the new policy here and updating the "Last updated" date.
+          </Text>
+        </View>
+
+        {/* Contact */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Contact Us</Text>
+          <Text style={styles.sectionText}>
+            If you have questions about this Privacy Policy, please contact us:
+          </Text>
+          <Text style={styles.contactText}>
+            Email: <Text style={styles.link} onPress={() => openURL('mailto:privacy@liquidimpact.app')}>privacy@liquidimpact.app</Text>{"\n"}
+            Address: 123 Health Tech Street, San Francisco, CA 94102
+          </Text>
+        </View>
+
+        {/* Legal Links */}
+        <View style={styles.legalLinks}>
+          <TouchableOpacity onPress={() => router.push('/settings/terms')}>
+            <Text style={styles.legalLink}>Terms of Service</Text>
+          </TouchableOpacity>
+          <Text style={styles.legalSeparator}>•</Text>
+          <TouchableOpacity onPress={() => router.back()}>
+            <Text style={styles.legalLink}>Settings</Text>
+          </TouchableOpacity>
+        </View>
+
+        <View style={{ height: 40 }} />
+      </ScrollView>
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: THEME.background,
+  },
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 20,
+    paddingVertical: 16,
+  },
+  backButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 12,
+    backgroundColor: THEME.glassBg,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  headerTitle: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: THEME.textPrimary,
+  },
+  dateCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    margin: 20,
+    padding: 12,
+    backgroundColor: THEME.glassBg,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: THEME.glassBorder,
+  },
+  dateText: {
+    fontSize: 12,
+    color: THEME.textMuted,
+  },
+  section: {
+    paddingHorizontal: 20,
+    marginBottom: 24,
+  },
+  sectionTitle: {
+    fontSize: 17,
+    fontWeight: '700',
+    color: THEME.textPrimary,
+    marginBottom: 12,
+  },
+  subsectionTitle: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: THEME.textSecondary,
+    marginTop: 12,
+    marginBottom: 6,
+  },
+  sectionText: {
+    fontSize: 14,
+    color: THEME.textSecondary,
+    lineHeight: 22,
+    marginBottom: 8,
+  },
+  link: {
+    color: THEME.accentCyan,
+    textDecorationLine: 'underline',
+  },
+  contactText: {
+    fontSize: 14,
+    color: THEME.textSecondary,
+    lineHeight: 22,
+  },
+  legalLinks: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    gap: 12,
+    paddingBottom: 20,
+  },
+  legalLink: {
+    fontSize: 13,
+    color: THEME.accentCyan,
+    fontWeight: '600',
+  },
+  legalSeparator: {
+    fontSize: 13,
+    color: THEME.textMuted,
+  },
+});
+```
+
+---
+
+## 📜 8. Terms of Service Screen
+
+```typescript
+// src/features/settings/screens/TermsScreen.tsx
+import React from 'react';
+import {
+  View,
+  Text,
+  ScrollView,
+  TouchableOpacity,
+  StyleSheet,
+  StatusBar,
+  Linking,
+} from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useRouter } from 'expo-router';
+import { Ionicons } from '@expo/vector-icons';
+
+const THEME = {
+  background: '#0A0A0F',
+  surface: '#151520',
+  textPrimary: '#FFFFFF',
+  textSecondary: 'rgba(255,255,255,0.7)',
+  textMuted: 'rgba(255,255,255,0.4)',
+  accentCyan: '#00B4D8',
+  accentGreen: '#10b981',
+  glassBg: 'rgba(255,255,255,0.06)',
+  glassBorder: 'rgba(255,255,255,0.08)',
+};
+
+export default function TermsScreen() {
+  const router = useRouter();
+  const insets = useSafeAreaInsets();
+
+  const openURL = async (url: string) => {
+    const supported = await Linking.canOpenURL(url);
+    if (supported) {
+      await Linking.openURL(url);
+    }
+  };
+
+  return (
+    <View style={[styles.container, { paddingTop: insets.top }]}>
+      <StatusBar barStyle="light-content" backgroundColor={THEME.background} />
+      
+      {/* Header */}
+      <View style={styles.header}>
+        <TouchableOpacity
+          onPress={() => router.back()}
+          style={styles.backButton}
+          accessibilityLabel="Go back"
+        >
+          <Ionicons name="chevron.back" size={24} color={THEME.textPrimary} />
+        </TouchableOpacity>
+        <Text style={styles.headerTitle}>Terms of Service</Text>
+        <View style={{ width: 40 }} />
+      </View>
+
+      <ScrollView showsVerticalScrollIndicator={false}>
+        {/* Last Updated */}
+        <View style={styles.dateCard}>
+          <Ionicons name="calendar" size={16} color={THEME.textMuted} />
+          <Text style={styles.dateText}>Last updated: January 15, 2026</Text>
+        </View>
+
+        {/* Agreement */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Agreement to Terms</Text>
+          <Text style={styles.sectionText}>
+            By accessing or using Liquid Impact ("the App"), you agree to be bound by these Terms of Service and all applicable laws and regulations. If you do not agree with any of these terms, you are prohibited from using or accessing this site.
+          </Text>
+        </View>
+
+        {/* Use License */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Use License</Text>
+          <Text style={styles.sectionText}>
+            Permission is granted to temporarily use the App for personal, non-commercial transitory viewing only. This is the grant of a license, not a transfer of title, and under this license you may not:
+          </Text>
+          <Text style={styles.sectionText}>
+            • Modify or copy the materials{"\n"}
+            • Use the materials for any commercial purpose{"\n"}
+            • Attempt to decompile or reverse engineer any software{"\n"}
+            • Remove any copyright or proprietary notations{"\n"}
+            • Transfer the materials to another person
+          </Text>
+          <Text style={styles.sectionText}>
+            This license shall automatically terminate if you violate any of these restrictions and may be terminated by Liquid Impact at any time.
+          </Text>
+        </View>
+
+        {/* Disclaimer */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Medical Disclaimer</Text>
+          <Text style={styles.sectionText}>
+            <Text style={styles.warningText}>⚠️ IMPORTANT:</Text> The information provided by Liquid Impact is for educational and informational purposes only and is not intended as medical advice.
+          </Text>
+          <Text style={styles.sectionText}>
+            • Always consult with a qualified healthcare professional before making dietary changes{"\n"}
+            • Do not disregard professional medical advice or delay seeking it{"\n"}
+            • The App does not diagnose, treat, cure, or prevent any disease{"\n"}
+            • Individual results may vary based on health conditions
+          </Text>
+        </View>
+
+        {/* AI Analysis Disclaimer */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>AI Analysis Disclaimer</Text>
+          <Text style={styles.sectionText}>
+            Our AI-powered drink analysis:
+          </Text>
+          <Text style={styles.sectionText}>
+            • Provides estimates based on available data{"\n"}
+            • May not be 100% accurate{"\n"}
+            • Should not replace professional nutritional advice{"\n"}
+            • Relies on image quality and product visibility{"\n"}
+            • Is continuously improving but may contain errors
+          </Text>
+        </View>
+
+        {/* User Accounts */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>User Accounts</Text>
+          <Text style={styles.sectionText}>
+            When you create an account with us, you must provide accurate, complete, and current information. You are responsible for safeguarding your password and agree not to disclose it to any third party.
+          </Text>
+          <Text style={styles.sectionText}>
+            You agree to notify us immediately of any unauthorized use of your account. Liquid Impact cannot and will not be liable for any loss or damage arising from your failure to comply with this section.
+          </Text>
+        </View>
+
+        {/* Subscriptions & Payments */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Subscriptions & Payments</Text>
+          <Text style={styles.sectionText}>
+            • Some features require a paid subscription{"\n"}
+            • Billing occurs on a recurring basis{"\n"}
+            • You can cancel anytime via Settings{"\n"}
+            • No refunds for partial subscription periods{"\n"}
+            • Prices may change with 30 days notice{"\n"}
+            • Subscriptions automatically renew unless cancelled
+          </Text>
+        </View>
+
+        {/* Prohibited Uses */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Prohibited Uses</Text>
+          <Text style={styles.sectionText}>
+            You may not use the App:
+          </Text>
+          <Text style={styles.sectionText}>
+            • For any unlawful purpose{"\n"}
+            • To harass, abuse, or harm others{"\n"}
+            • To transmit malware or malicious code{"\n"}
+            • To interfere with app functionality{"\n"}
+            • To collect user data without consent{"\n"}
+            • To impersonate any person or entity
+          </Text>
+        </View>
+
+        {/* Intellectual Property */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Intellectual Property</Text>
+          <Text style={styles.sectionText}>
+            The App and its original content, features, and functionality are owned by Liquid Impact and are protected by international copyright, trademark, patent, trade secret, and other intellectual property laws.
+          </Text>
+        </View>
+
+        {/* Limitation of Liability */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Limitation of Liability</Text>
+          <Text style={styles.sectionText}>
+            In no event shall Liquid Impact, nor its directors, employees, partners, agents, suppliers, or affiliates, be liable for any indirect, incidental, special, consequential, or punitive damages, including without limitation, loss of profits, data, use, goodwill, or other intangible losses.
+          </Text>
+        </View>
+
+        {/* Indemnification */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Indemnification</Text>
+          <Text style={styles.sectionText}>
+            You agree to defend, indemnify, and hold harmless Liquid Impact and all related parties from and against any claims, liabilities, damages, judgments, awards, losses, costs, expenses, or fees arising out of or relating to your violation of these Terms or your use of the App.
+          </Text>
+        </View>
+
+        {/* Termination */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Termination</Text>
+          <Text style={styles.sectionText}>
+            We may terminate or suspend your account and bar access to the App immediately, without prior notice or liability, under our sole discretion, for any reason whatsoever, including without limitation if you breach the Terms.
+          </Text>
+        </View>
+
+        {/* Governing Law */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Governing Law</Text>
+          <Text style={styles.sectionText}>
+            These Terms shall be governed and construed in accordance with the laws of California, United States, without regard to its conflict of law provisions.
+          </Text>
+        </View>
+
+        {/* Changes to Terms */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Changes to Terms</Text>
+          <Text style={styles.sectionText}>
+            We reserve the right to modify or replace these Terms at any time. If a revision is material, we will provide at least 30 days' notice prior to any new terms taking effect.
+          </Text>
+        </View>
+
+        {/* Contact */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Contact Us</Text>
+          <Text style={styles.sectionText}>
+            If you have any questions about these Terms, please contact us at{' '}
+            <Text style={styles.link} onPress={() => openURL('mailto:legal@liquidimpact.app')}>
+              legal@liquidimpact.app
+            </Text>
+          </Text>
+        </View>
+
+        {/* Acceptance */}
+        <View style={styles.acceptanceCard}>
+          <Ionicons name="checkmark-circle" size={24} color={THEME.accentGreen} />
+          <Text style={styles.acceptanceTitle}>By using Liquid Impact</Text>
+          <Text style={styles.acceptanceText}>
+            You acknowledge that you have read, understood, and agree to be bound by these Terms of Service.
+          </Text>
+        </View>
+
+        {/* Legal Links */}
+        <View style={styles.legalLinks}>
+          <TouchableOpacity onPress={() => router.push('/settings/privacy')}>
+            <Text style={styles.legalLink}>Privacy Policy</Text>
+          </TouchableOpacity>
+          <Text style={styles.legalSeparator}>•</Text>
+          <TouchableOpacity onPress={() => router.back()}>
+            <Text style={styles.legalLink}>Settings</Text>
+          </TouchableOpacity>
+        </View>
+
+        <View style={{ height: 40 }} />
+      </ScrollView>
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: THEME.background,
+  },
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 20,
+    paddingVertical: 16,
+  },
+  backButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 12,
+    backgroundColor: THEME.glassBg,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  headerTitle: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: THEME.textPrimary,
+  },
+  dateCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    margin: 20,
+    padding: 12,
+    backgroundColor: THEME.glassBg,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: THEME.glassBorder,
+  },
+  dateText: {
+    fontSize: 12,
+    color: THEME.textMuted,
+  },
+  section: {
+    paddingHorizontal: 20,
+    marginBottom: 24,
+  },
+  sectionTitle: {
+    fontSize: 17,
+    fontWeight: '700',
+    color: THEME.textPrimary,
+    marginBottom: 12,
+  },
+  sectionText: {
+    fontSize: 14,
+    color: THEME.textSecondary,
+    lineHeight: 22,
+    marginBottom: 8,
+  },
+  warningText: {
+    color: THEME.accentGreen,
+    fontWeight: '700',
+  },
+  link: {
+    color: THEME.accentCyan,
+    textDecorationLine: 'underline',
+  },
+  acceptanceCard: {
+    margin: 20,
+    padding: 20,
+    backgroundColor: `${THEME.accentGreen}10`,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: `${THEME.accentGreen}20`,
+    alignItems: 'center',
+  },
+  acceptanceTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: THEME.accentGreen,
+    marginTop: 12,
+    marginBottom: 8,
+  },
+  acceptanceText: {
+    fontSize: 13,
+    color: THEME.textSecondary,
+    textAlign: 'center',
+    lineHeight: 20,
+  },
+  legalLinks: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    gap: 12,
+    paddingBottom: 20,
+  },
+  legalLink: {
+    fontSize: 13,
+    color: THEME.accentCyan,
+    fontWeight: '600',
+  },
+  legalSeparator: {
+    fontSize: 13,
+    color: THEME.textMuted,
+  },
+});
+```
+
+---
+
+## ❓ 9. Help Center Screen
+
+```typescript
+// src/features/settings/screens/HelpScreen.tsx
+import React, { useState } from 'react';
+import {
+  View,
+  Text,
+  ScrollView,
+  TouchableOpacity,
+  StyleSheet,
+  StatusBar,
+  Linking,
+  TextInput,
+} from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useRouter } from 'expo-router';
+import { Ionicons } from '@expo/vector-icons';
+
+const THEME = {
+  background: '#0A0A0F',
+  surface: '#151520',
+  textPrimary: '#FFFFFF',
+  textSecondary: 'rgba(255,255,255,0.7)',
+  textMuted: 'rgba(255,255,255,0.4)',
+  accentCyan: '#00B4D8',
+  accentPurple: '#7B2CBF',
+  accentGreen: '#10b981',
+  glassBg: 'rgba(255,255,255,0.06)',
+  glassBorder: 'rgba(255,255,255,0.08)',
+};
+
+interface FAQItem {
+  question: string;
+  answer: string;
+  category: string;
+}
+
+const FAQS: FAQItem[] = [
+  {
+    category: 'Getting Started',
+    question: 'How do I scan a drink?',
+    answer: 'Tap the camera icon on the home screen or in the tab bar. Position your drink so the label is clearly visible and tap the capture button. Our AI will analyze it within seconds.',
+  },
+  {
+    category: 'Getting Started',
+    question: 'What information do I get from a scan?',
+    answer: 'Each scan provides: impact score (0-100), nutritional breakdown, ingredient analysis, short/medium/long-term health effects, hydration level, and personalized AI insights.',
+  },
+  {
+    category: 'Getting Started',
+    question: 'Is Liquid Impact free to use?',
+    answer: 'Yes! Free users get 3 scans per day with basic insights. Upgrade to Pro for unlimited scans, long-term tracking, and advanced features.',
+  },
+  {
+    category: 'Scanning & AI',
+    question: 'How accurate is the AI analysis?',
+    answer: 'Our AI is trained on thousands of beverage products and provides estimates based on visible labels. Accuracy is typically 85-95% for clear, well-lit images with visible nutrition labels.',
+  },
+  {
+    category: 'Scanning & AI',
+    question: 'What if the scan is incorrect?',
+    answer: 'You can manually edit scan results. Tap the scan in your history, then tap "Edit" to correct nutritional information or product details.',
+  },
+  {
+    category: 'Scanning & AI',
+    question: 'Can I scan homemade drinks?',
+    answer: 'Yes! For homemade drinks, select "Manual Entry" after scanning and input the ingredients. Our AI will still provide health impact analysis.',
+  },
+  {
+    category: 'Account & Subscription',
+    question: 'How do I upgrade to Pro?',
+    answer: 'Go to Settings > Billing & Payments, or tap the crown icon anywhere in the app. Choose your plan (monthly or yearly) and complete payment.',
+  },
+  {
+    category: 'Account & Subscription',
+    question: 'Can I cancel my subscription?',
+    answer: 'Yes, anytime! Go to Settings > Billing & Payments > Cancel Subscription. You\'ll retain access until the end of your billing period.',
+  },
+  {
+    category: 'Account & Subscription',
+    question: 'Do you offer refunds?',
+    answer: 'We offer refunds within 7 days of purchase if you\'re not satisfied. Contact support@liquidimpact.app with your order details.',
+  },
+  {
+    category: 'Privacy & Data',
+    question: 'Is my data secure?',
+    answer: 'Absolutely. We use bank-level encryption, never sell your data, and comply with GDPR/CCPA. See Settings > Privacy Policy for details.',
+  },
+  {
+    category: 'Privacy & Data',
+    question: 'Can I delete my account?',
+    answer: 'Yes. Go to Settings > Account > Delete Account. All your data will be permanently removed within 30 days.',
+  },
+  {
+    category: 'Technical Issues',
+    question: 'The app is crashing. What should I do?',
+    answer: 'Try: 1) Force close and reopen the app, 2) Update to the latest version, 3) Restart your device, 4) Reinstall the app. If issues persist, contact support.',
+  },
+  {
+    category: 'Technical Issues',
+    question: 'Camera not working?',
+    answer: 'Check that you\'ve granted camera permissions in Settings > Privacy > Camera > Liquid Impact. Also ensure your device has available storage.',
+  },
+];
+
+export default function HelpScreen() {
+  const router = useRouter();
+  const insets = useSafeAreaInsets();
+  const [expandedIndex, setExpandedIndex] = useState<number | null>(null);
+  const [searchQuery, setSearchQuery] = useState('');
+
+  const filteredFAQs = FAQS.filter(
+    (faq) =>
+      faq.question.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      faq.answer.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      faq.category.toLowerCase().includes(searchQuery.toLowerCase())
+  );
+
+  const groupedFAQs = filteredFAQs.reduce((acc, faq) => {
+    if (!acc[faq.category]) {
+      acc[faq.category] = [];
+    }
+    acc[faq.category].push(faq);
+    return acc;
+  }, {} as Record<string, FAQItem[]>);
+
+  const openURL = async (url: string) => {
+    const supported = await Linking.canOpenURL(url);
+    if (supported) {
+      await Linking.openURL(url);
+    }
+  };
+
+  const contactSupport = () => {
+    openURL('mailto:support@liquidimpact.app?subject=Help Center Inquiry');
+  };
+
+  return (
+    <View style={[styles.container, { paddingTop: insets.top }]}>
+      <StatusBar barStyle="light-content" backgroundColor={THEME.background} />
+      
+      {/* Header */}
+      <View style={styles.header}>
+        <TouchableOpacity
+          onPress={() => router.back()}
+          style={styles.backButton}
+          accessibilityLabel="Go back"
+        >
+          <Ionicons name="chevron.back" size={24} color={THEME.textPrimary} />
+        </TouchableOpacity>
+        <Text style={styles.headerTitle}>Help Center</Text>
+        <View style={{ width: 40 }} />
+      </View>
+
+      <ScrollView showsVerticalScrollIndicator={false}>
+        {/* Search */}
+        <View style={styles.searchContainer}>
+          <Ionicons name="search" size={20} color={THEME.textMuted} style={styles.searchIcon} />
+          <TextInput
+            style={styles.searchInput}
+            placeholder="Search for help..."
+            placeholderTextColor={THEME.textMuted}
+            value={searchQuery}
+            onChangeText={setSearchQuery}
+            autoCapitalize="none"
+            autoCorrect={false}
+          />
+          {searchQuery.length > 0 && (
+            <TouchableOpacity onPress={() => setSearchQuery('')}>
+              <Ionicons name="close-circle" size={20} color={THEME.textMuted} />
+            </TouchableOpacity>
+          )}
+        </View>
+
+        {/* Quick Actions */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Quick Actions</Text>
+          <View style={styles.quickActions}>
+            <QuickActionCard
+              icon="mail"
+              title="Contact Support"
+              subtitle="We typically respond within 24 hours"
+              onPress={contactSupport}
+              color={THEME.accentCyan}
+            />
+            <QuickActionCard
+              icon="document-text"
+              title="Privacy Policy"
+              subtitle="Learn about data usage"
+              onPress={() => router.push('/settings/privacy')}
+              color={THEME.accentGreen}
+            />
+            <QuickActionCard
+              icon="card"
+              title="Billing Help"
+              subtitle="Manage subscription & payments"
+              onPress={() => router.push('/settings/billing')}
+              color={THEME.accentPurple}
+            />
+          </View>
+        </View>
+
+        {/* FAQs */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Frequently Asked Questions</Text>
+          
+          {Object.entries(groupedFAQs).map(([category, items], categoryIndex) => (
+            <View key={category} style={styles.categoryGroup}>
+              <Text style={styles.categoryTitle}>{category}</Text>
+              {items.map((faq, index) => {
+                const globalIndex = Object.values(groupedFAQs)
+                  .flat()
+                  .indexOf(faq);
+                const isExpanded = expandedIndex === globalIndex;
+
+                return (
+                  <View key={index} style={styles.faqCard}>
+                    <TouchableOpacity
+                      onPress={() => setExpandedIndex(isExpanded ? null : globalIndex)}
+                      style={styles.faqHeader}
+                      accessibilityRole="button"
+                      accessibilityState={{ expanded: isExpanded }}
+                    >
+                      <Text style={styles.faqQuestion}>{faq.question}</Text>
+                      <Ionicons
+                        name={isExpanded ? 'chevron.up' : 'chevron.down'}
+                        size={20}
+                        color={THEME.textMuted}
+                      />
+                    </TouchableOpacity>
+                    
+                    {isExpanded && (
+                      <View style={styles.faqAnswer}>
+                        <Text style={styles.faqAnswerText}>{faq.answer}</Text>
+                      </View>
+                    )}
+                  </View>
+                );
+              })}
+            </View>
+          ))}
+        </View>
+
+        {/* Still Need Help */}
+        <View style={styles.helpCard}>
+          <Ionicons name="chatbubbles" size={32} color={THEME.accentCyan} />
+          <Text style={styles.helpTitle}>Still need help?</Text>
+          <Text style={styles.helpText}>
+            Our support team is here to assist you with any questions or issues.
+          </Text>
+          <TouchableOpacity style={styles.contactButton} onPress={contactSupport}>
+            <Text style={styles.contactButtonText}>Contact Support</Text>
+          </TouchableOpacity>
+          <Text style={styles.contactEmail}>support@liquidimpact.app</Text>
+        </View>
+
+        <View style={{ height: 40 }} />
+      </ScrollView>
+    </View>
+  );
+}
+
+interface QuickActionCardProps {
+  icon: string;
+  title: string;
+  subtitle: string;
+  onPress: () => void;
+  color: string;
+}
+
+const QuickActionCard: React.FC<QuickActionCardProps> = ({
+  icon,
+  title,
+  subtitle,
+  onPress,
+  color,
+}) => (
+  <TouchableOpacity style={styles.quickActionCard} onPress={onPress} activeOpacity={0.7}>
+    <View style={[styles.quickActionIcon, { backgroundColor: `${color}15` }]}>
+      <Ionicons name={icon as any} size={24} color={color} />
+    </View>
+    <Text style={styles.quickActionTitle}>{title}</Text>
+    <Text style={styles.quickActionSubtitle}>{subtitle}</Text>
+  </TouchableOpacity>
+);
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: THEME.background,
+  },
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 20,
+    paddingVertical: 16,
+  },
+  backButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 12,
+    backgroundColor: THEME.glassBg,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  headerTitle: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: THEME.textPrimary,
+  },
+  searchContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginHorizontal: 20,
+    marginTop: 16,
+    marginBottom: 24,
+    backgroundColor: THEME.glassBg,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: THEME.glassBorder,
+    paddingHorizontal: 16,
+  },
+  searchIcon: {
+    marginRight: 12,
+  },
+  searchInput: {
+    flex: 1,
+    paddingVertical: 14,
+    fontSize: 15,
+    color: THEME.textPrimary,
+  },
+  section: {
+    paddingHorizontal: 20,
+    marginBottom: 32,
+  },
+  sectionTitle: {
+    fontSize: 17,
+    fontWeight: '700',
+    color: THEME.textPrimary,
+    marginBottom: 16,
+  },
+  quickActions: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 12,
+  },
+  quickActionCard: {
+    width: '47%',
+    backgroundColor: THEME.glassBg,
+    borderWidth: 1,
+    borderColor: THEME.glassBorder,
+    borderRadius: 20,
+    padding: 16,
+    alignItems: 'center',
+  },
+  quickActionIcon: {
+    width: 48,
+    height: 48,
+    borderRadius: 16,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  quickActionTitle: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: THEME.textPrimary,
+    marginBottom: 4,
+    textAlign: 'center',
+  },
+  quickActionSubtitle: {
+    fontSize: 11,
+    color: THEME.textMuted,
+    textAlign: 'center',
+  },
+  categoryGroup: {
+    marginBottom: 24,
+  },
+  categoryTitle: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: THEME.textSecondary,
+    marginBottom: 12,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+  faqCard: {
+    backgroundColor: THEME.glassBg,
+    borderWidth: 1,
+    borderColor: THEME.glassBorder,
+    borderRadius: 16,
+    marginBottom: 8,
+    overflow: 'hidden',
+  },
+  faqHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    padding: 16,
+  },
+  faqQuestion: {
+    flex: 1,
+    fontSize: 14,
+    fontWeight: '600',
+    color: THEME.textPrimary,
+    marginRight: 12,
+  },
+  faqAnswer: {
+    paddingHorizontal: 16,
+    paddingBottom: 16,
+    borderTopWidth: 1,
+    borderTopColor: THEME.glassBorder,
+  },
+  faqAnswerText: {
+    fontSize: 13,
+    color: THEME.textSecondary,
+    lineHeight: 20,
+    marginTop: 12,
+  },
+  helpCard: {
+    margin: 20,
+    padding: 24,
+    backgroundColor: `${THEME.accentCyan}10`,
+    borderRadius: 24,
+    borderWidth: 1,
+    borderColor: `${THEME.accentCyan}20`,
+    alignItems: 'center',
+  },
+  helpTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: THEME.textPrimary,
+    marginTop: 16,
+    marginBottom: 8,
+  },
+  helpText: {
+    fontSize: 13,
+    color: THEME.textSecondary,
+    textAlign: 'center',
+    marginBottom: 20,
+    lineHeight: 20,
+  },
+  contactButton: {
+    backgroundColor: THEME.accentCyan,
+    paddingHorizontal: 32,
+    paddingVertical: 14,
+    borderRadius: 16,
+    marginBottom: 12,
+  },
+  contactButtonText: {
+    color: '#fff',
+    fontSize: 15,
+    fontWeight: '700',
+  },
+  contactEmail: {
+    fontSize: 13,
+    color: THEME.textSecondary,
+  },
+});
+``
+import 'dotenv/config';
+import { app } from './app';
+import { logger } from './utils/logger';
+
+const PORT = process.env.PORT || 4000;
+
+app.listen(PORT, () => {
+  logger.info(`Server running on port ${PORT}`);
+});
+import express from 'express';
+import cors from 'cors';
+import helmet from 'helmet';
+import morgan from 'morgan';
+import { errorHandler } from './middleware/errorHandler';
+import { authRouter } from './routes/auth.routes';
+import { userRouter } from './routes/user.routes';
+import { settingsRouter } from './routes/settings.routes';
+import { subscriptionRouter } from './routes/subscription.routes';
+import { scanRouter } from './routes/scan.routes';
+import { analyticsRouter } from './routes/analytics.routes';
+import { adminRouter } from './routes/admin.routes';
+import { webhookRouter } from './routes/webhook.routes';
+import { rateLimiter } from './middleware/rateLimiter';
+
+export const app = express();
+
+// Middleware
+app.use(helmet());
+app.use(cors());
+app.use(morgan('combined'));
+app.use(express.json({ limit: '10mb' }));
+app.use(rateLimiter); // global rate limiter
+
+// Routes
+app.use('/api/auth', authRouter);
+app.use('/api/users', userRouter);
+app.use('/api/settings', settingsRouter);
+app.use('/api/subscription', subscriptionRouter);
+app.use('/api/scans', scanRouter);
+app.use('/api/analytics', analyticsRouter);
+app.use('/api/admin', adminRouter);
+app.use('/webhook', webhookRouter); // no auth, signed by RevenueCat
+
+// Health check
+app.get('/health', (_req, res) => res.json({ status: 'ok' }));
+
+// Error handler (last)
+app.use(errorHandler);
+import { PrismaClient } from '@prisma/client';
+
+export const prisma = new PrismaClient({
+  log: process.env.NODE_ENV === 'development' ? ['query'] : ['error'],
+});
+import { z } from 'zod';
+
+const envSchema = z.object({
+  DATABASE_URL: z.string(),
+  JWT_SECRET: z.string(),
+  REVENUECAT_SECRET: z.string().optional(),
+  OPENAI_API_KEY: z.string().optional(),
+  REDIS_URL: z.string().optional(),
+  NODE_ENV: z.enum(['development', 'production', 'test']).default('development'),
+});
+
+export const env = envSchema.parse(process.env);
+import { Request, Response, NextFunction } from 'express';
+import jwt from 'jsonwebtoken';
+import { env } from '../config/env';
+import { prisma } from '../config/database';
+import { AppError } from '../utils/errors';
+
+export const authenticate = async (req: Request, _res: Response, next: NextFunction) => {
+  try {
+    const token = req.headers.authorization?.replace('Bearer ', '');
+    if (!token) throw new AppError('Authentication required', 401);
+
+    const decoded = jwt.verify(token, env.JWT_SECRET) as { userId: string };
+    const user = await prisma.user.findUnique({ where: { id: decoded.userId } });
+    if (!user) throw new AppError('User not found', 401);
+
+    req.user = user;
+    next();
+  } catch (error) {
+    next(new AppError('Invalid token', 401));
+  }
+};
+import { Request, Response, NextFunction } from 'express';
+import { prisma } from '../config/database';
+
+const WINDOW_MS = 60 * 1000; // 1 minute
+const MAX_REQUESTS = 100;
+
+// In‑memory store (replace with Redis for production)
+const hits = new Map<string, { count: number; resetTime: number }>();
+
+export const rateLimiter = async (req: Request, _res: Response, next: NextFunction) => {
+  const key = req.ip || 'unknown';
+  const now = Date.now();
+
+  let record = hits.get(key);
+  if (!record || now > record.resetTime) {
+    record = { count: 1, resetTime: now + WINDOW_MS };
+    hits.set(key, record);
+  } else {
+    record.count++;
+  }
+
+  // Log to database asynchronously
+  await prisma.rateLimitLog.create({
+    data: {
+      endpoint: req.path,
+      ip: req.ip || '',
+      userId: (req as any).user?.id,
+      timestamp: new Date(),
+      action: 'api_request',
+      blocked: record.count > MAX_REQUESTS,
+    },
+  }).catch(() => {}); // silent failure
+
+  if (record.count > MAX_REQUESTS) {
+    return next(new Error('Too many requests'));
+  }
+  next();
+};
+import { Request, Response, NextFunction } from 'express';
+import { logger } from '../utils/logger';
+import { AppError } from '../utils/errors';
+import { prisma } from '../config/database';
+
+export const errorHandler = async (err: Error, req: Request, res: Response, _next: NextFunction) => {
+  const statusCode = err instanceof AppError ? err.statusCode : 500;
+  const message = err.message || 'Internal Server Error';
+
+  // Log to database
+  await prisma.errorLog.create({
+    data: {
+      message,
+      stackTrace: err.stack,
+      source: 'api',
+      level: statusCode >= 500 ? 'error' : 'warn',
+      metadata: { path: req.path, method: req.method },
+    },
+  }).catch(() => {});
+
+  logger.error(`[${statusCode}] ${message}`, { stack: err.stack });
+
+  res.status(statusCode).json({
+    status: 'error',
+    message: statusCode === 500 ? 'Something went wrong' : message,
+  });
+};
+import { Request, Response, NextFunction } from 'express';
+import { prisma } from '../config/database';
+import { AppError } from '../utils/errors';
+
+export const adminOnly = async (req: Request, _res: Response, next: NextFunction) => {
+  const admin = await prisma.adminUser.findUnique({ where: { userId: req.user!.id } });
+  if (!admin) return next(new AppError('Admin access required', 403));
+  req.admin = admin;
+  next();
+};
+import bcrypt from 'bcrypt';
+import jwt from 'jsonwebtoken';
+import { prisma } from '../config/database';
+import { env } from '../config/env';
+import { AppError } from '../utils/errors';
+
+export class AuthService {
+  static async signUp(email: string, password: string, displayName?: string) {
+    const existing = await prisma.user.findUnique({ where: { email } });
+    if (existing) throw new AppError('Email already exists', 400);
+
+    const hashedPassword = await bcrypt.hash(password, 12);
+    const user = await prisma.user.create({
+      data: { email, password: hashedPassword, displayName },
+    });
+
+    const token = this.generateToken(user.id);
+    return { user, token };
+  }
+
+  static async signIn(email: string, password: string) {
+    const user = await prisma.user.findUnique({ where: { email } });
+    if (!user || !user.password) throw new AppError('Invalid credentials', 401);
+
+    const valid = await bcrypt.compare(password, user.password);
+    if (!valid) throw new AppError('Invalid credentials', 401);
+
+    const token = this.generateToken(user.id);
+    return { user, token };
+  }
+
+  private static generateToken(userId: string): string {
+    return jwt.sign({ userId }, env.JWT_SECRET, { expiresIn: '30d' });
+  }
+}
+import { Request, Response, NextFunction } from 'express';
+import { prisma } from '../config/database';
+import { ScanService } from '../services/scan.service';
+import { JobService } from '../services/job.service';
+
+export class ScanController {
+  static async createScan(req: Request, res: Response, next: NextFunction) {
+    try {
+      const { imageUrl, detectedProduct, brand, category } = req.body;
+      const userId = req.user!.id;
+
+      // 1. Create scan record
+      const scan = await prisma.scan.create({
+        data: { userId, imageUrl, detectedProduct, brand, category, status: 'STABLE' },
+      });
+
+      // 2. Enqueue background job for AI processing
+      await JobService.enqueue(scan.id, 'VISION');
+
+      res.status(201).json({ scan });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  static async getScans(req: Request, res: Response, next: NextFunction) {
+    try {
+      const userId = req.user!.id;
+      const scans = await prisma.scan.findMany({
+        where: { userId },
+        orderBy: { scannedAt: 'desc' },
+        include: { composition: { include: { ingredients: true } }, report: true },
+      });
+      res.json({ scans });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  static async deleteScan(req: Request, res: Response, next: NextFunction) {
+    try {
+      const { id } = req.params;
+      const userId = req.user!.id;
+
+      const scan = await prisma.scan.findFirst({ where: { id, userId } });
+      if (!scan) return res.status(404).json({ message: 'Scan not found' });
+
+      await prisma.scan.delete({ where: { id } });
+      res.json({ message: 'Scan deleted' });
+    } catch (error) {
+      next(error);
+    }
+  }
+}
+import { Request, Response, NextFunction } from 'express';
+import { prisma } from '../config/database';
+import { RevenueCatService } from '../services/revenuecat.service';
+
+export class SubscriptionController {
+  static async getSubscription(req: Request, res: Response, next: NextFunction) {
+    try {
+      const userId = req.user!.id;
+      const sub = await prisma.subscription.findUnique({ where: { userId } });
+      res.json({ subscription: sub || { tier: 'FREE', status: 'ACTIVE' } });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  // Called by RevenueCat webhook to update subscription status
+  static async handleWebhook(req: Request, res: Response, next: NextFunction) {
+    try {
+      const event = req.body;
+      // Validate signature (omitted for brevity)
+      await RevenueCatService.processEvent(event);
+      res.status(200).json({ received: true });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  static async restorePurchase(req: Request, res: Response, next: NextFunction) {
+    try {
+      const userId = req.user!.id;
+      const { receipt } = req.body;
+      // Verify with RevenueCat
+      const result = await RevenueCatService.restore(userId, receipt);
+      res.json({ subscription: result });
+    } catch (error) {
+      next(error);
+    }
+  }
+}
+import axios from 'axios';
+import { prisma } from '../config/database';
+import { env } from '../config/env';
+
+export class RevenueCatService {
+  static async processEvent(event: any) {
+    // Store webhook event for audit
+    await prisma.webhookEvent.create({
+      data: {
+        source: 'revenuecat',
+        eventType: event.type,
+        appUserId: event.app_user_id,
+        productId: event.product_id,
+        payload: event,
+      },
+    });
+
+    // Update subscription based on event type
+    if (['INITIAL_PURCHASE', 'RENEWAL', 'PRODUCT_CHANGE'].includes(event.type)) {
+      const tier = event.product_id.split('_')[0].toUpperCase() as any;
+      const billingCycle = event.product_id.includes('yearly') ? 'YEARLY' : 'MONTHLY';
+      const platform = event.store === 'app_store' ? 'APPLE' : 'GOOGLE';
+
+      await prisma.subscription.upsert({
+        where: { userId: event.app_user_id },
+        update: {
+          tier,
+          status: 'ACTIVE',
+          billingCycle,
+          platform,
+          revenueCatCustomerId: event.app_user_id,
+          storeProductId: event.product_id,
+          storeTransactionId: event.transaction_id,
+          currentPeriodEnd: new Date(event.expiration_at_millis),
+        },
+        create: {
+          userId: event.app_user_id,
+          tier,
+          status: 'ACTIVE',
+          billingCycle,
+          platform,
+          revenueCatCustomerId: event.app_user_id,
+          storeProductId: event.product_id,
+          storeTransactionId: event.transaction_id,
+          currentPeriodEnd: new Date(event.expiration_at_millis),
+        },
+      });
+    } else if (event.type === 'CANCELLATION') {
+      await prisma.subscription.update({
+        where: { userId: event.app_user_id },
+        data: { status: 'CANCELED', canceledAt: new Date() },
+      });
+    }
+  }
+
+  static async restore(userId: string, receipt: string) {
+    // Call RevenueCat REST API to verify receipt
+    const response = await axios.post('https://api.revenuecat.com/v1/receipts', {
+      receipt,
+      app_user_id: userId,
+      fetch_products: false,
+    }, {
+      headers: { Authorization: `Bearer ${env.REVENUECAT_SECRET}` },
+    });
+    // Update subscription based on response
+    return response.data;
+  }
+}
+import { prisma } from '../config/database';
+import { JobService } from '../services/job.service';
+import { AiService } from '../services/ai.service';
+
+export async function processScanJob(job: any) {
+  const scan = await prisma.scan.findUnique({
+    where: { id: job.payload.scanId },
+    include: { composition: true },
+  });
+  if (!scan) throw new Error('Scan not found');
+
+  // 1. Call OpenAI Vision to analyze image
+  const visionResult = await AiService.analyzeImage(scan.imageUrl);
+
+  // 2. Create/update composition
+  const composition = await prisma.composition.create({
+    data: {
+      calories: visionResult.calories,
+      sugarGrams: visionResult.sugarGrams,
+      caffeineMg: visionResult.caffeineMg,
+      sodiumMg: visionResult.sodiumMg,
+      additives: visionResult.additives,
+      artificialSweeteners: visionResult.artificialSweeteners,
+      scanId: scan.id,
+    },
+  });
+
+  // 3. Create ingredients
+  for (const ing of visionResult.ingredients) {
+    await prisma.ingredient.create({
+      data: {
+        name: ing.name,
+        function: ing.function,
+        healthRole: ing.healthRole,
+        riskLevel: ing.riskLevel,
+        position: ing.position,
+        compositionId: composition.id,
+      },
+    });
+  }
+
+  // 4. Generate report using GPT-4
+  const report = await AiService.generateReport(composition);
+  await prisma.report.create({ data: { ...report, scanId: scan.id } });
+
+  // 5. Update scan status
+  await prisma.scan.update({
+    where: { id: scan.id },
+    data: { status: 'OPTIMAL', compositionId: composition.id },
+  });
+
+  // 6. Enqueue analytics update
+  await JobService.enqueue(scan.userId, 'ANALYTICS' as any);
+}
+import winston from 'winston';
+
+export const logger = winston.createLogger({
+  level: process.env.LOG_LEVEL || 'info',
+  format: winston.format.json(),
+  transports: [
+    new winston.transports.Console(),
+    new winston.transports.File({ filename: 'error.log', level: 'error' }),
+  ],
+});

@@ -94,6 +94,14 @@ export const AuthService = {
     });
   },
 
+  async forgotPassword(email: string): Promise<{ message: string; devCode?: string }> {
+    return post("/forgot-password", { email });
+  },
+
+  async resetPassword(email: string, code: string, password: string): Promise<{ message: string }> {
+    return post("/reset-password", { email, code, password });
+  },
+
   isAppleAvailable(): Promise<boolean> {
     if (Platform.OS !== "ios") return Promise.resolve(false);
     return AppleAuthentication.isAvailableAsync();

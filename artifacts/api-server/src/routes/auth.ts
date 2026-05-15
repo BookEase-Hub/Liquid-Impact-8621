@@ -25,6 +25,10 @@ function tokenPair(userId: string, email: string) {
   return { accessToken, refreshToken, refreshTokenHash: hashToken(refreshToken) };
 }
 
+function generateResetCode(): string {
+  return Math.floor(100000 + Math.random() * 900000).toString();
+}
+
 authRouter.post("/signup", async (req, res) => {
   const { email, password, displayName } = req.body as {
     email?: string;
@@ -157,6 +161,106 @@ authRouter.post("/signout", async (req, res) => {
   }
   req.log.info("User signed out");
   return res.json({ success: true });
+});
+
+authRouter.post("/forgot-password", async (req, res) => {
+  const { email } = req.body as { email?: string };
+  if (!email) {
+    return res.status(400).json({ error: "Email is required" });
+  }
+
+  try {
+    const [user] = await db
+      .select()
+      .from(usersTable)
+      .where(eq(usersTable.email, email.toLowerCase().trim()))
+      .limit(1);
+
+    // Always return success to prevent email enumeration
+    if (!user) {
+      req.log.info({ email }, "Forgot password: email not found (silent)");
+      return res.json({
+        message: "If an account with that email exists, a reset code has been sent.",
+      });
+    }
+
+    const code = generateResetCode();
+    const codeHash = hashToken(code);
+    const expiresAt = new Date(Date.now() + 15 * 60 * 1000); // 15 minutes
+
+    await db
+      .update(usersTable)
+      .set({ passwordResetTokenHash: codeHash, passwordResetExpiresAt: expiresAt, updatedAt: new Date() })
+      .where(eq(usersTable.id, user.id));
+
+    req.log.info({ userId: user.id }, "Password reset code generated");
+
+    // In production: send email with the code
+    // For now: return the code in the response for development
+    const isDev = process.env.NODE_ENV !== "production";
+    return res.json({
+      message: "If an account with that email exists, a reset code has been sent.",
+      ...(isDev && { devCode: code }),
+    });
+  } catch (err) {
+    req.log.error({ err }, "Forgot password error");
+    return res.status(500).json({ error: "Failed to process request" });
+  }
+});
+
+authRouter.post("/reset-password", async (req, res) => {
+  const { email, code, password } = req.body as {
+    email?: string;
+    code?: string;
+    password?: string;
+  };
+
+  if (!email || !code || !password) {
+    return res.status(400).json({ error: "Email, code, and password are required" });
+  }
+  if (password.length < 8) {
+    return res.status(400).json({ error: "Password must be at least 8 characters" });
+  }
+
+  try {
+    const [user] = await db
+      .select()
+      .from(usersTable)
+      .where(eq(usersTable.email, email.toLowerCase().trim()))
+      .limit(1);
+
+    if (!user || !user.passwordResetTokenHash || !user.passwordResetExpiresAt) {
+      return res.status(400).json({ error: "Invalid or expired reset code" });
+    }
+
+    if (new Date() > user.passwordResetExpiresAt) {
+      return res.status(400).json({ error: "Reset code has expired. Please request a new one." });
+    }
+
+    const codeHash = hashToken(code);
+    if (codeHash !== user.passwordResetTokenHash) {
+      return res.status(400).json({ error: "Invalid reset code" });
+    }
+
+    const passwordHash = await bcrypt.hash(password, 12);
+
+    await db
+      .update(usersTable)
+      .set({
+        passwordHash,
+        passwordResetTokenHash: null,
+        passwordResetExpiresAt: null,
+        refreshTokenHash: null,
+        updatedAt: new Date(),
+      })
+      .where(eq(usersTable.id, user.id));
+
+    req.log.info({ userId: user.id }, "Password reset successfully");
+    return res.json({ message: "Password reset successfully" });
+  } catch (err) {
+    req.log.error({ err }, "Reset password error");
+    return res.status(500).json({ error: "Failed to reset password" });
+  }
 });
 
 authRouter.post("/google", async (req, res) => {
