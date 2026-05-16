@@ -5,6 +5,7 @@ import React, {
   useContext,
   useEffect,
   useReducer,
+  useRef,
 } from "react";
 import type {
   AppState,
@@ -14,13 +15,11 @@ import type {
   SubscriptionTier,
   WeeklyScore,
 } from "@/types";
+import { uploadScan, fetchCloudScans } from "@/services/api";
+import { useAuthStore } from "@/features/auth/store";
 
 const STORAGE_KEY = "@liquid_impact_v2";
 const TODAY = () => new Date().toDateString();
-const THIS_MONTH = () => {
-  const d = new Date();
-  return `${d.getFullYear()}-${d.getMonth()}`;
-};
 
 export const SUBSCRIPTION_LIMITS: Record<
   SubscriptionTier,
@@ -34,51 +33,16 @@ export const SUBSCRIPTION_LIMITS: Record<
 };
 
 const DEFAULT_MISSIONS: DailyMission[] = [
-  {
-    id: "mission_scan3",
-    title: "Scan 3 Drinks",
-    description: "Analyze 3 different drinks today",
-    progress: 0,
-    target: 3,
-    completed: false,
-    icon: "camera",
-    xp: 50,
-  },
-  {
-    id: "mission_water",
-    title: "Stay Hydrated",
-    description: "Scan a drink with 70%+ hydration score",
-    progress: 0,
-    target: 1,
-    completed: false,
-    icon: "water",
-    xp: 30,
-  },
-  {
-    id: "mission_healthy",
-    title: "Healthy Choice",
-    description: "Scan a drink scoring 80 or above",
-    progress: 0,
-    target: 1,
-    completed: false,
-    icon: "leaf",
-    xp: 40,
-  },
-  {
-    id: "mission_streak",
-    title: "Keep the Streak",
-    description: "Scan at least one drink today",
-    progress: 0,
-    target: 1,
-    completed: false,
-    icon: "flame",
-    xp: 20,
-  },
+  { id: "mission_scan3", title: "Scan 3 Drinks", description: "Analyze 3 different drinks today", progress: 0, target: 3, completed: false, icon: "camera", xp: 50 },
+  { id: "mission_water", title: "Stay Hydrated", description: "Scan a drink with 70%+ hydration score", progress: 0, target: 1, completed: false, icon: "water", xp: 30 },
+  { id: "mission_healthy", title: "Healthy Choice", description: "Scan a drink scoring 80 or above", progress: 0, target: 1, completed: false, icon: "leaf", xp: 40 },
+  { id: "mission_streak", title: "Keep the Streak", description: "Scan at least one drink today", progress: 0, target: 1, completed: false, icon: "flame", xp: 20 },
 ];
 
 type Action =
   | { type: "LOAD_STATE"; payload: AppState }
   | { type: "ADD_SCAN"; payload: ScanResult }
+  | { type: "MERGE_CLOUD_SCANS"; payload: ScanResult[] }
   | { type: "SET_ONBOARDED" }
   | { type: "SET_SUBSCRIPTION"; payload: SubscriptionTier }
   | { type: "UPDATE_MISSIONS"; payload: DailyMission[] };
@@ -96,14 +60,9 @@ function getInitialState(): AppState {
   };
 }
 
-function computeStreak(
-  lastScanDate: string | null,
-  currentStreak: number,
-): number {
+function computeStreak(lastScanDate: string | null, currentStreak: number): number {
   if (!lastScanDate) return 0;
-  const diff = Math.floor(
-    (Date.now() - new Date(lastScanDate).getTime()) / (1000 * 60 * 60 * 24),
-  );
+  const diff = Math.floor((Date.now() - new Date(lastScanDate).getTime()) / (1000 * 60 * 60 * 24));
   if (diff > 1) return 0;
   return currentStreak;
 }
@@ -111,6 +70,19 @@ function computeStreak(
 function resetMissionsIfNeeded(state: AppState): DailyMission[] {
   if (state.lastMissionReset !== TODAY()) return DEFAULT_MISSIONS;
   return state.missions;
+}
+
+function mergeScanArrays(local: ScanResult[], cloud: ScanResult[]): ScanResult[] {
+  const seen = new Set(local.map((s) => s.id));
+  const merged = [...local];
+  for (const s of cloud) {
+    if (!seen.has(s.id)) {
+      seen.add(s.id);
+      merged.push(s);
+    }
+  }
+  merged.sort((a, b) => Number(b.scannedAt) - Number(a.scannedAt));
+  return merged.slice(0, 500);
 }
 
 function reducer(state: AppState, action: Action): AppState {
@@ -126,14 +98,10 @@ function reducer(state: AppState, action: Action): AppState {
       const scan = action.payload;
       const today = TODAY();
       let newStreak = state.streak;
-
       if (state.lastScanDate !== today) {
-        const wasYesterday =
-          state.lastScanDate ===
-          new Date(Date.now() - 86400000).toDateString();
+        const wasYesterday = state.lastScanDate === new Date(Date.now() - 86400000).toDateString();
         newStreak = wasYesterday ? state.streak + 1 : 1;
       }
-
       const updatedMissions = state.missions.map((m) => {
         if (m.completed) return m;
         let np = m.progress;
@@ -143,7 +111,6 @@ function reducer(state: AppState, action: Action): AppState {
         if (m.id === "mission_healthy" && scan.impactScore >= 80) np += 1;
         return { ...m, progress: Math.min(np, m.target), completed: np >= m.target };
       });
-
       return {
         ...state,
         scans: [scan, ...state.scans].slice(0, 500),
@@ -154,6 +121,12 @@ function reducer(state: AppState, action: Action): AppState {
         lastMissionReset: state.lastMissionReset ?? today,
       };
     }
+
+    case "MERGE_CLOUD_SCANS":
+      return {
+        ...state,
+        scans: mergeScanArrays(state.scans, action.payload),
+      };
 
     case "SET_ONBOARDED":
       return { ...state, hasOnboarded: true };
@@ -182,13 +155,16 @@ interface AppContextValue {
   weeklyScores: WeeklyScore[];
   dailyStatus: DailyStatus;
   xpTotal: number;
+  syncFromCloud: () => Promise<void>;
 }
 
 const AppContext = createContext<AppContextValue | null>(null);
 
 export function AppProvider({ children }: { children: React.ReactNode }) {
   const [state, dispatch] = useReducer(reducer, getInitialState());
+  const syncedRef = useRef(false);
 
+  // ── Load from AsyncStorage on mount ────────────────────────────────────────
   useEffect(() => {
     AsyncStorage.getItem(STORAGE_KEY).then((raw) => {
       if (raw) {
@@ -205,14 +181,47 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     });
   }, []);
 
+  // ── Persist to AsyncStorage on every state change ──────────────────────────
   useEffect(() => {
     if (state.hasOnboarded === null) return;
     AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(state));
   }, [state]);
 
-  const addScan = useCallback((scan: ScanResult) => {
-    dispatch({ type: "ADD_SCAN", payload: scan });
+  // ── Cloud sync: pull on first load if authenticated ────────────────────────
+  const syncFromCloud = useCallback(async () => {
+    const accessToken = useAuthStore.getState().accessToken;
+    if (!accessToken) return;
+    try {
+      const cloudScans = await fetchCloudScans(accessToken);
+      if (cloudScans.length > 0) {
+        dispatch({ type: "MERGE_CLOUD_SCANS", payload: cloudScans });
+      }
+    } catch {
+      // silent — local storage is source of truth
+    }
   }, []);
+
+  // ── Auto-sync from cloud once per session when auth is ready ───────────────
+  useEffect(() => {
+    if (state.hasOnboarded === null) return;
+    if (syncedRef.current) return;
+    const token = useAuthStore.getState().accessToken;
+    if (!token) return;
+    syncedRef.current = true;
+    syncFromCloud();
+  }, [state.hasOnboarded, syncFromCloud]);
+
+  const addScan = useCallback(
+    (scan: ScanResult) => {
+      dispatch({ type: "ADD_SCAN", payload: scan });
+      // Fire-and-forget cloud upload
+      const token = useAuthStore.getState().accessToken;
+      if (token) {
+        uploadScan(scan, token).catch(() => {});
+      }
+    },
+    [],
+  );
 
   const completeOnboarding = useCallback(() => {
     dispatch({ type: "SET_ONBOARDED" });
@@ -246,10 +255,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
   const avgScore =
     state.scans.length > 0
-      ? Math.round(
-          state.scans.slice(0, 20).reduce((s, r) => s + r.impactScore, 0) /
-            Math.min(state.scans.length, 20),
-        )
+      ? Math.round(state.scans.slice(0, 20).reduce((s, r) => s + r.impactScore, 0) / Math.min(state.scans.length, 20))
       : 0;
 
   const weeklyScores: WeeklyScore[] = (() => {
@@ -259,18 +265,11 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       const d = new Date();
       d.setDate(d.getDate() - (6 - i));
       const dayStr = d.toDateString();
-      const dayScans = state.scans.filter(
-        (s) => new Date(s.scannedAt).toDateString() === dayStr,
-      );
+      const dayScans = state.scans.filter((s) => new Date(s.scannedAt).toDateString() === dayStr);
       return {
         day: days[d.getDay()],
         shortDay: short[d.getDay()],
-        score:
-          dayScans.length > 0
-            ? Math.round(
-                dayScans.reduce((s, r) => s + r.impactScore, 0) / dayScans.length,
-              )
-            : 0,
+        score: dayScans.length > 0 ? Math.round(dayScans.reduce((s, r) => s + r.impactScore, 0) / dayScans.length) : 0,
         count: dayScans.length,
       };
     });
@@ -279,7 +278,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const dailyStatus: DailyStatus = (() => {
     const recent = state.scans.slice(0, 5);
     if (recent.length === 0) {
-      return { dehydrationRisk: false, recommendation: "Scan a drink to see your body status", hydration: 0, energy: 0, recovery: 0, focus: 0 };
+      return { dehydrationRisk: false, recommendation: "Scan a drink to see your wellness status", hydration: 0, energy: 0, recovery: 0, focus: 0 };
     }
     const avgHyd = Math.round(recent.reduce((s, r) => s + r.hydrationLevel, 0) / recent.length);
     const avgImpact = Math.round(recent.reduce((s, r) => s + r.impactScore, 0) / recent.length);
@@ -288,8 +287,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     return {
       dehydrationRisk,
       recommendation: dehydrationRisk
-        ? "⚠️ Your recent drinks may cause dehydration. Drink more water!"
-        : "✅ Your hydration levels look good. Keep it up!",
+        ? "⚠️ Your recent drinks may affect hydration. Consider drinking more water."
+        : "✅ Your hydration indicators look good. Keep it up!",
       hydration: avgHyd,
       energy: Math.min(100, avgImpact),
       recovery: Math.min(100, Math.max(0, 100 - (avgCaff / 200) * 100)),
@@ -297,9 +296,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     };
   })();
 
-  const xpTotal = state.missions
-    .filter((m) => m.completed)
-    .reduce((s, m) => s + m.xp, 0);
+  const xpTotal = state.missions.filter((m) => m.completed).reduce((s, m) => s + m.xp, 0);
 
   return (
     <AppContext.Provider
@@ -316,6 +313,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         weeklyScores,
         dailyStatus,
         xpTotal,
+        syncFromCloud,
       }}
     >
       {children}

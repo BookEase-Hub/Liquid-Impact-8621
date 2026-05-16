@@ -12,6 +12,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { useColors } from "@/hooks/useColors";
 import { useApp } from "@/context/AppContext";
 import { ScoreRing, GlassCard, statusColor, statusLabel, BodyRing } from "@/components/ui";
+import { MedicalDisclaimer, AIEstimateNotice, DisclaimerBadge } from "@/components/disclaimer";
 import type { ScanStatus } from "@/types";
 
 type ImpactTab = "short" | "medium" | "long";
@@ -81,23 +82,23 @@ export default function ReportScreen() {
   const impactContent =
     activeTab === "short"
       ? [
-          { label: "Energy Response (1-2h)", value: scan.shortTermImpact.energyResponse },
-          { label: "Blood Sugar Response", value: scan.shortTermImpact.bloodSugarResponse },
-          { label: "Body Reaction", value: scan.shortTermImpact.bodyReaction },
-          { label: "Hydration Impact", value: scan.shortTermImpact.hydrationImpact },
+          { label: "Energy Response Estimate (1-2h)", value: scan.shortTermImpact.energyResponse },
+          { label: "Blood Sugar Indicator", value: scan.shortTermImpact.bloodSugarResponse },
+          { label: "Body Response Indicator", value: scan.shortTermImpact.bodyReaction },
+          { label: "Hydration Impact Estimate", value: scan.shortTermImpact.hydrationImpact },
         ]
       : activeTab === "medium"
       ? [
-          { label: "Energy Stability (weeks)", value: scan.mediumTermImpact.energyStability },
-          { label: "Physical Changes", value: scan.mediumTermImpact.physicalChanges },
-          { label: "Habit Risk", value: scan.mediumTermImpact.habitRisk },
-          { label: "Sleep Quality", value: scan.mediumTermImpact.sleepQuality },
+          { label: "Energy Stability Estimate (weeks)", value: scan.mediumTermImpact.energyStability },
+          { label: "Potential Physical Indicators", value: scan.mediumTermImpact.physicalChanges },
+          { label: "Habit Formation Consideration", value: scan.mediumTermImpact.habitRisk },
+          { label: "Sleep Quality Consideration", value: scan.mediumTermImpact.sleepQuality },
         ]
       : [
-          { label: "Long-Term Health Trend", value: scan.longTermImpact.healthTrend },
-          { label: "Metabolic Impact", value: scan.longTermImpact.metabolicImpact },
-          { label: "Risk Accumulation", value: scan.longTermImpact.riskAccumulation },
-          { label: "Nutritional Balance", value: scan.longTermImpact.nutritionalBalance },
+          { label: "General Wellness Trend", value: scan.longTermImpact.healthTrend },
+          { label: "Metabolic Consideration", value: scan.longTermImpact.metabolicImpact },
+          { label: "Long-Term Wellness Factor", value: scan.longTermImpact.riskAccumulation },
+          { label: "Nutritional Balance Indicator", value: scan.longTermImpact.nutritionalBalance },
         ];
 
   const tabColor = TAB_LABELS.find((t) => t.key === activeTab)?.color ?? colors.primary;
@@ -154,7 +155,10 @@ export default function ReportScreen() {
           </View>
         </GlassCard>
 
-        {/* Non-beverage warning */}
+        {/* Medical disclaimer — prominent, near top */}
+        <MedicalDisclaimer />
+
+        {/* Non-beverage notice */}
         {isNonBeverage && (
           <View style={{ flexDirection: "row", gap: 10, padding: 14, borderRadius: 16, backgroundColor: "#FF980014", borderWidth: 1, borderColor: "#FF980030" }}>
             <Ionicons name="warning" size={18} color="#FF9800" />
@@ -187,7 +191,7 @@ export default function ReportScreen() {
         {/* Body metrics */}
         <GlassCard>
           <Text style={{ color: colors.foreground, fontSize: 16, fontWeight: "700", fontFamily: "Inter_700Bold", marginBottom: 16 }}>
-            Body Impact Metrics
+            Body Impact Indicators
           </Text>
           <View style={{ flexDirection: "row", justifyContent: "space-around" }}>
             <BodyRing value={scan.hydrationLevel} label="Hydration" icon="water" color={colors.primary} />
@@ -205,6 +209,9 @@ export default function ReportScreen() {
               color={scan.dehydrationRisk ? colors.danger : colors.scoreHigh}
             />
           </View>
+          <Text style={{ color: colors.mutedForeground, fontSize: 10, textAlign: "center", marginTop: 12, fontStyle: "italic" }}>
+            Indicators are estimates based on image analysis, not clinical measurements.
+          </Text>
         </GlassCard>
 
         {/* AI Insight */}
@@ -212,7 +219,10 @@ export default function ReportScreen() {
           <View style={{ gap: 10 }}>
             <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
               <Ionicons name="sparkles" size={18} color={colors.primary} />
-              <Text style={{ color: colors.foreground, fontSize: 15, fontWeight: "700", fontFamily: "Inter_700Bold" }}>AI Analysis</Text>
+              <Text style={{ color: colors.foreground, fontSize: 15, fontWeight: "700", fontFamily: "Inter_700Bold" }}>AI Wellness Insight</Text>
+              <View style={{ marginLeft: "auto", paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6, backgroundColor: "rgba(255,255,255,0.06)" }}>
+                <Text style={{ color: colors.mutedForeground, fontSize: 9, fontWeight: "700" }}>ESTIMATE</Text>
+              </View>
             </View>
             <Text style={{ color: colors.subtext, fontSize: 14, lineHeight: 21 }}>{scan.aiInsight}</Text>
             {scan.viralStatement && (
@@ -225,6 +235,7 @@ export default function ReportScreen() {
                 </Text>
               </LinearGradient>
             )}
+            <AIEstimateNotice />
           </View>
         </GlassCard>
 
@@ -272,12 +283,21 @@ export default function ReportScreen() {
             <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 4 }}>
               <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: tabColor }} />
               <Text style={{ color: tabColor, fontSize: 12, fontWeight: "700" }}>
-                {activeTab === "short" ? "Short-Term Effects (1-2 Hours)" : activeTab === "medium" ? "Medium-Term Effects (Weeks)" : "Long-Term Effects (Months)"}
+                {activeTab === "short"
+                  ? "Estimated Short-Term Effects (1-2 Hours)"
+                  : activeTab === "medium"
+                  ? "Estimated Medium-Term Effects (Weeks)"
+                  : "Potential Long-term Considerations (Months+)"}
               </Text>
             </View>
             {impactContent.map((item) => (
               <ImpactRow key={item.label} label={item.label} value={item.value} />
             ))}
+            {activeTab === "long" && (
+              <Text style={{ color: colors.mutedForeground, fontSize: 11, fontStyle: "italic", marginTop: 8, lineHeight: 16 }}>
+                Long-term projections are general wellness considerations, not medical predictions. Individual results vary significantly.
+              </Text>
+            )}
           </GlassCard>
         </View>
 
@@ -303,26 +323,29 @@ export default function ReportScreen() {
               </View>
             )}
           </View>
+          <Text style={{ color: colors.mutedForeground, fontSize: 10, fontStyle: "italic", marginTop: 8 }}>
+            Values are AI estimates based on image analysis. For precise nutrition, check product labelling.
+          </Text>
         </GlassCard>
 
-        {/* Glycemic & Key Stats */}
+        {/* Additional Info */}
         <GlassCard>
           <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
             <Text style={{ color: colors.foreground, fontSize: 15, fontWeight: "700", fontFamily: "Inter_700Bold" }}>Additional Info</Text>
           </View>
           {[
             {
-              label: "Glycemic Impact",
+              label: "Glycemic Impact Indicator",
               value: scan.glycemicImpact.replace("_", " "),
               color: scan.glycemicImpact === "low" ? colors.scoreHigh : scan.glycemicImpact === "moderate" ? colors.scoreMedium : colors.scoreLow,
             },
             {
-              label: "Dehydration Risk",
-              value: scan.dehydrationRisk ? "Yes" : "No",
+              label: "Dehydration Risk Indicator",
+              value: scan.dehydrationRisk ? "Significant" : "Low",
               color: scan.dehydrationRisk ? colors.danger : colors.scoreHigh,
             },
             {
-              label: "AI Confidence",
+              label: "AI Confidence Score",
               value: `${Math.round((scan.confidenceScore ?? 0.85) * 100)}%`,
               color: colors.primary,
             },
@@ -376,6 +399,10 @@ export default function ReportScreen() {
             </View>
           </GlassCard>
         )}
+
+        {/* Bottom disclaimer */}
+        <DisclaimerBadge />
+        <MedicalDisclaimer compact />
       </ScrollView>
     </View>
   );

@@ -21,7 +21,7 @@ const SLIDES = [
     key: "scan",
     headline: "Scan any drink.",
     subtitle:
-      "AI analysis of energy, blood sugar, metabolism, and long-term health impact.",
+      "AI wellness analysis of energy, blood sugar, metabolism, and long-term health indicators.",
     icon: "camera" as const,
     gradientColors: ["#00B4D8", "#7B2CBF"] as [string, string],
     visual: "camera",
@@ -30,16 +30,16 @@ const SLIDES = [
     key: "metrics",
     headline: "Beyond surface-level metrics.",
     subtitle:
-      "Deep insights into hydration, glycemic impact, and nutritional quality of every sip.",
+      "General wellness insights into hydration, glycemic indicators, and nutritional quality of every sip.",
     icon: "analytics" as const,
     gradientColors: ["#7B2CBF", "#FF6B9D"] as [string, string],
     visual: "metrics",
   },
   {
     key: "timeline",
-    headline: "What happens inside your body.",
+    headline: "What may happen inside your body.",
     subtitle:
-      "Track short-term, medium-term, and long-term health effects from your drinking habits.",
+      "Explore estimated short-term, medium-term, and potential long-term wellness considerations from your drinking habits.",
     icon: "time" as const,
     gradientColors: ["#FF6B9D", "#FF9800"] as [string, string],
     visual: "timeline",
@@ -48,10 +48,19 @@ const SLIDES = [
     key: "share",
     headline: "Built for everyday life.",
     subtitle:
-      "Share insights, get smart alternatives, and track your progress over time.",
+      "Share insights, get smart alternatives, and track your wellness progress over time.",
     icon: "share-social" as const,
     gradientColors: ["#FF9800", "#00C853"] as [string, string],
     visual: "share",
+  },
+  {
+    key: "disclaimer",
+    headline: "Your wellness, your call.",
+    subtitle:
+      "Liquid Impact helps you make informed choices — but always listen to your body and your doctor.",
+    icon: "shield-checkmark" as const,
+    gradientColors: ["#00C853", "#00B4D8"] as [string, string],
+    visual: "disclaimer",
   },
 ];
 
@@ -60,29 +69,8 @@ function SlideVisual({ type, gradientColors }: { type: string; gradientColors: [
 
   if (type === "camera") {
     return (
-      <View
-        style={{
-          backgroundColor: colors.backgroundSecondary,
-          borderRadius: 24,
-          padding: 28,
-          alignItems: "center",
-          gap: 20,
-          borderWidth: 1,
-          borderColor: colors.border,
-        }}
-      >
-        <View
-          style={{
-            width: 100,
-            height: 100,
-            borderRadius: 28,
-            backgroundColor: `${gradientColors[0]}18`,
-            justifyContent: "center",
-            alignItems: "center",
-            borderWidth: 2,
-            borderColor: `${gradientColors[0]}40`,
-          }}
-        >
+      <View style={{ backgroundColor: colors.backgroundSecondary, borderRadius: 24, padding: 28, alignItems: "center", gap: 20, borderWidth: 1, borderColor: colors.border }}>
+        <View style={{ width: 100, height: 100, borderRadius: 28, backgroundColor: `${gradientColors[0]}18`, justifyContent: "center", alignItems: "center", borderWidth: 2, borderColor: `${gradientColors[0]}40` }}>
           <Ionicons name="camera" size={48} color={gradientColors[0]} />
         </View>
         <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
@@ -92,7 +80,7 @@ function SlideVisual({ type, gradientColors }: { type: string; gradientColors: [
           <Text style={{ color: gradientColors[0], fontSize: 13, fontWeight: "800" }}>78</Text>
         </View>
         <Text style={{ color: colors.mutedForeground, fontSize: 13, textAlign: "center" }}>
-          Instant AI health score
+          Instant AI wellness score
         </Text>
       </View>
     );
@@ -100,21 +88,12 @@ function SlideVisual({ type, gradientColors }: { type: string; gradientColors: [
 
   if (type === "metrics") {
     return (
-      <View
-        style={{
-          backgroundColor: colors.backgroundSecondary,
-          borderRadius: 24,
-          padding: 20,
-          gap: 12,
-          borderWidth: 1,
-          borderColor: colors.border,
-        }}
-      >
+      <View style={{ backgroundColor: colors.backgroundSecondary, borderRadius: 24, padding: 20, gap: 12, borderWidth: 1, borderColor: colors.border }}>
         {[
-          { label: "Impact Score", value: 78, color: gradientColors[0] },
-          { label: "Hydration", value: 62, color: gradientColors[1] },
-          { label: "Sugar Load", value: 45, color: "#FF9800" },
-          { label: "Caffeine", value: 30, color: "#FF6B9D" },
+          { label: "Wellness Score", value: 78, color: gradientColors[0] },
+          { label: "Hydration Indicator", value: 62, color: gradientColors[1] },
+          { label: "Sugar Indicator", value: 45, color: "#FF9800" },
+          { label: "Caffeine Level", value: 30, color: "#FF6B9D" },
         ].map((m) => (
           <View key={m.label} style={{ gap: 4 }}>
             <View style={{ flexDirection: "row", justifyContent: "space-between" }}>
@@ -132,20 +111,11 @@ function SlideVisual({ type, gradientColors }: { type: string; gradientColors: [
 
   if (type === "timeline") {
     return (
-      <View
-        style={{
-          backgroundColor: colors.backgroundSecondary,
-          borderRadius: 24,
-          padding: 20,
-          gap: 14,
-          borderWidth: 1,
-          borderColor: colors.border,
-        }}
-      >
+      <View style={{ backgroundColor: colors.backgroundSecondary, borderRadius: 24, padding: 20, gap: 14, borderWidth: 1, borderColor: colors.border }}>
         {[
-          { icon: "flash" as const, label: "1 Hour", text: "Energy spike", color: gradientColors[0] },
-          { icon: "calendar" as const, label: "30 Days", text: "Habit patterns", color: "#FF9800" },
-          { icon: "trending-up" as const, label: "1 Year", text: "Long-term health", color: gradientColors[1] },
+          { icon: "flash" as const, label: "1 Hour", text: "Energy response estimate", color: gradientColors[0] },
+          { icon: "calendar" as const, label: "30 Days", text: "Potential habit patterns", color: "#FF9800" },
+          { icon: "trending-up" as const, label: "1 Year", text: "General wellness considerations", color: gradientColors[1] },
         ].map((item) => (
           <View key={item.label} style={{ flexDirection: "row", alignItems: "center", gap: 12 }}>
             <View style={{ width: 36, height: 36, borderRadius: 10, backgroundColor: `${item.color}18`, justifyContent: "center", alignItems: "center" }}>
@@ -161,17 +131,44 @@ function SlideVisual({ type, gradientColors }: { type: string; gradientColors: [
     );
   }
 
+  if (type === "disclaimer") {
+    return (
+      <View style={{ backgroundColor: colors.backgroundSecondary, borderRadius: 24, padding: 20, gap: 16, borderWidth: 1, borderColor: colors.border }}>
+        <View style={{ flexDirection: "row", gap: 10, alignItems: "flex-start" }}>
+          <Ionicons name="information-circle" size={18} color={gradientColors[0]} style={{ marginTop: 1 }} />
+          <Text style={{ flex: 1, color: colors.subtext, fontSize: 13, lineHeight: 20 }}>
+            Liquid Impact is for{" "}
+            <Text style={{ color: colors.foreground, fontWeight: "700" }}>general wellness and educational purposes only</Text>.
+            It does not provide medical advice, diagnosis, or treatment.
+          </Text>
+        </View>
+        <View style={{ flexDirection: "row", gap: 10, alignItems: "flex-start" }}>
+          <Ionicons name="sparkles" size={18} color={gradientColors[1]} style={{ marginTop: 1 }} />
+          <Text style={{ flex: 1, color: colors.subtext, fontSize: 13, lineHeight: 20 }}>
+            All results are{" "}
+            <Text style={{ color: colors.foreground, fontWeight: "700" }}>AI-generated estimates</Text>
+            {" "}based on image analysis — not clinical measurements.
+          </Text>
+        </View>
+        <View style={{ flexDirection: "row", gap: 10, alignItems: "flex-start" }}>
+          <Ionicons name="heart" size={18} color="#FF6B9D" style={{ marginTop: 1 }} />
+          <Text style={{ flex: 1, color: colors.subtext, fontSize: 13, lineHeight: 20 }}>
+            Always consult a{" "}
+            <Text style={{ color: colors.foreground, fontWeight: "700" }}>qualified healthcare professional</Text>
+            {" "}before making significant dietary changes.
+          </Text>
+        </View>
+        <View style={{ paddingHorizontal: 12, paddingVertical: 8, borderRadius: 10, backgroundColor: `${gradientColors[0]}10`, borderWidth: 1, borderColor: `${gradientColors[0]}20` }}>
+          <Text style={{ color: gradientColors[0], fontSize: 11, fontWeight: "600", textAlign: "center" }}>
+            Powered by AI · General Wellness Tool · Not a Medical Device
+          </Text>
+        </View>
+      </View>
+    );
+  }
+
   return (
-    <View
-      style={{
-        backgroundColor: colors.backgroundSecondary,
-        borderRadius: 24,
-        padding: 20,
-        gap: 14,
-        borderWidth: 1,
-        borderColor: colors.border,
-      }}
-    >
+    <View style={{ backgroundColor: colors.backgroundSecondary, borderRadius: 24, padding: 20, gap: 14, borderWidth: 1, borderColor: colors.border }}>
       {[
         { icon: "share-social" as const, text: "Share with friends", color: gradientColors[0] },
         { icon: "bulb" as const, text: "Smart alternatives", color: gradientColors[1] },
@@ -215,25 +212,9 @@ export default function OnboardingScreen() {
   const skip = () => completeOnboarding();
 
   return (
-    <View
-      style={{
-        flex: 1,
-        backgroundColor: colors.background,
-        paddingTop: insets.top,
-        paddingBottom: insets.bottom,
-      }}
-    >
+    <View style={{ flex: 1, backgroundColor: colors.background, paddingTop: insets.top, paddingBottom: insets.bottom }}>
       {/* Progress dots */}
-      <View
-        style={{
-          flexDirection: "row",
-          justifyContent: "center",
-          alignItems: "center",
-          gap: 6,
-          paddingTop: 16,
-          paddingBottom: 8,
-        }}
-      >
+      <View style={{ flexDirection: "row", justifyContent: "center", alignItems: "center", gap: 6, paddingTop: 16, paddingBottom: 8 }}>
         {SLIDES.map((_, i) => (
           <View
             key={i}
@@ -241,8 +222,7 @@ export default function OnboardingScreen() {
               height: 7,
               width: i === currentIndex ? 28 : 7,
               borderRadius: 4,
-              backgroundColor:
-                i === currentIndex ? colors.primary : "rgba(255,255,255,0.2)",
+              backgroundColor: i === currentIndex ? colors.primary : "rgba(255,255,255,0.2)",
             }}
           />
         ))}
@@ -260,40 +240,15 @@ export default function OnboardingScreen() {
         viewabilityConfig={{ itemVisiblePercentThreshold: 50 }}
         renderItem={({ item }) => (
           <View style={{ width, paddingHorizontal: 28, paddingTop: 16, gap: 28 }}>
-            <View
-              style={{
-                width: 72,
-                height: 72,
-                borderRadius: 22,
-                backgroundColor: `${item.gradientColors[0]}18`,
-                borderWidth: 1,
-                borderColor: `${item.gradientColors[0]}30`,
-                justifyContent: "center",
-                alignItems: "center",
-              }}
-            >
+            <View style={{ width: 72, height: 72, borderRadius: 22, backgroundColor: `${item.gradientColors[0]}18`, borderWidth: 1, borderColor: `${item.gradientColors[0]}30`, justifyContent: "center", alignItems: "center" }}>
               <Ionicons name={item.icon} size={32} color={item.gradientColors[0]} />
             </View>
 
             <View style={{ gap: 12 }}>
-              <Text
-                style={{
-                  color: colors.foreground,
-                  fontSize: 30,
-                  fontWeight: "800",
-                  fontFamily: "Inter_700Bold",
-                  lineHeight: 36,
-                }}
-              >
+              <Text style={{ color: colors.foreground, fontSize: 30, fontWeight: "800", fontFamily: "Inter_700Bold", lineHeight: 36 }}>
                 {item.headline}
               </Text>
-              <Text
-                style={{
-                  color: colors.subtext,
-                  fontSize: 16,
-                  lineHeight: 24,
-                }}
-              >
+              <Text style={{ color: colors.subtext, fontSize: 16, lineHeight: 24 }}>
                 {item.subtitle}
               </Text>
             </View>
@@ -305,31 +260,14 @@ export default function OnboardingScreen() {
 
       {/* Bottom controls */}
       <View style={{ paddingHorizontal: 24, paddingBottom: 16, gap: 12 }}>
-        <TouchableOpacity
-          onPress={goNext}
-          activeOpacity={0.85}
-          style={{ borderRadius: 24, overflow: "hidden" }}
-        >
+        <TouchableOpacity onPress={goNext} activeOpacity={0.85} style={{ borderRadius: 24, overflow: "hidden" }}>
           <LinearGradient
             colors={SLIDES[currentIndex].gradientColors}
             start={{ x: 0, y: 0 }}
             end={{ x: 1, y: 0 }}
-            style={{
-              paddingVertical: 18,
-              flexDirection: "row",
-              alignItems: "center",
-              justifyContent: "center",
-              gap: 8,
-            }}
+            style={{ paddingVertical: 18, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8 }}
           >
-            <Text
-              style={{
-                color: "#fff",
-                fontSize: 17,
-                fontWeight: "800",
-                fontFamily: "Inter_700Bold",
-              }}
-            >
+            <Text style={{ color: "#fff", fontSize: 17, fontWeight: "800", fontFamily: "Inter_700Bold" }}>
               {currentIndex === SLIDES.length - 1 ? "Get Started" : "Continue"}
             </Text>
             <Ionicons name="chevron-forward" size={18} color="#fff" />

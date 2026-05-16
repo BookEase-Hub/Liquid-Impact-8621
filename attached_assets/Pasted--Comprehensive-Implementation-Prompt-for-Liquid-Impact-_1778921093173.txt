@@ -1,0 +1,74 @@
+**✅ Comprehensive Implementation Prompt for Liquid Impact**
+
+You are an expert iOS + full-stack developer working on **Liquid Impact**, a premium drink scanning & wellness analysis app built with SwiftUI (primary), React Native companion, and Node.js + Prisma + PostgreSQL backend.
+
+**Current Issues & Requirements to Implement:**
+
+1. **Fix Slow AI Analysis UX**
+   - The AI analysis currently takes too long, causing users to feel tired or frustrated (bad UX).
+   - Implement a much faster, delightful scanning-to-result experience.
+   - Solutions to include:
+     - Immediate visual feedback: scanning animation, progress ring, or staged loading states (“Analyzing ingredients…”, “Evaluating impact…”, “Generating insights…”).
+     - Optimistic UI: Show a preliminary result quickly while final AI processing happens in background.
+     - Reduce perceived wait time with engaging micro-animations, haptics, and informative copy.
+     - Add a “Processing in background” option so users can continue using the app.
+     - Set a target of under 4–6 seconds for most scans (use caching for repeated products, local fallbacks, etc.).
+
+2. **Add Cloud Sync for Scan History**
+   - Use the existing PostgreSQL + Prisma backend to implement full cloud synchronization of user scan history.
+   - Scans must be tied to authenticated user accounts.
+   - Support seamless sync across iOS and React Native web/mobile versions.
+   - Features:
+     - Automatic upload of new scans.
+     - Pull latest history on app launch / pull-to-refresh.
+     - Conflict resolution and offline support (local storage first, then sync).
+     - Ensure scan data includes: image (or thumbnail), result JSON, timestamp, impact score, etc.
+
+3. **Regulatory Compliance & App Store Approval (2026 Health App Guidelines)**
+   - Position the app strictly as a **general wellness / informational tool**, never as a medical device.
+   - Add a **prominent Medical Disclaimer**:
+     - Visible on every scan result screen.
+     - In onboarding.
+     - In Profile/Settings.
+     - Persistent footer or modal on first launch.
+     - Exact wording:  
+       **“Liquid Impact is for informational and general wellness purposes only. It does not provide medical advice, diagnosis, or treatment. Consult a qualified healthcare professional before making any significant dietary or lifestyle changes.”**
+
+   - **Soften All Health-Related Wording** (avoid clinical/medical tone):
+     - Change “High Sugar Warning” → “High Sugar Indicator” or “Significant Sugar Alert”
+     - Change “Damaging” → “Consume Less Often” or “High Impact”
+     - Use “Estimate”, “Indicator”, “Insight” instead of definitive medical language.
+     - Long-term impact tabs: Use “Potential Long-term Considerations” instead of strong claims.
+
+   - **Clarify AI Limitations**:
+     - Clearly state on every result screen:  
+       “This is an AI-generated estimate based on image analysis and general ingredient data. Results are approximate and for educational purposes only.”
+
+   - **Data Privacy**:
+     - Update Privacy Policy to explicitly mention how scan images and data are handled (processed securely, optional deletion, not used for training without consent, etc.).
+     - Add clear in-app privacy notice during onboarding and before first scan.
+
+   - **App Store & Regulatory Requirements**:
+     - In App Store description and screenshots, emphasize “general wellness” positioning.
+     - Declare in App Store Connect that the app is **not a regulated medical device**.
+     - Disclose AI usage clearly: “Powered by AI for educational drink insights.”
+     - Ensure AI accuracy is reasonable and validated (use reliable ingredient database + OpenAI with good prompting).
+
+**Implementation Priorities:**
+- Update all relevant UI components (`ReportView`, `ScanResult`, `ImpactScoreView`, etc.).
+- Add new disclaimer views/components that are reusable.
+- Modify backend models and API endpoints to support user-tied scan history and sync.
+- Update onboarding flow, settings, and paywall to include disclaimers.
+- Maintain the premium glassmorphism, cyan-purple-pink design language, animations, and delightful feel while implementing these changes.
+- Ensure changes do not degrade performance or visual polish.
+
+**Deliverables Expected:**
+- Updated SwiftUI code for all affected screens and components.
+- Backend changes (Prisma schema, controllers, sync logic).
+- Updated copy throughout the app.
+- Recommendations for App Store description, privacy policy additions, and screenshots.
+- Any additional quick wins for better App Review success and user experience.
+
+Generate clean, production-ready code following the existing architecture (DesignSystem, GlassCard components, @Observable state, etc.). Prioritize user delight while ensuring full regulatory safety. 
+
+Start by outlining the changes, then provide the code updates.

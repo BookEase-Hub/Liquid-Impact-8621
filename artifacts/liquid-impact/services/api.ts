@@ -19,3 +19,34 @@ export async function analyzeDrink(imageBase64: string): Promise<ScanResult> {
   const data = await response.json();
   return { ...data, scannedAt: Date.now() } as ScanResult;
 }
+
+export async function uploadScan(
+  scan: ScanResult,
+  accessToken: string,
+): Promise<void> {
+  try {
+    await fetch(`${API_BASE}/scans/save`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${accessToken}`,
+      },
+      body: JSON.stringify(scan),
+    });
+  } catch {
+    // Fire-and-forget — local storage is source of truth
+  }
+}
+
+export async function fetchCloudScans(
+  accessToken: string,
+): Promise<ScanResult[]> {
+  const response = await fetch(`${API_BASE}/scans`, {
+    headers: { Authorization: `Bearer ${accessToken}` },
+  });
+
+  if (!response.ok) return [];
+
+  const data = await response.json().catch(() => ({ scans: [] }));
+  return (data.scans ?? []) as ScanResult[];
+}

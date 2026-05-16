@@ -310,54 +310,121 @@ const cap = StyleSheet.create({
 // ─── ProcessingView ───────────────────────────────────────────────────────────
 const PHASE_MESSAGES: Record<ScanPhase, string> = {
   IDLE:               'Ready to scan',
-  PREPARING:          'Initializing AI engine...',
-  VALIDATING_IMAGE:   'Checking image quality...',
-  EXTRACTING_BARCODE: '🔍 Detecting barcode...',
-  RUNNING_OCR:        '📝 Reading label text...',
-  DETECTING_PACKAGING:'🎨 Analyzing packaging...',
-  MATCHING_PRODUCT:   '🔗 Matching product database...',
-  ANALYZING_NUTRITION:'🥗 Calculating nutrition...',
-  CALCULATING_IMPACT: '⚡ Generating health insights...',
+  PREPARING:          'Initializing AI engine…',
+  VALIDATING_IMAGE:   'Checking image quality…',
+  EXTRACTING_BARCODE: 'Detecting barcode…',
+  RUNNING_OCR:        'Reading label text…',
+  DETECTING_PACKAGING:'Analyzing packaging…',
+  MATCHING_PRODUCT:   'Matching product database…',
+  ANALYZING_NUTRITION:'Calculating nutrition…',
+  CALCULATING_IMPACT: 'Generating wellness insights…',
   SUCCESS:            'Analysis complete!',
-  NEEDS_CORRECTION:   'Review needed...',
+  NEEDS_CORRECTION:   'Review needed…',
   FAILED:             'Error occurred',
 };
 
+const PHASE_SUBTITLES: Partial<Record<ScanPhase, string>> = {
+  PREPARING:          'AI engine warming up',
+  VALIDATING_IMAGE:   'Ensuring optimal clarity for accuracy',
+  DETECTING_PACKAGING:'Identifying container, shape & label',
+  MATCHING_PRODUCT:   'Searching 50,000+ product profiles',
+  ANALYZING_NUTRITION:'Breaking down macros and ingredients',
+  CALCULATING_IMPACT: 'Building your personalised wellness report',
+};
+
+const PHASE_PROGRESS: Partial<Record<ScanPhase, number>> = {
+  PREPARING: 8, VALIDATING_IMAGE: 22, DETECTING_PACKAGING: 38,
+  MATCHING_PRODUCT: 54, ANALYZING_NUTRITION: 70, CALCULATING_IMPACT: 86, SUCCESS: 100,
+};
+
+const FUN_FACTS = [
+  '💧 Staying hydrated can improve focus by up to 30%',
+  '☕ Caffeine peaks in your bloodstream 30–60 min after drinking',
+  '🧬 Blood sugar responds to sugar drinks within 15 minutes',
+  '🌿 Antioxidants in green tea may protect cells from oxidative stress',
+  '⚡ Energy drinks can elevate heart rate for up to 4 hours',
+  '🍋 Citric acid in sodas may soften tooth enamel over time',
+  '🥤 Sports drinks are designed for 60+ min exercise — not everyday use',
+  '💊 Many "vitamin waters" contain more sugar than a small candy bar',
+];
+
 const ProcessingView: React.FC<{ phase: ScanPhase; onCancel: () => void }> = ({ phase, onCancel }) => {
-  const scanLineAnim = useRef(new Animated.Value(-200));
-  const ringPulseAnim = useRef(new Animated.Value(1));
+  const scanLineAnim = useRef(new Animated.Value(-200)).current;
+  const ringPulseAnim = useRef(new Animated.Value(1)).current;
+  const progressAnim = useRef(new Animated.Value(0)).current;
+  const [factIndex, setFactIndex] = useState(0);
+
+  const progress = PHASE_PROGRESS[phase] ?? 0;
+
+  useEffect(() => {
+    Animated.timing(progressAnim, {
+      toValue: progress,
+      duration: 600,
+      useNativeDriver: false,
+    }).start();
+  }, [progress, progressAnim]);
 
   useEffect(() => {
     const lineAnim = Animated.loop(Animated.sequence([
-      Animated.timing(scanLineAnim.current, { toValue: 200,  duration: 2000, useNativeDriver: true }),
-      Animated.timing(scanLineAnim.current, { toValue: -200, duration: 2000, useNativeDriver: true }),
+      Animated.timing(scanLineAnim, { toValue: 200,  duration: 1800, useNativeDriver: true }),
+      Animated.timing(scanLineAnim, { toValue: -200, duration: 1800, useNativeDriver: true }),
     ]));
     const ringAnim = Animated.loop(Animated.sequence([
-      Animated.timing(ringPulseAnim.current, { toValue: 1.05, duration: 1000, useNativeDriver: true }),
-      Animated.timing(ringPulseAnim.current, { toValue: 1,    duration: 1000, useNativeDriver: true }),
+      Animated.timing(ringPulseAnim, { toValue: 1.06, duration: 900, useNativeDriver: true }),
+      Animated.timing(ringPulseAnim, { toValue: 1,    duration: 900, useNativeDriver: true }),
     ]));
     lineAnim.start();
     ringAnim.start();
     return () => { lineAnim.stop(); ringAnim.stop(); };
+  }, [scanLineAnim, ringPulseAnim]);
+
+  // Cycle fun facts every 3s
+  useEffect(() => {
+    const id = setInterval(() => {
+      setFactIndex((i) => (i + 1) % FUN_FACTS.length);
+    }, 3000);
+    return () => clearInterval(id);
   }, []);
+
+  const progressWidth = progressAnim.interpolate({
+    inputRange: [0, 100],
+    outputRange: ['0%', '100%'],
+  });
 
   return (
     <View style={proc.container}>
-      <LinearGradient colors={['rgba(6,182,212,0.1)', 'rgba(139,92,246,0.05)']} style={StyleSheet.absoluteFill} />
-      <Animated.View style={[proc.ring, { transform: [{ scale: ringPulseAnim.current }] }]}>
+      <LinearGradient colors={['rgba(6,182,212,0.08)', 'rgba(139,92,246,0.04)']} style={StyleSheet.absoluteFill} />
+
+      <Animated.View style={[proc.ring, { transform: [{ scale: ringPulseAnim }] }]}>
         <View style={proc.cTL} /><View style={proc.cTR} />
         <View style={proc.cBL} /><View style={proc.cBR} />
-        <Animated.View style={[proc.scanLine, { transform: [{ translateY: scanLineAnim.current }] }]} />
+        <Animated.View style={[proc.scanLine, { transform: [{ translateY: scanLineAnim }] }]} />
+        <View style={proc.ringCenter}>
+          <ActivityIndicator size="large" color={C.primary} />
+        </View>
       </Animated.View>
+
       <View style={proc.content}>
-        <ActivityIndicator size="large" color={C.primary} />
         <Text style={proc.title} accessibilityLiveRegion="polite">{PHASE_MESSAGES[phase]}</Text>
-        <Text style={proc.subtitle}>
-          {phase === 'VALIDATING_IMAGE' ? 'Ensuring optimal clarity for accurate results' :
-           phase === 'MATCHING_PRODUCT' ? 'Searching 50,000+ products in our database' :
-           'AI is working on your scan'}
-        </Text>
+        <Text style={proc.subtitle}>{PHASE_SUBTITLES[phase] ?? 'AI is working on your scan'}</Text>
+
+        {/* Progress bar */}
+        <View style={proc.progressTrack}>
+          <Animated.View style={[proc.progressFill, { width: progressWidth }]}>
+            <LinearGradient colors={[C.gradientStart, C.gradientEnd]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={StyleSheet.absoluteFill} />
+          </Animated.View>
+        </View>
+        <Text style={proc.progressPct}>{progress}%</Text>
+
+        {/* Fun fact */}
+        <View style={proc.factBox}>
+          <Text style={proc.factText}>{FUN_FACTS[factIndex]}</Text>
+        </View>
+
+        {/* AI disclaimer note */}
+        <Text style={proc.disclaimer}>Results are AI-generated wellness estimates for educational purposes.</Text>
       </View>
+
       <TouchableOpacity onPress={onCancel} style={proc.cancel} activeOpacity={0.7}
         accessibilityLabel="Cancel scan" accessibilityRole="button">
         <Text style={proc.cancelText}>Cancel</Text>
@@ -366,16 +433,23 @@ const ProcessingView: React.FC<{ phase: ScanPhase; onCancel: () => void }> = ({ 
   );
 };
 const proc = StyleSheet.create({
-  container: { flex: 1, backgroundColor: C.background, justifyContent: 'center', alignItems: 'center' },
-  ring: { width: 200, height: 200, borderRadius: 100, borderWidth: 2, borderColor: 'rgba(6,182,212,0.3)', justifyContent: 'center', alignItems: 'center', marginBottom: 40 },
-  cTL: { position: 'absolute', top: -2,    left: -2,  width: 32, height: 32, borderTopWidth: 3,    borderLeftWidth: 3,  borderColor: C.primary, borderTopLeftRadius: 20 },
-  cTR: { position: 'absolute', top: -2,    right: -2, width: 32, height: 32, borderTopWidth: 3,    borderRightWidth: 3, borderColor: C.primary, borderTopRightRadius: 20 },
-  cBL: { position: 'absolute', bottom: -2, left: -2,  width: 32, height: 32, borderBottomWidth: 3, borderLeftWidth: 3,  borderColor: C.primary, borderBottomLeftRadius: 20 },
-  cBR: { position: 'absolute', bottom: -2, right: -2, width: 32, height: 32, borderBottomWidth: 3, borderRightWidth: 3, borderColor: C.primary, borderBottomRightRadius: 20 },
-  scanLine: { position: 'absolute', left: 0, right: 0, height: 3, backgroundColor: C.primary },
-  content: { alignItems: 'center', gap: 16 },
+  container: { flex: 1, backgroundColor: C.background, justifyContent: 'center', alignItems: 'center', paddingHorizontal: 32 },
+  ring: { width: 180, height: 180, borderRadius: 90, borderWidth: 2, borderColor: 'rgba(6,182,212,0.25)', justifyContent: 'center', alignItems: 'center', marginBottom: 36 },
+  ringCenter: { justifyContent: 'center', alignItems: 'center' },
+  cTL: { position: 'absolute', top: -2,    left: -2,  width: 28, height: 28, borderTopWidth: 3,    borderLeftWidth: 3,  borderColor: C.primary, borderTopLeftRadius: 18 },
+  cTR: { position: 'absolute', top: -2,    right: -2, width: 28, height: 28, borderTopWidth: 3,    borderRightWidth: 3, borderColor: C.primary, borderTopRightRadius: 18 },
+  cBL: { position: 'absolute', bottom: -2, left: -2,  width: 28, height: 28, borderBottomWidth: 3, borderLeftWidth: 3,  borderColor: C.primary, borderBottomLeftRadius: 18 },
+  cBR: { position: 'absolute', bottom: -2, right: -2, width: 28, height: 28, borderBottomWidth: 3, borderRightWidth: 3, borderColor: C.primary, borderBottomRightRadius: 18 },
+  scanLine: { position: 'absolute', left: 0, right: 0, height: 2, backgroundColor: C.primary, opacity: 0.8 },
+  content: { alignItems: 'center', gap: 12, width: '100%' },
   title: { fontSize: 18, fontWeight: '700', color: C.foreground, textAlign: 'center' },
-  subtitle: { fontSize: 14, color: C.mutedForeground, textAlign: 'center', lineHeight: 20, paddingHorizontal: 24 },
+  subtitle: { fontSize: 13, color: C.mutedForeground, textAlign: 'center', lineHeight: 18 },
+  progressTrack: { width: '100%', height: 6, borderRadius: 3, backgroundColor: 'rgba(255,255,255,0.08)', overflow: 'hidden', marginTop: 8 },
+  progressFill: { height: '100%', borderRadius: 3, overflow: 'hidden' },
+  progressPct: { color: C.primary, fontSize: 12, fontWeight: '700' },
+  factBox: { marginTop: 8, paddingHorizontal: 18, paddingVertical: 12, borderRadius: 14, backgroundColor: 'rgba(6,182,212,0.08)', borderWidth: 1, borderColor: 'rgba(6,182,212,0.15)', width: '100%' },
+  factText: { color: C.mutedForeground, fontSize: 13, textAlign: 'center', lineHeight: 18 },
+  disclaimer: { color: 'rgba(255,255,255,0.3)', fontSize: 10, textAlign: 'center', marginTop: 4, fontStyle: 'italic' },
   cancel: { position: 'absolute', bottom: 40, paddingVertical: 12, paddingHorizontal: 24 },
   cancelText: { color: C.subtext, fontSize: 14, fontWeight: '600' },
 });
@@ -652,20 +726,25 @@ export default function ScanScreen() {
   }, [result?.liquidType]);
 
   // ── Simulated pipeline phase sequencing during analysis ───────────────────
+  // Phases spread over ~14s to match typical GPT-4o latency
   const runPipelineSimulation = useCallback((abort: AbortController) => {
-    const sequence: ScanPhase[] = [
-      'PREPARING', 'VALIDATING_IMAGE', 'DETECTING_PACKAGING',
-      'MATCHING_PRODUCT', 'ANALYZING_NUTRITION', 'CALCULATING_IMPACT',
+    const sequence: { phase: ScanPhase; delay: number }[] = [
+      { phase: 'PREPARING',           delay: 0 },
+      { phase: 'VALIDATING_IMAGE',    delay: 1500 },
+      { phase: 'DETECTING_PACKAGING', delay: 3500 },
+      { phase: 'MATCHING_PRODUCT',    delay: 6000 },
+      { phase: 'ANALYZING_NUTRITION', delay: 9000 },
+      { phase: 'CALCULATING_IMPACT',  delay: 12000 },
     ];
-    let i = 0;
-    const tick = () => {
-      if (abort.signal.aborted || !isMountedRef.current) return;
-      if (i < sequence.length) {
-        setPhase(sequence[i++]);
-        setTimeout(tick, 700);
-      }
-    };
-    tick();
+    const timers: ReturnType<typeof setTimeout>[] = [];
+    for (const { phase, delay } of sequence) {
+      const t = setTimeout(() => {
+        if (abort.signal.aborted || !isMountedRef.current) return;
+        setPhase(phase);
+      }, delay);
+      timers.push(t);
+    }
+    abort.signal.addEventListener('abort', () => timers.forEach(clearTimeout));
   }, []);
 
   // ── Start analysis ─────────────────────────────────────────────────────────

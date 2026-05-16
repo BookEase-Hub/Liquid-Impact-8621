@@ -1,5 +1,8 @@
 import { Router } from "express";
+import { eq, desc } from "drizzle-orm";
 import { openai } from "@workspace/integrations-openai-ai-server";
+import { db, scansTable } from "@workspace/db";
+import { verifyAccessToken } from "../middleware/authMiddleware";
 
 const router = Router();
 
@@ -28,6 +31,8 @@ SCORING GUIDELINES:
 
 STATUS: optimal(80-100), stable(50-79), risky(25-49), damaging(0-24)
 
+IMPORTANT — ALL results are for general wellness and educational purposes only, not medical advice.
+
 Return ONLY a valid JSON object — no markdown, no explanation, just JSON.`;
 
 const ANALYSIS_USER_PROMPT = `Analyze this liquid image carefully and return this exact JSON structure:
@@ -44,26 +49,26 @@ const ANALYSIS_USER_PROMPT = `Analyze this liquid image carefully and return thi
   "glycemicImpact": "<low|moderate|high|very_high>",
   "status": "<optimal|stable|risky|damaging>",
   "dehydrationRisk": <true if drink causes dehydration (alcohol, very high caffeine), false otherwise>,
-  "aiInsight": "<3-4 sentence evidence-based health analysis. If cooking oil: explicitly state this is NOT a beverage and explain health implications of its fat profile. Be specific to the detected product.>",
-  "viralStatement": "<one punchy statement about this liquid's body impact, max 12 words>",
+  "aiInsight": "<3-4 sentence evidence-based wellness insight. If cooking oil: explicitly state this is NOT a beverage and explain its fat profile. Be specific to the detected product. Use educational, non-medical language.>",
+  "viralStatement": "<one punchy wellness statement about this liquid's body impact, max 12 words>",
   "alternatives": ["<healthier alternative 1>", "<healthier alternative 2>"],
   "shortTermImpact": {
-    "energyResponse": "<energy effect within 1-2 hours of consumption>",
-    "bloodSugarResponse": "<blood glucose effect in 30-60 minutes>",
-    "bodyReaction": "<immediate physiological reaction>",
-    "hydrationImpact": "<cellular hydration effect>"
+    "energyResponse": "<energy effect estimate within 1-2 hours of consumption>",
+    "bloodSugarResponse": "<blood glucose indicator in 30-60 minutes — use 'may' or 'estimated'>",
+    "bodyReaction": "<general physiological response indicator>",
+    "hydrationImpact": "<estimated cellular hydration effect>"
   },
   "mediumTermImpact": {
-    "energyStability": "<energy pattern over 1-4 weeks of regular use>",
-    "physicalChanges": "<observable physical changes over weeks>",
-    "habitRisk": "<dependency or habit-formation risk>",
-    "sleepQuality": "<effect on sleep architecture>"
+    "energyStability": "<estimated energy pattern over 1-4 weeks of regular use>",
+    "physicalChanges": "<potential physical indicators over weeks>",
+    "habitRisk": "<potential dependency or habit-formation consideration>",
+    "sleepQuality": "<potential effect on sleep — use 'may' language>"
   },
   "longTermImpact": {
-    "healthTrend": "<long-term health trajectory with daily use>",
-    "metabolicImpact": "<effect on metabolism and body composition>",
-    "riskAccumulation": "<chronic disease risk factors>",
-    "nutritionalBalance": "<nutritional contribution or deficit>"
+    "healthTrend": "<general wellness trajectory with regular use — use 'may' or 'potential'>",
+    "metabolicImpact": "<potential effect on metabolism and body composition>",
+    "riskAccumulation": "<general wellness considerations with long-term use>",
+    "nutritionalBalance": "<nutritional contribution or potential deficit>"
   },
   "composition": {
     "calories": <integer, per typical serving>,
@@ -83,7 +88,7 @@ const ANALYSIS_USER_PROMPT = `Analyze this liquid image carefully and return thi
         "healthRole": "<positive|neutral|concerning>",
         "riskLevel": "<low|medium|high>",
         "description": "<one sentence about this ingredient>",
-        "aiNote": "<specific health note about this ingredient>"
+        "aiNote": "<specific wellness note about this ingredient>"
       }
     ]
   }
@@ -100,24 +105,15 @@ router.post("/scans/analyze", async (req, res) => {
     const completion = await openai.chat.completions.create({
       model: "gpt-4o",
       messages: [
-        {
-          role: "system",
-          content: ANALYSIS_SYSTEM_PROMPT,
-        },
+        { role: "system", content: ANALYSIS_SYSTEM_PROMPT },
         {
           role: "user",
           content: [
             {
               type: "image_url",
-              image_url: {
-                url: `data:image/jpeg;base64,${imageBase64}`,
-                detail: "high",
-              },
+              image_url: { url: `data:image/jpeg;base64,${imageBase64}`, detail: "high" },
             },
-            {
-              type: "text",
-              text: ANALYSIS_USER_PROMPT,
-            },
+            { type: "text", text: ANALYSIS_USER_PROMPT },
           ],
         },
       ],
@@ -138,7 +134,6 @@ router.post("/scans/analyze", async (req, res) => {
     if (!result.id || typeof result.id !== "string") {
       result.id = `scan_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 9)}`;
     }
-
     if (!result.liquidType) result.liquidType = "beverage";
     if (!result.confidenceScore) result.confidenceScore = 0.85;
     if (!result.dehydrationRisk) result.dehydrationRisk = false;
@@ -158,6 +153,115 @@ router.post("/scans/analyze", async (req, res) => {
   } catch (err) {
     req.log.error({ err }, "Failed to analyze scan");
     res.status(500).json({ error: "Failed to analyze drink image" });
+  }
+});
+
+// ─── Save a scan to cloud (requires auth) ────────────────────────────────────
+router.post("/scans/save", async (req, res) => {
+  const header = req.headers.authorization;
+  if (!header?.startsWith("Bearer ")) {
+    return res.status(401).json({ error: "Unauthorized" });
+  }
+
+  let userId: string;
+  try {
+    const payload = verifyAccessToken(header.slice(7));
+    userId = payload.userId;
+  } catch {
+    return res.status(401).json({ error: "Invalid token" });
+  }
+
+  try {
+    const scan = req.body as Record<string, unknown>;
+    if (!scan?.id || typeof scan.id !== "string") {
+      return res.status(400).json({ error: "scan.id is required" });
+    }
+
+    await db
+      .insert(scansTable)
+      .values({
+        id: scan.id as string,
+        userId,
+        detectedProduct: (scan.detectedProduct as string) ?? "Unknown",
+        brand: (scan.brand as string | null) ?? null,
+        category: (scan.category as string) ?? "other",
+        liquidType: (scan.liquidType as string) ?? "beverage",
+        confidenceScore: (scan.confidenceScore as number) ?? 0.85,
+        impactScore: (scan.impactScore as number) ?? 0,
+        hydrationLevel: (scan.hydrationLevel as number) ?? 0,
+        glycemicImpact: (scan.glycemicImpact as string) ?? "low",
+        status: (scan.status as string) ?? "stable",
+        dehydrationRisk: (scan.dehydrationRisk as boolean) ?? false,
+        aiInsight: (scan.aiInsight as string) ?? "",
+        viralStatement: (scan.viralStatement as string | null) ?? null,
+        alternatives: (scan.alternatives as string[]) ?? [],
+        shortTermImpact: scan.shortTermImpact as object,
+        mediumTermImpact: scan.mediumTermImpact as object,
+        longTermImpact: scan.longTermImpact as object,
+        composition: scan.composition as object,
+        scannedAt: scan.scannedAt
+          ? new Date(scan.scannedAt as number)
+          : new Date(),
+      })
+      .onConflictDoNothing();
+
+    req.log.info({ userId, scanId: scan.id }, "Scan saved to cloud");
+    return res.json({ success: true });
+  } catch (err) {
+    req.log.error({ err }, "Failed to save scan");
+    return res.status(500).json({ error: "Failed to save scan" });
+  }
+});
+
+// ─── Fetch user's cloud scans (requires auth) ────────────────────────────────
+router.get("/scans", async (req, res) => {
+  const header = req.headers.authorization;
+  if (!header?.startsWith("Bearer ")) {
+    return res.status(401).json({ error: "Unauthorized" });
+  }
+
+  let userId: string;
+  try {
+    const payload = verifyAccessToken(header.slice(7));
+    userId = payload.userId;
+  } catch {
+    return res.status(401).json({ error: "Invalid token" });
+  }
+
+  try {
+    const rows = await db
+      .select()
+      .from(scansTable)
+      .where(eq(scansTable.userId, userId))
+      .orderBy(desc(scansTable.scannedAt))
+      .limit(200);
+
+    const scans = rows.map((r) => ({
+      id: r.id,
+      detectedProduct: r.detectedProduct,
+      brand: r.brand,
+      category: r.category,
+      liquidType: r.liquidType,
+      confidenceScore: r.confidenceScore,
+      impactScore: r.impactScore,
+      hydrationLevel: r.hydrationLevel,
+      glycemicImpact: r.glycemicImpact,
+      status: r.status,
+      dehydrationRisk: r.dehydrationRisk,
+      aiInsight: r.aiInsight,
+      viralStatement: r.viralStatement,
+      alternatives: r.alternatives,
+      shortTermImpact: r.shortTermImpact,
+      mediumTermImpact: r.mediumTermImpact,
+      longTermImpact: r.longTermImpact,
+      composition: r.composition,
+      scannedAt: r.scannedAt.getTime(),
+    }));
+
+    return res.json({ scans });
+  } catch (err) {
+    req.log.error({ err }, "Failed to fetch scans");
+    return res.status(500).json({ error: "Failed to fetch scans" });
   }
 });
 

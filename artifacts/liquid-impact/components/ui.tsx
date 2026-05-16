@@ -216,7 +216,12 @@ export function statusColor(status: ScanStatus): string {
 }
 
 export function statusLabel(status: ScanStatus): string {
-  return status.charAt(0).toUpperCase() + status.slice(1);
+  switch (status) {
+    case "optimal": return "Optimal";
+    case "stable": return "Stable";
+    case "risky": return "Use Less Often";
+    case "damaging": return "High Impact";
+  }
 }
 
 export function categoryIcon(category: string): keyof typeof Ionicons.glyphMap {
