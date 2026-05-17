@@ -1,0 +1,301 @@
+You are a senior AI product engineer, senior mobile UX engineer, and senior backend performance architect.
+
+Your task is to fully optimize and harden my application “Liquid Impact” for production-grade AI drink analysis quality, trust, responsiveness, and UX polish.
+
+Current stack:
+- React Native + TypeScript frontend
+- Node.js backend
+- PostgreSQL + Prisma
+- OpenAI GPT-4 Vision integration
+- Replit deployment environment
+
+MAIN GOAL:
+Transform the scan experience into a FAST, TRUSTWORTHY, PREMIUM consumer experience similar to top-tier AI consumer apps.
+
+==================================================
+CRITICAL ISSUES TO FIX
+==================================================
+
+1. AI SCAN SPEED IS TOO SLOW
+Current issue:
+- Scans sometimes hang
+- Camera loading animation continues even after AI already returned results
+- Users think app froze
+- Some scans take too long
+- UX feels unreliable
+
+TARGET:
+- Total scan-to-result time: 3–8 seconds maximum
+- No hanging UI
+- No duplicate loading states
+- Smooth premium scanning experience
+
+IMPLEMENT:
+
+A. PERFORMANCE OPTIMIZATION
+- Optimize image compression before upload
+- Resize images intelligently before sending to OpenAI
+- Reduce unnecessary payload size
+- Use async processing properly
+- Cancel duplicate requests
+- Prevent multiple simultaneous scan calls
+- Add request timeout handling
+- Add retry logic only when needed
+- Optimize backend API latency
+- Ensure scan state resets correctly after completion
+
+B. FRONTEND SCAN STATE FIX
+Current bug:
+Results may appear but scanning animation still continues forever.
+
+Fix:
+- Ensure loading state immediately terminates once response returns
+- Prevent stale state updates
+- Ensure camera modal closes properly
+- Ensure processing overlay disappears immediately after success/error
+- Add cleanup logic on unmount/navigation
+- Prevent memory leaks
+- Prevent infinite loading loop
+
+C. PERCEIVED SPEED UX
+Even if backend takes 4–6 seconds:
+- Make experience FEEL fast and intelligent
+
+Implement:
+- Progressive scan states:
+  1. “Analyzing drink…”
+  2. “Detecting ingredients…”
+  3. “Generating health insights…”
+- Smooth transitions
+- Premium animations
+- Dynamic progress feedback
+- Haptic feedback timing improvements
+- Immediate visual acknowledgment after capture
+
+==================================================
+2. AI ACCURACY + TRUST PROBLEMS
+==================================================
+
+Current issue examples:
+- Smirnoff without visible branding gets detected as water
+- Dirty water confused as shakes
+- Transparent alcoholic beverages misclassified
+- AI relies too heavily on visible color
+- Trust breaks immediately when results are obviously wrong
+
+GOAL:
+Improve classification confidence and uncertainty handling.
+
+IMPLEMENT:
+
+A. MULTI-STAGE AI ANALYSIS PIPELINE
+
+Instead of one direct GPT call:
+Create layered analysis system:
+
+Stage 1:
+Visual classification:
+- beverage type
+- transparency
+- carbonation
+- container type
+- color profile
+- texture
+- foam presence
+- ice presence
+- alcohol probability
+- packaging detection
+- label OCR
+
+Stage 2:
+Reasoning layer:
+Infer likely drink category based on:
+- context
+- bottle shape
+- liquid behavior
+- label text
+- cup type
+- environmental clues
+
+Stage 3:
+Health insight generation:
+Only after confidence threshold established.
+
+==================================================
+B. CONFIDENCE SCORING SYSTEM
+==================================================
+
+Add confidence scoring:
+- High confidence
+- Medium confidence
+- Low confidence
+
+If confidence is low:
+DO NOT hallucinate confidently.
+
+Instead say:
+- “This appears to be…”
+- “Possibly…”
+- “Unable to confidently identify beverage”
+- “Analysis estimated from visible characteristics”
+
+This is CRITICAL for user trust.
+
+==================================================
+C. IMPROVE PROMPT ENGINEERING
+==================================================
+
+Rewrite OpenAI prompts for:
+- less hallucination
+- less overconfidence
+- better uncertainty handling
+- more beverage reasoning intelligence
+- better alcohol detection
+- better transparent liquid differentiation
+- contextual reasoning
+
+The AI must:
+- avoid pretending certainty
+- admit uncertainty naturally
+- prioritize trust over fake precision
+
+==================================================
+D. ADD FALLBACK DETECTION LOGIC
+==================================================
+
+If image quality poor:
+- request another photo politely
+- explain why
+- suggest:
+  - better lighting
+  - visible branding
+  - clearer angle
+
+==================================================
+3. IMPROVE CORE USER EXPERIENCE
+==================================================
+
+GOAL:
+Make Liquid Impact feel addictive, premium, emotionally engaging, and trustworthy.
+
+==================================================
+A. FIRST SCAN EXPERIENCE
+==================================================
+
+The first scan determines retention.
+
+Optimize:
+- excitement
+- clarity
+- emotional satisfaction
+- trust
+
+Add:
+- smoother onboarding-to-scan transition
+- instant visual response after capture
+- premium loading feedback
+- cleaner result reveal animation
+
+==================================================
+B. RESULTS EXPERIENCE
+==================================================
+
+Make results:
+- shorter
+- clearer
+- smarter
+- less repetitive
+- more human
+
+Avoid generic robotic responses.
+
+Current issue:
+Some outputs feel too generic.
+
+Improve:
+- personalization tone
+- concise intelligence
+- natural wellness insights
+- contextual recommendations
+
+==================================================
+C. TRUST-ORIENTED UX
+==================================================
+
+Add:
+- “AI-generated estimate”
+- “For wellness purposes only”
+- transparent confidence indicators
+
+But present elegantly without ruining premium feel.
+
+==================================================
+4. ONBOARDING IMPROVEMENTS
+==================================================
+
+Current goal:
+Increase retention and trust during first launch.
+
+Improve onboarding by:
+- emphasizing value quickly
+- showing real scan examples
+- reducing text overload
+- making benefits emotional and practical
+
+Focus messaging on:
+- understanding drinks
+- hydration awareness
+- sugar awareness
+- smarter beverage habits
+- wellness insights
+
+NOT medical claims.
+
+==================================================
+5. ENGINEERING QUALITY
+==================================================
+
+Refactor and improve:
+- scan service architecture
+- async state management
+- error handling
+- retry handling
+- loading synchronization
+- OpenAI API resilience
+- edge-case handling
+- frontend/backend communication
+
+Ensure:
+- no infinite loading
+- no stale scan sessions
+- no hanging camera states
+- no duplicate requests
+- production-grade stability
+
+==================================================
+6. OUTPUT REQUIREMENTS
+==================================================
+
+I want:
+- full implementation plan
+- architecture improvements
+- code refactors
+- prompt engineering improvements
+- frontend fixes
+- backend optimizations
+- UX improvements
+- exact code changes where necessary
+- production-grade recommendations
+- performance optimization strategy
+- trust optimization strategy
+
+Prioritize:
+1. AI speed
+2. AI trust
+3. UX smoothness
+4. Accuracy
+5. Retention
+6. Premium feel
+
+Do not give generic advice.
+Analyze my existing codebase deeply and implement production-grade improvements directly.

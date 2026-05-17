@@ -20,6 +20,7 @@ import { useRouter } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as Haptics from 'expo-haptics';
 import * as ImagePicker from 'expo-image-picker';
+import * as ImageManipulator from 'expo-image-manipulator';
 import { Ionicons } from '@expo/vector-icons';
 import { useApp, SUBSCRIPTION_LIMITS } from '@/context/AppContext';
 import { analyzeDrink } from '@/services/api';
@@ -747,8 +748,24 @@ export default function ScanScreen() {
     abort.signal.addEventListener('abort', () => timers.forEach(clearTimeout));
   }, []);
 
+  // ── Compress image before upload ───────────────────────────────────────────
+  // Resizes to max 1024px and re-encodes at 0.82 quality — reduces payload
+  // by ~10-20x vs full-res camera output, cutting API latency significantly.
+  const compressImage = useCallback(async (uri: string): Promise<string> => {
+    try {
+      const result = await ImageManipulator.manipulateAsync(
+        uri,
+        [{ resize: { width: 1024 } }],
+        { compress: 0.82, format: ImageManipulator.SaveFormat.JPEG, base64: true },
+      );
+      return result.base64 ?? '';
+    } catch {
+      return ''; // fall through to original
+    }
+  }, []);
+
   // ── Start analysis ─────────────────────────────────────────────────────────
-  const handleStartScan = useCallback(async (imageUri: string, base64?: string) => {
+  const handleStartScan = useCallback(async (imageUri: string, originalBase64?: string) => {
     if (!canScan) {
       Alert.alert('Scan Limit Reached', scanLimitMessage || 'Upgrade to continue scanning.', [
         { text: 'Cancel', style: 'cancel' },
@@ -757,6 +774,7 @@ export default function ScanScreen() {
       return;
     }
 
+    // Cancel any in-flight request and clear old phase timers
     abortControllerRef.current?.abort();
     const controller = new AbortController();
     abortControllerRef.current = controller;
@@ -769,12 +787,22 @@ export default function ScanScreen() {
     runPipelineSimulation(controller);
 
     try {
-      const raw = base64 ?? imageUri;
-      // Strip the data URL prefix if present — API expects raw base64
-      const b64 = raw.startsWith('data:') ? raw.split(',')[1] : raw;
-      const scanResult = await analyzeDrink(b64);
-
+      // Compress first — dramatically reduces GPT-4o upload time
+      const compressed = await compressImage(imageUri);
       if (controller.signal.aborted || !isMountedRef.current) return;
+
+      // Prefer compressed, fall back to original base64, then URI
+      let b64 = compressed;
+      if (!b64 && originalBase64) {
+        b64 = originalBase64.startsWith('data:') ? originalBase64.split(',')[1] : originalBase64;
+      }
+      if (!b64) throw new Error('Could not prepare image for analysis.');
+
+      const scanResult = await analyzeDrink(b64);
+      if (controller.signal.aborted || !isMountedRef.current) return;
+
+      // ✅ Abort the pipeline simulation timers — result is back, no more fake phases
+      controller.abort();
 
       addScan(scanResult);
       setResult(scanResult);
@@ -782,11 +810,12 @@ export default function ScanScreen() {
       await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     } catch (e) {
       if (controller.signal.aborted) return;
+      controller.abort(); // stop stale timers on error too
       setPhase('FAILED');
       setErrorMsg(e instanceof Error ? e.message : 'Failed to analyze image');
       await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
     }
-  }, [canScan, scanLimitMessage, addScan, router, runPipelineSimulation]);
+  }, [canScan, scanLimitMessage, addScan, router, runPipelineSimulation, compressImage]);
 
   // ── Pick image ─────────────────────────────────────────────────────────────
   const pickImage = useCallback(async (useCamera: boolean) => {
@@ -799,22 +828,19 @@ export default function ScanScreen() {
           return;
         }
       }
-      const isLowEnd = Platform.OS === 'android' && Number(Platform.Version) < 29;
-      const quality = isLowEnd ? 0.7 : 0.85;
 
+      // Request lower quality upfront — we compress further in handleStartScan anyway
       const picked = useCamera
-        ? await ImagePicker.launchCameraAsync({ mediaTypes: 'images', quality, base64: true, allowsEditing: true, aspect: [4, 3] })
-        : await ImagePicker.launchImageLibraryAsync({ mediaTypes: 'images', quality, base64: true, allowsEditing: true, aspect: [4, 3] });
+        ? await ImagePicker.launchCameraAsync({ mediaTypes: 'images', quality: 0.9, base64: false, allowsEditing: true, aspect: [4, 3] })
+        : await ImagePicker.launchImageLibraryAsync({ mediaTypes: 'images', quality: 0.9, base64: false, allowsEditing: true, aspect: [4, 3] });
 
       if (!picked.canceled && picked.assets[0]) {
         const asset = picked.assets[0];
         setSelectedImage(asset.uri);
         setResult(null);
         setPhase('IDLE');
-        setTimeout(() => {
-          const b64 = asset.base64 ? `data:image/jpeg;base64,${asset.base64}` : undefined;
-          handleStartScan(asset.uri, b64);
-        }, 300);
+        // Small delay for the image preview to render, then start immediately
+        setTimeout(() => handleStartScan(asset.uri), 200);
       }
     } catch {
       Alert.alert('Error', 'Could not access camera or gallery.');
@@ -836,7 +862,9 @@ export default function ScanScreen() {
   }, []);
 
   // ── Render: full-screen processing ────────────────────────────────────────
-  if (isProcessing && !selectedImage) {
+  // Always show the rich ProcessingView during analysis — don't let the image
+  // overlay steal the experience. The ProcessingView is the premium UX.
+  if (isProcessing) {
     return <ProcessingView phase={phase} onCancel={handleCancel} />;
   }
 
