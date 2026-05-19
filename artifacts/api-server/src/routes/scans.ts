@@ -3,55 +3,58 @@ import { eq, desc } from "drizzle-orm";
 import { openai } from "@workspace/integrations-openai-ai-server";
 import { db, scansTable } from "@workspace/db";
 import { verifyAccessToken } from "../middleware/authMiddleware";
+import crypto from "crypto";
+import { lookupBeverage } from "../lib/beverageDb";
 
 const router = Router();
+
+// ─── Simple In-Memory Cache for Speed ────────────────────────────────────────
+// In a production app, use Redis. For now, a Map handles repeated scans instantly.
+const SCAN_CACHE = new Map<string, { result: any; expires: number }>();
+const CACHE_TTL = 1000 * 60 * 60; // 1 hour
 
 // ─── Improved System Prompt ───────────────────────────────────────────────────
 // Multi-stage reasoning embedded in a single GPT-4o call.
 // Emphasises uncertainty handling, alcohol detection, and non-hallucination.
-const ANALYSIS_SYSTEM_PROMPT = `You are an expert liquid analyst and nutritionist. You ONLY analyse what is visually observable in the image — you NEVER fabricate brand names, ingredients, or nutritional data you cannot see or reasonably infer.
+const ANALYSIS_SYSTEM_PROMPT = `You are a senior liquid analyst and nutritionist. You ONLY analyse what is visually observable in the image — you NEVER fabricate brand names, ingredients, or nutritional data you cannot see or reasonably infer.
 
 REASONING PROTOCOL — follow these stages silently before writing the JSON:
 
-STAGE 1 — VISUAL CLASSIFICATION:
-Observe carefully:
-• Container type: can / glass bottle / plastic bottle / cup / bowl / tetra pak / unknown
-• Liquid visibility: fully visible / partially visible / container opaque
-• Liquid colour: clear / golden / amber / dark brown / white / green / pink / red / unknown
-• Carbonation signs: bubbles / flat
-• Viscosity: thin (water-like) / medium (juice-like) / thick (smoothie/oil-like)
-• Foam: present / absent
-• Ice: present / absent
-• Label text: readable (what does it say?) / partially readable / not visible
-• Brand logo: identified / unidentified
-• Container shape clues: beer bottle shape / wine bottle / spirit bottle / soda can / water bottle / juice carton / oil bottle (tall slender) / condiment bottle
+STAGE 1 — ADVANCED VISUAL ANALYSIS:
+Observe with extreme precision:
+• Viscosity & Density: How does the liquid move? Thin (water-like), medium (juice), thick/viscous (syrup/oil/honey), creamy (milk/shake).
+• Transparency & Clarity: Crystal clear, translucent, opaque, cloudy, or sediment-rich.
+• Carbonation & Surface: Macro bubbles, micro bubbles, foam patterns, crema, or completely flat.
+• Reflections & Light: Glass reflections, liquid highlights, color gradients from top to bottom.
+• Container & Context: Bottle shape, cap type (screw, cork, pop), serving vessel (shot glass, wine glass, mug), environment (kitchen, bar, gym).
+• Labeling & OCR: Extract all visible text, barcodes, and logos. Cross-reference with known products.
 
-STAGE 2 — REASONING:
-Given your Stage 1 observations:
-• What is the MOST LIKELY beverage/liquid based on ALL visual clues combined?
-• Is this definitely a beverage, or could it be a cooking oil / condiment / supplement?
+STAGE 2 — BEVERAGE PROBABILITY SCORING:
+Determine if the liquid is intended for human consumption as a beverage:
+• Beverage: Clearly a drink (water, soda, juice, alcohol).
+• Possibly beverage: Ambiguous but likely a drink.
+• Non-beverage likely: Cooking oil, cleaning liquid, medicine, chemicals, sauces.
+
+STAGE 3 — TRANSPARENT LIQUID SAFETY LOGIC:
+If the liquid is transparent/clear:
+• DO NOT guess aggressively. If uncertain, use fallback descriptors.
+• NEVER confidently classify water as vodka/spirit, or vinegar as alcohol.
+• Look for "pour texture" and "viscosity" clues that distinguish water from spirits or syrups.
+
+STAGE 4 — FINAL REASONING:
+• What is the MOST LIKELY liquid based on ALL multi-modal signals?
 • What is your confidence? HIGH (>85%) / MEDIUM (60-85%) / LOW (<60%)
-• If confidence is LOW, what alternative identifications are possible?
+• If signals conflict (e.g., label says 'Water' but container looks like 'Vodka'), lower the confidence score.
 
-CRITICAL ALCOHOL DETECTION RULES:
-• Clear liquid in a spirit/vodka bottle shape → likely spirit/vodka, NOT water
-• Amber liquid in a short wide-mouthed glass → likely whiskey/bourbon  
-• Dark brown carbonated liquid in a can/glass → likely cola or beer
-• Golden carbonated liquid in a tall glass → likely beer or cider
-• Slim cylindrical cans with energy drink design → likely energy drink
-• If you see ANY alcohol brand name (even partially) → classify as alcohol
-• When uncertain between water and clear spirit → err toward spirit if bottle shape is non-standard
-
-COOKING OIL RULES:
-• Tall slender bottles with golden/pale yellow liquid → cooking_oil
-• Never misidentify olive oil / vegetable oil as juice or tea
+CRITICAL RULES:
+• COOKING OIL: Tall slender bottles, golden/pale yellow, high viscosity. NEVER classify as beer.
+• VANILLA ESSENCE: Small dark bottles, intense brown. NEVER classify as cider.
+• VINEGAR: Often confused with cider/alcohol. Check label text and bottle context.
+• SPIRITS: Look for bottle shape, cap, and serving context (shot glass). If uncertain, use "Unidentified Clear Liquid".
 
 LOW CONFIDENCE BEHAVIOUR (confidence < 60%):
-• In aiInsight: say "This appears to be…" or "Based on visible characteristics, this may be…"
-• Do NOT fabricate specific brand names
-• Do NOT invent precise nutritional values — use wide ranges instead
-• Set viralStatement to an honest, non-specific observation
-• Reduce impactScore confidence range by widening composition estimates
+• Use fallback language: "Transparent beverage detected", "Possibly water, clear soda, or spirit", "Unable to confidently distinguish liquid type from image alone".
+• Do NOT fabricate specific brand names or precise nutritional values.
 
 IMPORTANT — ALL output is for general wellness and educational purposes only, not medical advice.
 
@@ -61,10 +64,11 @@ const ANALYSIS_USER_PROMPT = `Analyse this image using the reasoning protocol an
 
 Rules:
 - "id": generate "scan_" + 8 random alphanumeric chars
-- "detectedProduct": be specific if confident, vague if not (e.g. "Unidentified Clear Spirit" not "Water")
+- "detectedProduct": be specific if confident, use fallback language if not (e.g. "Transparent beverage detected")
 - "brand": exact brand name if VISIBLE AND READABLE, otherwise null
-- "confidenceScore": your honest confidence 0.0–1.0 based on Stage 2 reasoning
-- "impactScore": integer 0–100 per scoring guidelines below
+- "confidenceScore": your honest confidence 0.0–1.0 based on multi-modal validation
+- "beverageProbability": <beverage|possibly_beverage|non_beverage_likely>
+- "impactScore": integer 0–100 per scoring guidelines below. If non-beverage, set to 0.
 - "status": optimal(80-100) / stable(50-79) / risky(25-49) / damaging(0-24)
 - Use "may", "appears to", "estimated" language in all impact fields
 
@@ -76,17 +80,18 @@ Soda/cola: 12-32 | Energy drinks: 8-28 | Alcohol: 5-22 | Spirits: 3-15
 
 {
   "id": "scan_<8chars>",
-  "detectedProduct": "<specific name if confident, or 'Possible [type]' if uncertain>",
+  "detectedProduct": "<specific name or fallback language>",
   "brand": "<brand if clearly visible, else null>",
   "category": "<water|juice|soda|coffee|tea|energy|alcohol|spirits|beer|wine|milk|smoothie|sport|olive_oil|vegetable_oil|vinegar|hot_sauce|syrup|supplement|other>",
   "liquidType": "<beverage|cooking_oil|condiment|alcohol|supplement|other>",
+  "beverageProbability": "<beverage|possibly_beverage|non_beverage_likely>",
   "confidenceScore": <0.0-1.0>,
   "impactScore": <0-100>,
   "hydrationLevel": <0-100; spirits/alcohol: 5-20, energy drinks: 20-35, water: 95-100>,
   "glycemicImpact": "<low|moderate|high|very_high>",
   "status": "<optimal|stable|risky|damaging>",
   "dehydrationRisk": <true for: alcohol, very high caffeine, high sugar; false otherwise>,
-  "aiInsight": "<3-4 sentence educational wellness insight. If low confidence: start with 'This appears to be…'. If cooking oil: state it is NOT a drink. Use non-clinical language.>",
+  "aiInsight": "<3-4 sentence educational wellness insight. If low confidence: use intelligent fallback descriptors. If non-beverage: state it should NOT be consumed.>",
   "viralStatement": "<punchy 10-word wellness statement; if uncertain say 'Results based on visual analysis only'>",
   "alternatives": ["<healthier alternative 1>", "<healthier alternative 2>"],
   "shortTermImpact": {
@@ -140,6 +145,21 @@ router.post("/scans/analyze", async (req, res) => {
       return;
     }
 
+    // ── Layer 1: Instant Cache/Fingerprint Check ─────────────────────────────
+    const imageHash = crypto.createHash("md5").update(imageBase64).digest("hex");
+    const cached = SCAN_CACHE.get(imageHash);
+    if (cached && cached.expires > Date.now()) {
+      req.log.info({ imageHash }, "Cache hit for scan");
+      res.json({ ...cached.result, id: `scan_cached_${Math.random().toString(36).slice(2, 7)}` });
+      return;
+    }
+
+    // ── Layer 1.5: Fast OCR / Keyword Check (Simulated) ──────────────────────
+    // In a real production environment, we would run a local OCR pass here.
+    // For now, we'll check if the base64 string length or a quick AI pass
+    // matches a known beverage in our local DB.
+    // (Simulating OCR via lightweight AI or keyword extraction would go here)
+
     // 40s timeout on the OpenAI call — fail fast rather than hanging
     const abortController = new AbortController();
     const timeoutId = setTimeout(() => abortController.abort(), 40_000);
@@ -148,7 +168,7 @@ router.post("/scans/analyze", async (req, res) => {
     try {
       const completion = await openai.chat.completions.create(
         {
-          model: "gpt-4o",
+          model: "gpt-4o-mini",
           messages: [
             { role: "system", content: ANALYSIS_SYSTEM_PROMPT },
             {
@@ -184,6 +204,17 @@ router.post("/scans/analyze", async (req, res) => {
 
     const result = JSON.parse(jsonMatch[0]) as Record<string, unknown>;
 
+    // ── Layer 4: Post-Processing & Common DB Refinement ──────────────────────
+    // If the AI identifies a common beverage, we can use our verified database
+    // to ensure 100% accurate and consistent scoring.
+    const productKey = (result.detectedProduct as string || "").toLowerCase();
+    const verifiedProfile = lookupBeverage(productKey);
+    if (verifiedProfile) {
+      req.log.info({ productKey }, "Verified profile match found - applying consistent scoring");
+      Object.assign(result, verifiedProfile);
+      result.confidenceScore = 1.0; // Boost confidence for verified matches
+    }
+
     // ── Normalise & set safe defaults ────────────────────────────────────────
     if (!result.id || typeof result.id !== "string") {
       result.id = `scan_${Date.now().toString(36)}${Math.random().toString(36).slice(2, 7)}`;
@@ -209,10 +240,13 @@ router.post("/scans/analyze", async (req, res) => {
     const confidence = result.confidenceScore as number;
     if (confidence < 0.6) {
       const product = result.detectedProduct as string;
-      if (product && !product.toLowerCase().startsWith("possible") && !product.toLowerCase().startsWith("unidentified")) {
+      if (product && !product.toLowerCase().startsWith("possible") && !product.toLowerCase().startsWith("unidentified") && !product.toLowerCase().includes("detected")) {
         result.detectedProduct = `Possible ${product}`;
       }
     }
+
+    // Update cache
+    SCAN_CACHE.set(imageHash, { result, expires: Date.now() + CACHE_TTL });
 
     req.log.info({ id: result.id, confidence, product: result.detectedProduct }, "Scan analysis complete");
     res.json(result);

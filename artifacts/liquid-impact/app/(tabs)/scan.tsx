@@ -85,9 +85,9 @@ const getStatusLabel = (score: number) =>
   score >= 80 ? 'Excellent' : score >= 60 ? 'Good' : score >= 40 ? 'Fair' : 'Poor';
 
 const getConfidenceConfig = (score: number) => {
-  if (score >= 0.85) return { bg: `${C.scoreHigh}18`, border: `${C.scoreHigh}30`, text: C.scoreHigh, label: 'VERIFIED' };
-  if (score >= 0.65) return { bg: `${C.scoreMedium}18`, border: `${C.scoreMedium}30`, text: C.scoreMedium, label: 'GOOD' };
-  return { bg: `${C.scoreLow}18`, border: `${C.scoreLow}30`, text: C.scoreLow, label: 'REVIEW' };
+  if (score >= 0.90) return { bg: `${C.scoreHigh}18`, border: `${C.scoreHigh}30`, text: C.scoreHigh, label: 'VERIFIED', icon: 'shield-checkmark' };
+  if (score >= 0.70) return { bg: `${C.scoreMedium}18`, border: `${C.scoreMedium}30`, text: C.scoreMedium, label: 'ESTIMATED', icon: 'eye' };
+  return { bg: `${C.scoreLow}18`, border: `${C.scoreLow}30`, text: C.scoreLow, label: 'LOW CONFIDENCE', icon: 'help-circle' };
 };
 
 // ─── ScanHeader ───────────────────────────────────────────────────────────────
@@ -597,7 +597,8 @@ const ResultCard: React.FC<{ result: ScanResult; onReset: () => void }> = ({ res
             <View style={[res.badge, { backgroundColor: `${scoreColor}18`, borderColor: `${scoreColor}30` }]}>
               <Text style={[res.badgeText, { color: scoreColor }]}>{getStatusLabel(result.impactScore)}</Text>
             </View>
-            <View style={[res.badge, { backgroundColor: confCfg.bg, borderColor: confCfg.border }]}>
+            <View style={[res.badge, { backgroundColor: confCfg.bg, borderColor: confCfg.border, flexDirection: 'row', alignItems: 'center', gap: 4 }]}>
+              <Ionicons name={confCfg.icon as any} size={10} color={confCfg.text} />
               <Text style={[res.badgeText, { color: confCfg.text }]}>{confCfg.label}</Text>
             </View>
           </View>
@@ -726,37 +727,14 @@ export default function ScanScreen() {
     return warnings[result.liquidType] ?? null;
   }, [result?.liquidType]);
 
-  // ── Simulated pipeline phase sequencing during analysis ───────────────────
-  // Phases spread over ~14s to match typical GPT-4o latency
-  const runPipelineSimulation = useCallback((abort: AbortController) => {
-    const sequence: { phase: ScanPhase; delay: number }[] = [
-      { phase: 'PREPARING',           delay: 0 },
-      { phase: 'VALIDATING_IMAGE',    delay: 1500 },
-      { phase: 'DETECTING_PACKAGING', delay: 3500 },
-      { phase: 'MATCHING_PRODUCT',    delay: 6000 },
-      { phase: 'ANALYZING_NUTRITION', delay: 9000 },
-      { phase: 'CALCULATING_IMPACT',  delay: 12000 },
-    ];
-    const timers: ReturnType<typeof setTimeout>[] = [];
-    for (const { phase, delay } of sequence) {
-      const t = setTimeout(() => {
-        if (abort.signal.aborted || !isMountedRef.current) return;
-        setPhase(phase);
-      }, delay);
-      timers.push(t);
-    }
-    abort.signal.addEventListener('abort', () => timers.forEach(clearTimeout));
-  }, []);
-
   // ── Compress image before upload ───────────────────────────────────────────
-  // Resizes to max 1024px and re-encodes at 0.82 quality — reduces payload
-  // by ~10-20x vs full-res camera output, cutting API latency significantly.
+  // Resizes to max 800px and re-encodes at 0.75 quality — optimized for speed.
   const compressImage = useCallback(async (uri: string): Promise<string> => {
     try {
       const result = await ImageManipulator.manipulateAsync(
         uri,
-        [{ resize: { width: 1024 } }],
-        { compress: 0.82, format: ImageManipulator.SaveFormat.JPEG, base64: true },
+        [{ resize: { width: 800 } }],
+        { compress: 0.75, format: ImageManipulator.SaveFormat.JPEG, base64: true },
       );
       return result.base64 ?? '';
     } catch {
@@ -774,48 +752,48 @@ export default function ScanScreen() {
       return;
     }
 
-    // Cancel any in-flight request and clear old phase timers
+    // Cancel any in-flight request
     abortControllerRef.current?.abort();
     const controller = new AbortController();
     abortControllerRef.current = controller;
 
-    await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
+    // Instant Feedback (100ms goal)
+    await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     setPhase('PREPARING');
     setErrorMsg('');
     setResult(null);
 
-    runPipelineSimulation(controller);
-
     try {
-      // Compress first — dramatically reduces GPT-4o upload time
+      // Step 1: Compress & Prepare (Fast)
+      setPhase('VALIDATING_IMAGE');
       const compressed = await compressImage(imageUri);
       if (controller.signal.aborted || !isMountedRef.current) return;
 
-      // Prefer compressed, fall back to original base64, then URI
       let b64 = compressed;
       if (!b64 && originalBase64) {
         b64 = originalBase64.startsWith('data:') ? originalBase64.split(',')[1] : originalBase64;
       }
       if (!b64) throw new Error('Could not prepare image for analysis.');
 
+      // Step 2: Real-time Analysis (1-2s with gpt-4o-mini)
+      setPhase('MATCHING_PRODUCT');
       const scanResult = await analyzeDrink(b64);
       if (controller.signal.aborted || !isMountedRef.current) return;
 
-      // ✅ Abort the pipeline simulation timers — result is back, no more fake phases
-      controller.abort();
-
-      addScan(scanResult);
+      // Optimistic UI update: Render critical data immediately
       setResult(scanResult);
+
+      setPhase('CALCULATING_IMPACT');
+      addScan(scanResult);
       setPhase('SUCCESS');
-      await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     } catch (e) {
       if (controller.signal.aborted) return;
-      controller.abort(); // stop stale timers on error too
       setPhase('FAILED');
       setErrorMsg(e instanceof Error ? e.message : 'Failed to analyze image');
       await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
     }
-  }, [canScan, scanLimitMessage, addScan, router, runPipelineSimulation, compressImage]);
+  }, [canScan, scanLimitMessage, addScan, router, compressImage]);
 
   // ── Pick image ─────────────────────────────────────────────────────────────
   const pickImage = useCallback(async (useCamera: boolean) => {

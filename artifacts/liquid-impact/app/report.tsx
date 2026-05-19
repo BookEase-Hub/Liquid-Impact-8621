@@ -4,6 +4,7 @@ import {
   Text,
   TouchableOpacity,
   View,
+  Share,
 } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -107,13 +108,28 @@ export default function ReportScreen() {
 
   return (
     <View style={{ flex: 1, backgroundColor: colors.background }}>
-      {/* Close */}
-      <View style={{ position: "absolute", top: insets.top + 12, right: 20, zIndex: 10 }}>
+  {/* Header Actions */}
+  <View style={{ position: "absolute", top: insets.top + 12, left: 20, right: 20, zIndex: 10, flexDirection: 'row', justifyContent: 'space-between' }}>
         <TouchableOpacity
           onPress={() => router.back()}
-          style={{ width: 38, height: 38, borderRadius: 19, backgroundColor: "rgba(255,255,255,0.1)", justifyContent: "center", alignItems: "center" }}
+      style={{ width: 38, height: 38, borderRadius: 19, backgroundColor: "rgba(0,0,0,0.4)", justifyContent: "center", alignItems: "center" }}
+    >
+      <Ionicons name="arrow-back" size={20} color="#fff" />
+    </TouchableOpacity>
+
+    <TouchableOpacity
+      onPress={async () => {
+        try {
+          await Share.share({
+            message: `🥤 I just scanned ${scan.detectedProduct} with Liquid Impact! Wellness Score: ${scan.impactScore}/100. ${scan.viralStatement ?? ''}`,
+          });
+        } catch (error) {
+          console.log(error);
+        }
+      }}
+      style={{ width: 38, height: 38, borderRadius: 19, backgroundColor: "rgba(0,0,0,0.4)", justifyContent: "center", alignItems: "center" }}
         >
-          <Ionicons name="close" size={18} color="#fff" />
+      <Ionicons name="share-social" size={18} color="#fff" />
         </TouchableOpacity>
       </View>
 
