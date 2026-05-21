@@ -1,14 +1,33 @@
 export type ScanStatus = "optimal" | "stable" | "risky" | "damaging";
 export type GlycemicImpact = "low" | "moderate" | "high" | "very_high";
 export type HealthRole = "positive" | "neutral" | "concerning";
-export type RiskLevel = "low" | "medium" | "high";
+export type RiskLevel = "low" | "medium" | "high" | "safe" | "caution" | "avoid";
 export type LiquidCategory =
   | "beverage"
   | "cooking_oil"
   | "condiment"
   | "alcohol"
   | "supplement"
-  | "other";
+  | "water"
+  | "sparkling_water"
+  | "juice"
+  | "smoothie"
+  | "soda"
+  | "energy"
+  | "tea"
+  | "coffee"
+  | "milk"
+  | "plant_milk"
+  | "beer"
+  | "wine"
+  | "sports"
+  | "electrolyte"
+  | "protein"
+  | "dairy"
+  | "oil"
+  | "other"
+  | "unknown";
+
 export type SubscriptionTier =
   | "free"
   | "starter"
@@ -61,6 +80,39 @@ export interface LongTermImpact {
   nutritionalBalance: string;
 }
 
+// New Advanced Types
+export type ConfidenceTier = 'VERIFIED' | 'HIGH' | 'MEDIUM' | 'LOW' | 'UNCERTAIN';
+export type MatchMethod = 'barcode' | 'cache' | 'ocr' | 'fuse_search' | 'gpt4o' | 'heuristic' | 'crowdsourced';
+
+export interface NutritionProfile {
+  calories: number; sugarGrams: number; caffeineMg: number; sodiumMg: number;
+  fatGrams: number; saturatedFatGrams: number; proteinGrams: number;
+  fiberGrams: number; additives: number; artificialSweeteners: boolean;
+  artificialColors: boolean; preservatives: number;
+  servingSize?: number;
+  servingUnit?: string;
+}
+
+export interface IngredientEntry {
+  name: string; type: 'base' | 'flavor' | 'preservative' | 'sweetener' | 'color' | 'stabilizer' | 'vitamin' | 'mineral' | 'enhancer';
+  riskLevel: 'safe' | 'caution' | 'avoid'; eNumber?: string; scoreImpact: number;
+}
+
+export interface HealthAlert {
+  type: 'sugar' | 'caffeine' | 'additives' | 'sodium' | 'saturated_fat' | 'alcohol' | 'allergen' | 'acidic';
+  severity: 'info' | 'warning' | 'danger';
+  message: string; threshold: number; actual: number;
+}
+
+export interface DrinkRecord {
+  id: string; name: string; brand: string; barcode: string[]; keywords: string[];
+  category: LiquidCategory; subcategory: string; region: string[];
+  nutrition: NutritionProfile; ingredients: IngredientEntry[]; healthFlags: HealthAlert[];
+  impactScore: number; hydrationIndex: number; glycemicImpact: 'low' | 'moderate' | 'high' | 'very_high';
+  alternatives: string[]; variants: string[]; notes: string;
+  updatedAt: string; confidence: number; source: 'local_db' | 'ai_enriched' | 'crowdsourced';
+}
+
 export interface ScanResult {
   id: string;
   detectedProduct: string;
@@ -81,6 +133,28 @@ export interface ScanResult {
   longTermImpact: LongTermImpact;
   composition: Composition;
   scannedAt: number;
+  // Advanced fields merged
+  healthFlags?: HealthAlert[];
+  ingredientsList?: IngredientEntry[];
+  confidenceTier?: ConfidenceTier;
+  matchMethod?: MatchMethod;
+}
+
+export interface GPT4oResponse {
+  product: string;
+  brand: string;
+  category: LiquidCategory;
+  nutrition: Partial<NutritionProfile>;
+  ingredients: string[];
+  healthFlags: HealthAlert[];
+  impactScore: number;
+  hydrationIndex: number;
+  alternatives: string[];
+  confidence: ConfidenceTier;
+  shortInsight: string;
+  mediumTermEffects?: string;
+  longTermEffects?: string;
+  metadata: { requestTime: number; processingTime: number };
 }
 
 export interface DailyMission {
@@ -129,3 +203,18 @@ export interface AppState {
   missions: DailyMission[];
   lastMissionReset: string | null;
 }
+
+export type ScanStage =
+  | 'IDLE'
+  | 'PERMISSION_REQUEST'
+  | 'CAMERA_READY'
+  | 'SCANNING_BARCODE'
+  | 'CHECKING_CACHE'
+  | 'OCR_EXTRACTING'
+  | 'FUSE_MATCHING'
+  | 'AI_FALLBACK'
+  | 'DEEP_ENRICHMENT'
+  | 'ANALYSIS_COMPLETE'
+  | 'ERROR'
+  | 'OFFLINE_FALLBACK'
+  | 'CROWDSOURCE_LEARNING';

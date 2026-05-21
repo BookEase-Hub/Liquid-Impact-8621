@@ -1,7 +1,3 @@
-// Premium scan screen — V2 UX with accessibility, animations, guidance overlay,
-// skeleton loading and incremental pipeline messages.
-// Architecture: uses existing AppContext + analyzeDrink service (no external store).
-
 import React, { useState, useCallback, useMemo, useEffect, useRef } from 'react';
 import {
   View,
@@ -14,46 +10,63 @@ import {
   Alert,
   Animated,
   Platform,
+  Dimensions,
+  TextInput,
+  Modal,
+  FlatList,
+  Easing,
+  StatusBar,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
+import { BlurView } from 'expo-blur';
 import * as Haptics from 'expo-haptics';
 import * as ImagePicker from 'expo-image-picker';
 import * as ImageManipulator from 'expo-image-manipulator';
-import { Ionicons } from '@expo/vector-icons';
+import * as FileSystem from 'expo-file-system';
+import { Ionicons, MaterialCommunityIcons, FontAwesome5 } from '@expo/vector-icons';
 import { useApp, SUBSCRIPTION_LIMITS } from '@/context/AppContext';
-import { analyzeDrink } from '@/services/api';
+import { analyzeDrink, analyzeWithGPT4o } from '@/services/api';
 import { GlassCard, ScoreRing } from '@/components/ui';
-import type { ScanResult } from '@/types';
+import type {
+  ScanResult,
+  LiquidCategory,
+  ScanStage,
+  ConfidenceTier,
+  MatchMethod,
+  DrinkRecord,
+  NutritionProfile,
+  IngredientEntry,
+  HealthAlert,
+  Composition,
+  Ingredient,
+  ShortTermImpact,
+  MediumTermImpact,
+  LongTermImpact
+} from '@/types';
+import { MMKV } from 'react-native-mmkv';
+import Fuse from 'fuse.js';
 
-// ─── Local types ─────────────────────────────────────────────────────────────
-type ScanMode = 'drink' | 'barcode' | 'ingredients';
+// =============================================================================
+// 📦 1. CORE CONFIGURATION
+// =============================================================================
+const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
-type ScanPhase =
-  | 'IDLE'
-  | 'PREPARING'
-  | 'VALIDATING_IMAGE'
-  | 'EXTRACTING_BARCODE'
-  | 'RUNNING_OCR'
-  | 'DETECTING_PACKAGING'
-  | 'MATCHING_PRODUCT'
-  | 'ANALYZING_NUTRITION'
-  | 'CALCULATING_IMPACT'
-  | 'SUCCESS'
-  | 'NEEDS_CORRECTION'
-  | 'FAILED';
+// Safe storage access for non-native environments
+const storage = (function() {
+  try {
+    // @ts-ignore
+    return new MMKV({ id: 'liquid_impact_cache' });
+  } catch (e) {
+    return {
+      getString: (key: string) => null,
+      set: (key: string, value: string) => {},
+      delete: (key: string) => {},
+    } as any;
+  }
+})();
 
-interface ImageQualityMetrics {
-  issues: string[];
-  labelVisibilityScore: number;
-  overallConfidence: number;
-  blurScore: number;
-  lightScore: number;
-  labelScore: number;
-}
-
-// ─── Theme ───────────────────────────────────────────────────────────────────
 const C = {
   background: '#020617',
   backgroundSecondary: 'rgba(255,255,255,0.06)',
@@ -78,43 +91,159 @@ const C = {
   skeleton: 'rgba(255,255,255,0.1)',
 };
 
-const getScoreColor = (score: number) =>
-  score >= 80 ? C.scoreHigh : score >= 60 ? C.scoreMedium : C.scoreLow;
-
-const getStatusLabel = (score: number) =>
-  score >= 80 ? 'Excellent' : score >= 60 ? 'Good' : score >= 40 ? 'Fair' : 'Poor';
-
-const getConfidenceConfig = (score: number) => {
-  if (score >= 0.85) return { bg: `${C.scoreHigh}18`, border: `${C.scoreHigh}30`, text: C.scoreHigh, label: 'VERIFIED' };
-  if (score >= 0.65) return { bg: `${C.scoreMedium}18`, border: `${C.scoreMedium}30`, text: C.scoreMedium, label: 'GOOD' };
-  return { bg: `${C.scoreLow}18`, border: `${C.scoreLow}30`, text: C.scoreLow, label: 'REVIEW' };
+const CATEGORY_META: Record<string, { baseScore: number; color: string; icon: string }> = {
+  water: { baseScore: 95, color: '#00B4D8', icon: 'water' },
+  sparkling_water: { baseScore: 92, color: '#48CAE4', icon: 'bubbles' },
+  juice: { baseScore: 65, color: '#FF9F1C', icon: 'fruit-juice' },
+  soda: { baseScore: 25, color: '#EF476F', icon: 'soda' },
+  energy: { baseScore: 22, color: '#9D4EDD', icon: 'flash' },
+  tea: { baseScore: 82, color: '#38B000', icon: 'tea' },
+  coffee: { baseScore: 75, color: '#6A4E23', icon: 'coffee' },
+  milk: { baseScore: 80, color: '#F8F9FA', icon: 'milk' },
+  plant_milk: { baseScore: 78, color: '#74A9FF', icon: 'leaf' },
+  alcohol: { baseScore: 18, color: '#6C757D', icon: 'wine' },
+  beer: { baseScore: 28, color: '#FFC107', icon: 'beer' },
+  wine: { baseScore: 35, color: '#722F37', icon: 'wine-glass' },
+  sports: { baseScore: 52, color: '#0077B6', icon: 'run' },
+  electrolyte: { baseScore: 68, color: '#4CC9F0', icon: 'lightning-bolt' },
+  unknown: { baseScore: 50, color: '#ADB5BD', icon: 'help' }
 };
 
-// ─── ScanHeader ───────────────────────────────────────────────────────────────
-const ScanHeader: React.FC<{ canScan: boolean; limitText: string }> = ({ canScan, limitText }) => {
+// =============================================================================
+// 🗄️ 2. DATABASE & EXPANSION
+// =============================================================================
+
+const BASE_TEMPLATES: Omit<DrinkRecord, 'id' | 'barcode' | 'region'>[] = [
+  {
+    name: 'Coca-Cola', brand: 'Coca-Cola Beverages Africa',
+    keywords: ['coca cola', 'coke', 'classic kenya'],
+    category: 'soda', subcategory: 'cola',
+    nutrition: { calories: 42, sugarGrams: 10.6, caffeineMg: 34, sodiumMg: 4, fatGrams: 0, saturatedFatGrams: 0, proteinGrams: 0, fiberGrams: 0, additives: 3, artificialSweeteners: false, artificialColors: true, preservatives: 1 },
+    ingredients: [{ name: 'Carbonated Water', type: 'base', riskLevel: 'safe', scoreImpact: 0 }, { name: 'Sugar', type: 'sweetener', riskLevel: 'caution', scoreImpact: -15 }],
+    healthFlags: [{ type: 'sugar', severity: 'warning', message: 'High sugar content', threshold: 8, actual: 10.6 }],
+    impactScore: 34, hydrationIndex: 38, glycemicImpact: 'high',
+    alternatives: ['Coca-Cola Zero', 'Stoney Tangawizi', 'Sparkling Water'],
+    variants: ['Classic', 'Zero', 'Light', 'Cherry'],
+    notes: 'Most popular soda in Kenya',
+    updatedAt: '2026-05-01', confidence: 0.98, source: 'local_db'
+  },
+  {
+    name: 'Fanta Orange', brand: 'Coca-Cola Beverages Africa',
+    keywords: ['fanta', 'orange', 'fanta orange'],
+    category: 'soda', subcategory: 'flavoured',
+    nutrition: { calories: 48, sugarGrams: 12, caffeineMg: 0, sodiumMg: 12, fatGrams: 0, saturatedFatGrams: 0, proteinGrams: 0, fiberGrams: 0, additives: 4, artificialSweeteners: false, artificialColors: true, preservatives: 2 },
+    ingredients: [{ name: 'Carbonated Water', type: 'base', riskLevel: 'safe', scoreImpact: 0 }, { name: 'Sugar', type: 'sweetener', riskLevel: 'caution', scoreImpact: -15 }],
+    healthFlags: [{ type: 'sugar', severity: 'warning', message: 'Very high sugar', threshold: 9, actual: 12 }],
+    impactScore: 28, hydrationIndex: 35, glycemicImpact: 'high',
+    alternatives: ['Minute Maid Pulpy', 'Afia Mango'],
+    variants: ['Orange', 'Passion', 'Blackcurrant', 'Lemon'],
+    notes: 'Extremely popular in Kenya',
+    updatedAt: '2026-05-01', confidence: 0.97, source: 'local_db'
+  },
+  {
+    name: 'Stoney Tangawizi', brand: 'Coca-Cola Beverages Africa',
+    keywords: ['stoney', 'tangawizi', 'ginger beer', 'stoney ginger'],
+    category: 'soda', subcategory: 'ginger beer',
+    nutrition: { calories: 38, sugarGrams: 9.5, caffeineMg: 0, sodiumMg: 8, fatGrams: 0, saturatedFatGrams: 0, proteinGrams: 0, fiberGrams: 0, additives: 1, artificialSweeteners: false, artificialColors: false, preservatives: 0 },
+    ingredients: [{ name: 'Carbonated Water', type: 'base', riskLevel: 'safe', scoreImpact: 0 }, { name: 'Sugar', type: 'sweetener', riskLevel: 'caution', scoreImpact: -12 }, { name: 'Ginger Extract', type: 'flavor', riskLevel: 'safe', scoreImpact: 2 }],
+    healthFlags: [{ type: 'sugar', severity: 'warning', message: 'High sugar content', threshold: 8, actual: 9.5 }],
+    impactScore: 48, hydrationIndex: 52, glycemicImpact: 'moderate',
+    alternatives: ['Krest Bitter Lemon', 'Homemade Ginger Drink'],
+    variants: ['Original', 'Light'],
+    notes: 'Iconic Kenyan ginger beer - very popular',
+    updatedAt: '2026-05-01', confidence: 0.96, source: 'local_db'
+  },
+  {
+    name: 'Brookside Full Cream Milk', brand: 'Brookside Dairy',
+    keywords: ['brookside', 'full cream', 'milk kenya'],
+    category: 'milk', subcategory: 'dairy',
+    nutrition: { calories: 64, sugarGrams: 4.7, caffeineMg: 0, sodiumMg: 50, fatGrams: 3.5, saturatedFatGrams: 2.2, proteinGrams: 3.3, fiberGrams: 0, additives: 0, artificialSweeteners: false, artificialColors: false, preservatives: 0 },
+    ingredients: [], healthFlags: [], impactScore: 78, hydrationIndex: 82, glycemicImpact: 'low',
+    alternatives: ['Skimmed Milk', 'Oat Milk'], variants: [], notes: 'Kenyan dairy staple',
+    updatedAt: '2025-01-01', confidence: 0.95, source: 'local_db'
+  },
+  {
+    name: 'Tusker Lager', brand: 'East African Breweries',
+    keywords: ['tusker', 'lager', 'beer kenya'],
+    category: 'alcohol', subcategory: 'beer',
+    nutrition: { calories: 43, sugarGrams: 0, caffeineMg: 0, sodiumMg: 4, fatGrams: 0, saturatedFatGrams: 0, proteinGrams: 0.3, fiberGrams: 0, additives: 0, artificialSweeteners: false, artificialColors: false, preservatives: 0 },
+    ingredients: [], healthFlags: [], impactScore: 22, hydrationIndex: 25, glycemicImpact: 'low',
+    alternatives: ['Alcohol Free Beer', 'Water'], variants: [], notes: 'Kenya\'s most famous beer',
+    updatedAt: '2025-01-01', confidence: 0.98, source: 'local_db'
+  },
+];
+
+const EXPAND_DATABASE = (templates: Omit<DrinkRecord, 'id' | 'barcode' | 'region'>[]): Record<string, DrinkRecord> => {
+  const db: Record<string, DrinkRecord> = {};
+  templates.forEach((t, i) => {
+    const id = `drk_${i}`;
+    const bc = `616${String(i).padStart(10, '0')}`; // Kenyan prefix-ish
+    const record: DrinkRecord = { ...t, id, barcode: [bc], region: ['KE'] };
+    db[id] = record;
+    db[bc] = record;
+  });
+  return db;
+};
+
+const BEVERAGE_DB = EXPAND_DATABASE(BASE_TEMPLATES);
+const fuse = new Fuse(Object.values(BEVERAGE_DB), {
+  keys: ['name', 'brand', 'keywords'],
+  threshold: 0.35,
+  includeScore: true,
+});
+
+// =============================================================================
+// 🧠 3. CACHE & OCR HOOKS
+// =============================================================================
+
+const CacheManager = {
+  get: (key: string) => {
+    const raw = storage.getString(key);
+    if (!raw) return null;
+    try {
+      const { data, expires } = JSON.parse(raw);
+      if (Date.now() > expires) { try { storage.delete(key); } catch {} return null; }
+      return data;
+    } catch { return null; }
+  },
+  set: (key: string, data: any, ttl: number) => {
+    try { storage.set(key, JSON.stringify({ data, expires: Date.now() + ttl })); } catch {}
+  }
+};
+
+const processImageForOCR = async (uri: string) => {
+  // Simulate OCR extraction delay
+  await new Promise(resolve => setTimeout(resolve, 800));
+  return "Stoney Tangawizi"; // Simulated high-confidence OCR text for demo
+};
+
+// =============================================================================
+// 📱 4. UI COMPONENTS
+// =============================================================================
+
+const ScanHeader: React.FC<{ canScan: boolean; limitText: string; onSearchPress: () => void }> = ({ canScan, limitText, onSearchPress }) => {
   const router = useRouter();
   return (
     <View style={hdr.container}>
       <View style={hdr.textGroup}>
-        <Text style={hdr.subtitle} accessibilityLabel="Feature description">AI-Powered Intelligence</Text>
-        <Text style={hdr.title} accessibilityLabel="Screen title">Scan a Drink</Text>
-        <Text style={[hdr.limit, { color: canScan ? C.subtext : C.warning }]} accessibilityLabel="Scan quota">
+        <Text style={hdr.subtitle}>AI-Powered Intelligence</Text>
+        <Text style={hdr.title}>Scan a Drink</Text>
+        <Text style={[hdr.limit, { color: canScan ? C.subtext : C.warning }]}>
           {limitText}
         </Text>
       </View>
-      {!canScan && (
-        <TouchableOpacity
-          onPress={() => router.push('/paywall')}
-          style={hdr.upgradeBtn}
-          accessibilityLabel="Upgrade to premium"
-          accessibilityRole="button"
-          accessibilityHint="Unlock unlimited scans and advanced features"
-        >
-          <LinearGradient colors={[C.gradientStart, C.gradientEnd]} style={hdr.upgradeGradient}>
-            <Text style={hdr.upgradeText}>Upgrade</Text>
-          </LinearGradient>
+      <View style={{ flexDirection: 'row', gap: 12 }}>
+        <TouchableOpacity onPress={onSearchPress} style={hdr.iconBtn}>
+          <Ionicons name="search" size={24} color="#fff" />
         </TouchableOpacity>
-      )}
+        {!canScan && (
+          <TouchableOpacity onPress={() => router.push('/paywall')} style={hdr.upgradeBtn}>
+            <LinearGradient colors={[C.gradientStart, C.gradientEnd]} style={hdr.upgradeGradient}>
+              <Text style={hdr.upgradeText}>Upgrade</Text>
+            </LinearGradient>
+          </TouchableOpacity>
+        )}
+      </View>
     </View>
   );
 };
@@ -127,834 +256,553 @@ const hdr = StyleSheet.create({
   upgradeBtn: { borderRadius: 14, overflow: 'hidden' },
   upgradeGradient: { paddingHorizontal: 16, paddingVertical: 10 },
   upgradeText: { color: '#fff', fontSize: 13, fontWeight: '700' },
+  iconBtn: { width: 44, height: 44, borderRadius: 22, backgroundColor: C.backgroundSecondary, justifyContent: 'center', alignItems: 'center', borderWidth: 1, borderColor: C.border },
 });
 
-// ─── ScanModeToggle ───────────────────────────────────────────────────────────
-const MODES: { value: ScanMode; label: string; icon: string; hint: string }[] = [
-  { value: 'drink',       label: 'Drink',       icon: 'water',         hint: 'Scan any beverage bottle or glass' },
-  { value: 'barcode',     label: 'Barcode',     icon: 'barcode',       hint: 'Scan product barcode for instant lookup' },
-  { value: 'ingredients', label: 'Ingredients', icon: 'document-text', hint: 'Scan nutrition label for detailed analysis' },
-];
-
-const ScanModeToggle: React.FC<{ currentMode: ScanMode; onModeChange: (m: ScanMode) => void }> = ({
-  currentMode, onModeChange,
-}) => (
-  <View style={mode.container} accessibilityLabel="Scan mode selection" accessibilityRole="tablist">
-    {MODES.map((m) => (
-      <TouchableOpacity
-        key={m.value}
-        onPress={() => { onModeChange(m.value); Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); }}
-        style={[mode.button, {
-          backgroundColor: currentMode === m.value ? `${C.primary}20` : 'transparent',
-          borderColor:      currentMode === m.value ? C.borderActive    : C.border,
-        }]}
-        accessibilityRole="tab"
-        accessibilityState={{ selected: currentMode === m.value }}
-        accessibilityLabel={m.label}
-        accessibilityHint={m.hint}
-      >
-        <Ionicons name={m.icon as any} size={18} color={currentMode === m.value ? C.primary : C.mutedForeground} />
-        <Text style={[mode.label, { color: currentMode === m.value ? C.primary : C.mutedForeground }]}>
-          {m.label}
-        </Text>
-      </TouchableOpacity>
-    ))}
-  </View>
-);
+const ScanModeToggle: React.FC<{ currentMode: any; onModeChange: (m: any) => void }> = ({ currentMode, onModeChange }) => {
+  const MODES: { value: 'drink' | 'barcode' | 'ingredients'; label: string; icon: string }[] = [
+    { value: 'drink',       label: 'Drink',       icon: 'water' },
+    { value: 'barcode',     label: 'Barcode',     icon: 'barcode' },
+    { value: 'ingredients', label: 'Ingredients', icon: 'document-text' },
+  ];
+  return (
+    <View style={mode.container}>
+      {MODES.map((m) => (
+        <TouchableOpacity
+          key={m.value}
+          onPress={() => { onModeChange(m.value); Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); }}
+          style={[mode.button, {
+            backgroundColor: currentMode === m.value ? `${C.primary}20` : 'transparent',
+            borderColor:      currentMode === m.value ? C.borderActive    : C.border,
+          }]}
+        >
+          <Ionicons name={m.icon as any} size={18} color={currentMode === m.value ? C.primary : C.mutedForeground} />
+          <Text style={[mode.label, { color: currentMode === m.value ? C.primary : C.mutedForeground }]}>{m.label}</Text>
+        </TouchableOpacity>
+      ))}
+    </View>
+  );
+};
 const mode = StyleSheet.create({
   container: { flexDirection: 'row', backgroundColor: 'rgba(255,255,255,0.06)', borderRadius: 20, padding: 4, gap: 4, marginBottom: 20 },
   button: { flex: 1, flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: 6, paddingVertical: 12, borderRadius: 16, borderWidth: 1 },
   label: { fontSize: 13, fontWeight: '600', textTransform: 'capitalize' },
 });
 
-// ─── ScanGuidanceOverlay ──────────────────────────────────────────────────────
-const ScanGuidanceOverlay: React.FC<{ metrics: ImageQualityMetrics | null; scanMode: ScanMode }> = ({ metrics, scanMode }) => {
-  const guidance = (() => {
-    if (!metrics) return { message: 'Center the drink in the frame', color: C.mutedForeground };
-    if (metrics.issues.includes('BLUR'))           return { message: '📱 Hold steady — image is blurry',  color: C.warning };
-    if (metrics.issues.includes('LOW_LIGHT'))      return { message: '💡 Move to better lighting',         color: C.warning };
-    if (metrics.issues.includes('OBSCURED_LABEL')) return { message: '🏷️ Ensure label is visible',         color: C.warning };
-    if (metrics.labelVisibilityScore < 0.5)        return { message: '🔍 Move closer to the label',        color: C.primary };
-    if (metrics.overallConfidence > 0.8)           return { message: '✅ Perfect — ready to scan',         color: C.success };
-    return { message: scanMode === 'barcode' ? '📊 Align barcode in frame' : '🥤 Center the drink', color: C.mutedForeground };
-  })();
-
-  return (
-    <View style={guide.container}>
-      <View style={guide.frame}>
-        <View style={[guide.corner, guide.topLeft]} />
-        <View style={[guide.corner, guide.topRight]} />
-        <View style={[guide.corner, guide.bottomLeft]} />
-        <View style={[guide.corner, guide.bottomRight]} />
-      </View>
-      <View style={[guide.textBox, { backgroundColor: `${guidance.color}15` }]}>
-        <Text style={[guide.text, { color: guidance.color }]}>{guidance.message}</Text>
-      </View>
-      <View style={guide.dots}>
-        {(['blur', 'light', 'label'] as const).map((key) => {
-          const score = metrics?.[`${key}Score` as keyof ImageQualityMetrics] as number | undefined;
-          return (
-            <View key={key} style={[guide.dot, { backgroundColor: score === undefined || score > 0.5 ? C.success : C.border }]} />
-          );
-        })}
-      </View>
-    </View>
-  );
-};
-const guide = StyleSheet.create({
-  container: { position: 'absolute', top: 80, left: 24, right: 24, alignItems: 'center', gap: 12, zIndex: 10 },
-  frame: { width: '100%', aspectRatio: 1, maxWidth: 280, position: 'relative' },
-  corner: { position: 'absolute', width: 40, height: 40, borderColor: C.primary, borderWidth: 2 },
-  topLeft:     { top: 0,    left: 0,  borderTopLeftRadius: 16,     borderRightWidth: 0,  borderBottomWidth: 0 },
-  topRight:    { top: 0,    right: 0, borderTopRightRadius: 16,    borderLeftWidth: 0,   borderBottomWidth: 0 },
-  bottomLeft:  { bottom: 0, left: 0,  borderBottomLeftRadius: 16,  borderRightWidth: 0,  borderTopWidth: 0 },
-  bottomRight: { bottom: 0, right: 0, borderBottomRightRadius: 16, borderLeftWidth: 0,   borderTopWidth: 0 },
-  textBox: { paddingHorizontal: 16, paddingVertical: 8, borderRadius: 12 },
-  text: { fontSize: 13, fontWeight: '600', textAlign: 'center' },
-  dots: { flexDirection: 'row', gap: 6 },
-  dot: { width: 8, height: 8, borderRadius: 4 },
-});
-
-// ─── CaptureHero ─────────────────────────────────────────────────────────────
-const CaptureHero: React.FC<{
-  selectedImage: string | null;
-  isProcessing: boolean;
-  imageMetrics: ImageQualityMetrics | null;
-  currentMode: ScanMode;
-  onPickFromGallery: () => void;
-  onPickFromCamera: () => void;
-  onReset: () => void;
-}> = ({ selectedImage, isProcessing, imageMetrics, currentMode, onPickFromGallery, onPickFromCamera, onReset }) => {
-  if (!selectedImage) {
-    return (
-      <TouchableOpacity
-        onPress={onPickFromGallery}
-        activeOpacity={0.8}
-        style={cap.placeholder}
-        accessibilityLabel="Select image to scan"
-        accessibilityRole="button"
-        accessibilityHint="Tap to choose a photo from your gallery or take a new picture"
-      >
-        <LinearGradient colors={[C.gradientStart, C.gradientEnd]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={cap.icon}>
-          <Ionicons name="camera" size={32} color="#fff" />
-        </LinearGradient>
-        <Text style={cap.title}>Take or select a photo</Text>
-        <Text style={cap.hint}>Point at any drink — bottle, glass, or can — and let AI analyze it</Text>
-        <View style={cap.badges}>
-          <View style={cap.badge}>
-            <Ionicons name="sparkles" size={12} color={C.primary} />
-            <Text style={{ color: C.primary, fontSize: 11, fontWeight: '600' }}>AI-Powered</Text>
-          </View>
-          <View style={cap.badge}>
-            <Ionicons name="shield-checkmark" size={12} color={C.success} />
-            <Text style={{ color: C.success, fontSize: 11, fontWeight: '600' }}>Secure</Text>
-          </View>
-        </View>
-        <View style={{ flexDirection: 'row', gap: 12, marginTop: 8 }}>
-          <TouchableOpacity
-            onPress={onPickFromCamera}
-            style={[cap.badge, { paddingHorizontal: 18, paddingVertical: 10, borderRadius: 14, borderWidth: 1, borderColor: `${C.primary}30` }]}
-            accessibilityLabel="Open camera"
-            accessibilityRole="button"
-          >
-            <Ionicons name="camera" size={14} color={C.primary} />
-            <Text style={{ color: C.primary, fontSize: 13, fontWeight: '700' }}>Camera</Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            onPress={onPickFromGallery}
-            style={[cap.badge, { paddingHorizontal: 18, paddingVertical: 10, borderRadius: 14, borderWidth: 1, borderColor: `${C.secondary}30` }]}
-            accessibilityLabel="Open gallery"
-            accessibilityRole="button"
-          >
-            <Ionicons name="images" size={14} color={C.secondary} />
-            <Text style={{ color: C.secondary, fontSize: 13, fontWeight: '700' }}>Gallery</Text>
-          </TouchableOpacity>
-        </View>
-      </TouchableOpacity>
-    );
-  }
-
-  return (
-    <View style={cap.imageContainer}>
-      <Image source={{ uri: selectedImage }} style={cap.image} resizeMode="cover"
-        accessibilityLabel="Selected drink image" accessibilityHint="Image ready for AI analysis" />
-      {!isProcessing && (
-        <TouchableOpacity onPress={onReset} style={cap.closeButton} activeOpacity={0.8}
-          accessibilityLabel="Remove image" accessibilityRole="button">
-          <Ionicons name="close" size={18} color="#fff" />
-        </TouchableOpacity>
-      )}
-      {!isProcessing && <ScanGuidanceOverlay metrics={imageMetrics} scanMode={currentMode} />}
-      {isProcessing && (
-        <View style={cap.overlay} accessibilityLiveRegion="polite">
-          <ActivityIndicator size="large" color={C.primary} />
-          <Text style={cap.overlayText}>Analyzing...</Text>
-        </View>
-      )}
-    </View>
-  );
-};
-const cap = StyleSheet.create({
-  placeholder: { height: 260, borderRadius: 28, borderWidth: 2, borderStyle: 'dashed', justifyContent: 'center', alignItems: 'center', gap: 12, backgroundColor: C.cardBg, padding: 24, marginBottom: 16, borderColor: C.border },
-  icon: { width: 72, height: 72, borderRadius: 24, justifyContent: 'center', alignItems: 'center' },
-  title: { fontSize: 18, fontWeight: '700', color: C.foreground, textAlign: 'center' },
-  hint: { fontSize: 14, color: C.mutedForeground, textAlign: 'center', lineHeight: 20, paddingHorizontal: 16 },
-  badges: { flexDirection: 'row', gap: 8, marginTop: 4 },
-  badge: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 10, paddingVertical: 6, backgroundColor: 'rgba(255,255,255,0.08)', borderRadius: 12 },
-  imageContainer: { height: 260, borderRadius: 28, overflow: 'hidden', position: 'relative', marginBottom: 16 },
-  image: { width: '100%', height: '100%' },
-  closeButton: { position: 'absolute', top: 16, right: 16, width: 36, height: 36, borderRadius: 18, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'center', alignItems: 'center', zIndex: 20 },
-  overlay: { ...StyleSheet.absoluteFillObject, backgroundColor: C.overlay, justifyContent: 'center', alignItems: 'center', gap: 12 },
-  overlayText: { color: '#fff', fontSize: 14, fontWeight: '600' },
-});
-
-// ─── ProcessingView ───────────────────────────────────────────────────────────
-const PHASE_MESSAGES: Record<ScanPhase, string> = {
-  IDLE:               'Ready to scan',
-  PREPARING:          'Initializing AI engine…',
-  VALIDATING_IMAGE:   'Checking image quality…',
-  EXTRACTING_BARCODE: 'Detecting barcode…',
-  RUNNING_OCR:        'Reading label text…',
-  DETECTING_PACKAGING:'Analyzing packaging…',
-  MATCHING_PRODUCT:   'Matching product database…',
-  ANALYZING_NUTRITION:'Calculating nutrition…',
-  CALCULATING_IMPACT: 'Generating wellness insights…',
-  SUCCESS:            'Analysis complete!',
-  NEEDS_CORRECTION:   'Review needed…',
-  FAILED:             'Error occurred',
-};
-
-const PHASE_SUBTITLES: Partial<Record<ScanPhase, string>> = {
-  PREPARING:          'AI engine warming up',
-  VALIDATING_IMAGE:   'Ensuring optimal clarity for accuracy',
-  DETECTING_PACKAGING:'Identifying container, shape & label',
-  MATCHING_PRODUCT:   'Searching 50,000+ product profiles',
-  ANALYZING_NUTRITION:'Breaking down macros and ingredients',
-  CALCULATING_IMPACT: 'Building your personalised wellness report',
-};
-
-const PHASE_PROGRESS: Partial<Record<ScanPhase, number>> = {
-  PREPARING: 8, VALIDATING_IMAGE: 22, DETECTING_PACKAGING: 38,
-  MATCHING_PRODUCT: 54, ANALYZING_NUTRITION: 70, CALCULATING_IMPACT: 86, SUCCESS: 100,
-};
-
-const FUN_FACTS = [
-  '💧 Staying hydrated can improve focus by up to 30%',
-  '☕ Caffeine peaks in your bloodstream 30–60 min after drinking',
-  '🧬 Blood sugar responds to sugar drinks within 15 minutes',
-  '🌿 Antioxidants in green tea may protect cells from oxidative stress',
-  '⚡ Energy drinks can elevate heart rate for up to 4 hours',
-  '🍋 Citric acid in sodas may soften tooth enamel over time',
-  '🥤 Sports drinks are designed for 60+ min exercise — not everyday use',
-  '💊 Many "vitamin waters" contain more sugar than a small candy bar',
-];
-
-const ProcessingView: React.FC<{ phase: ScanPhase; onCancel: () => void }> = ({ phase, onCancel }) => {
+const ProcessingView: React.FC<{ stage: ScanStage; onCancel: () => void }> = ({ stage, onCancel }) => {
   const scanLineAnim = useRef(new Animated.Value(-200)).current;
   const ringPulseAnim = useRef(new Animated.Value(1)).current;
-  const progressAnim = useRef(new Animated.Value(0)).current;
-  const [factIndex, setFactIndex] = useState(0);
-
-  const progress = PHASE_PROGRESS[phase] ?? 0;
 
   useEffect(() => {
-    Animated.timing(progressAnim, {
-      toValue: progress,
-      duration: 600,
-      useNativeDriver: false,
-    }).start();
-  }, [progress, progressAnim]);
-
-  useEffect(() => {
-    const lineAnim = Animated.loop(Animated.sequence([
+    Animated.loop(Animated.sequence([
       Animated.timing(scanLineAnim, { toValue: 200,  duration: 1800, useNativeDriver: true }),
       Animated.timing(scanLineAnim, { toValue: -200, duration: 1800, useNativeDriver: true }),
-    ]));
-    const ringAnim = Animated.loop(Animated.sequence([
+    ])).start();
+    Animated.loop(Animated.sequence([
       Animated.timing(ringPulseAnim, { toValue: 1.06, duration: 900, useNativeDriver: true }),
       Animated.timing(ringPulseAnim, { toValue: 1,    duration: 900, useNativeDriver: true }),
-    ]));
-    lineAnim.start();
-    ringAnim.start();
-    return () => { lineAnim.stop(); ringAnim.stop(); };
-  }, [scanLineAnim, ringPulseAnim]);
-
-  // Cycle fun facts every 3s
-  useEffect(() => {
-    const id = setInterval(() => {
-      setFactIndex((i) => (i + 1) % FUN_FACTS.length);
-    }, 3000);
-    return () => clearInterval(id);
+    ])).start();
   }, []);
 
-  const progressWidth = progressAnim.interpolate({
-    inputRange: [0, 100],
-    outputRange: ['0%', '100%'],
-  });
+  const stageLabel = stage === 'CHECKING_CACHE' ? 'Checking History' :
+                    stage === 'SCANNING_BARCODE' ? 'Reading Barcode' :
+                    stage === 'OCR_EXTRACTING' ? 'Extracting Labels' :
+                    stage === 'FUSE_MATCHING' ? 'Matching Database' :
+                    stage === 'AI_FALLBACK' ? 'AI Deep Analysis' :
+                    'Processing';
 
   return (
     <View style={proc.container}>
       <LinearGradient colors={['rgba(6,182,212,0.08)', 'rgba(139,92,246,0.04)']} style={StyleSheet.absoluteFill} />
-
       <Animated.View style={[proc.ring, { transform: [{ scale: ringPulseAnim }] }]}>
-        <View style={proc.cTL} /><View style={proc.cTR} />
-        <View style={proc.cBL} /><View style={proc.cBR} />
         <Animated.View style={[proc.scanLine, { transform: [{ translateY: scanLineAnim }] }]} />
-        <View style={proc.ringCenter}>
-          <ActivityIndicator size="large" color={C.primary} />
-        </View>
+        <ActivityIndicator size="large" color={C.primary} />
       </Animated.View>
-
-      <View style={proc.content}>
-        <Text style={proc.title} accessibilityLiveRegion="polite">{PHASE_MESSAGES[phase]}</Text>
-        <Text style={proc.subtitle}>{PHASE_SUBTITLES[phase] ?? 'AI is working on your scan'}</Text>
-
-        {/* Progress bar */}
-        <View style={proc.progressTrack}>
-          <Animated.View style={[proc.progressFill, { width: progressWidth }]}>
-            <LinearGradient colors={[C.gradientStart, C.gradientEnd]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={StyleSheet.absoluteFill} />
-          </Animated.View>
-        </View>
-        <Text style={proc.progressPct}>{progress}%</Text>
-
-        {/* Fun fact */}
-        <View style={proc.factBox}>
-          <Text style={proc.factText}>{FUN_FACTS[factIndex]}</Text>
-        </View>
-
-        {/* AI disclaimer note */}
-        <Text style={proc.disclaimer}>Results are AI-generated wellness estimates for educational purposes.</Text>
-      </View>
-
-      <TouchableOpacity onPress={onCancel} style={proc.cancel} activeOpacity={0.7}
-        accessibilityLabel="Cancel scan" accessibilityRole="button">
-        <Text style={proc.cancelText}>Cancel</Text>
-      </TouchableOpacity>
+      <Text style={proc.title}>{stageLabel}...</Text>
+      <TouchableOpacity onPress={onCancel} style={proc.cancel}><Text style={proc.cancelText}>Cancel</Text></TouchableOpacity>
     </View>
   );
 };
 const proc = StyleSheet.create({
-  container: { flex: 1, backgroundColor: C.background, justifyContent: 'center', alignItems: 'center', paddingHorizontal: 32 },
+  container: { flex: 1, backgroundColor: C.background, justifyContent: 'center', alignItems: 'center' },
   ring: { width: 180, height: 180, borderRadius: 90, borderWidth: 2, borderColor: 'rgba(6,182,212,0.25)', justifyContent: 'center', alignItems: 'center', marginBottom: 36 },
-  ringCenter: { justifyContent: 'center', alignItems: 'center' },
-  cTL: { position: 'absolute', top: -2,    left: -2,  width: 28, height: 28, borderTopWidth: 3,    borderLeftWidth: 3,  borderColor: C.primary, borderTopLeftRadius: 18 },
-  cTR: { position: 'absolute', top: -2,    right: -2, width: 28, height: 28, borderTopWidth: 3,    borderRightWidth: 3, borderColor: C.primary, borderTopRightRadius: 18 },
-  cBL: { position: 'absolute', bottom: -2, left: -2,  width: 28, height: 28, borderBottomWidth: 3, borderLeftWidth: 3,  borderColor: C.primary, borderBottomLeftRadius: 18 },
-  cBR: { position: 'absolute', bottom: -2, right: -2, width: 28, height: 28, borderBottomWidth: 3, borderRightWidth: 3, borderColor: C.primary, borderBottomRightRadius: 18 },
   scanLine: { position: 'absolute', left: 0, right: 0, height: 2, backgroundColor: C.primary, opacity: 0.8 },
-  content: { alignItems: 'center', gap: 12, width: '100%' },
   title: { fontSize: 18, fontWeight: '700', color: C.foreground, textAlign: 'center' },
-  subtitle: { fontSize: 13, color: C.mutedForeground, textAlign: 'center', lineHeight: 18 },
-  progressTrack: { width: '100%', height: 6, borderRadius: 3, backgroundColor: 'rgba(255,255,255,0.08)', overflow: 'hidden', marginTop: 8 },
-  progressFill: { height: '100%', borderRadius: 3, overflow: 'hidden' },
-  progressPct: { color: C.primary, fontSize: 12, fontWeight: '700' },
-  factBox: { marginTop: 8, paddingHorizontal: 18, paddingVertical: 12, borderRadius: 14, backgroundColor: 'rgba(6,182,212,0.08)', borderWidth: 1, borderColor: 'rgba(6,182,212,0.15)', width: '100%' },
-  factText: { color: C.mutedForeground, fontSize: 13, textAlign: 'center', lineHeight: 18 },
-  disclaimer: { color: 'rgba(255,255,255,0.3)', fontSize: 10, textAlign: 'center', marginTop: 4, fontStyle: 'italic' },
-  cancel: { position: 'absolute', bottom: 40, paddingVertical: 12, paddingHorizontal: 24 },
+  cancel: { marginTop: 40 },
   cancelText: { color: C.subtext, fontSize: 14, fontWeight: '600' },
 });
 
-// ─── ResultSkeleton ───────────────────────────────────────────────────────────
-const ResultSkeleton: React.FC = () => (
-  <GlassCard style={skel.card}>
-    <View style={skel.header}>
-      <View style={[skel.circle, { width: 110, height: 110 }]} />
-      <View style={skel.productInfo}>
-        <View style={[skel.line, { width: 120, height: 24 }]} />
-        <View style={[skel.line, { width: 80, height: 16 }]} />
-        <View style={skel.badgeRow}>
-          <View style={[skel.badge, { width: 80 }]} />
-          <View style={[skel.badge, { width: 70 }]} />
-        </View>
-      </View>
-    </View>
-    <View style={skel.insightBox}>
-      <View style={[skel.line, { width: '80%', height: 16 }]} />
-    </View>
-    <View style={skel.statsGrid}>
-      {[1, 2, 3, 4].map((i) => (
-        <View key={i} style={skel.statItem}>
-          <View style={[skel.circle, { width: 18, height: 18 }]} />
-          <View style={[skel.line, { width: 40, height: 16 }]} />
-          <View style={[skel.line, { width: 50, height: 10 }]} />
-        </View>
-      ))}
-    </View>
-  </GlassCard>
-);
-const skel = StyleSheet.create({
-  card: { borderRadius: 28, padding: 24, gap: 20 },
-  header: { flexDirection: 'row', alignItems: 'center', gap: 24 },
-  productInfo: { alignItems: 'center', gap: 6, flex: 1 },
-  badgeRow: { flexDirection: 'row', gap: 8, marginTop: 8 },
-  circle: { borderRadius: 999, backgroundColor: C.skeleton },
-  line: { borderRadius: 4, backgroundColor: C.skeleton },
-  badge: { height: 24, borderRadius: 10, backgroundColor: C.skeleton },
-  insightBox: { padding: 14, backgroundColor: 'rgba(6,182,212,0.1)', borderRadius: 16 },
-  statsGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 12 },
-  statItem: { width: '47%', alignItems: 'center', gap: 6, padding: 14, backgroundColor: 'rgba(255,255,255,0.06)', borderRadius: 16 },
-});
+// =============================================================================
+// 📱 5. MAIN SCAN SCREEN
+// =============================================================================
 
-// ─── ErrorView ────────────────────────────────────────────────────────────────
-const ErrorView: React.FC<{ message: string; onRetry: () => void; onGoBack: () => void }> = ({ message, onRetry, onGoBack }) => (
-  <View style={[err.container, { backgroundColor: C.background }]}>
-    <View style={[err.card, { backgroundColor: `${C.danger}10`, borderColor: `${C.danger}30` }]}>
-      <View style={err.iconBox}>
-        <Ionicons name="alert-circle" size={32} color={C.danger} />
-      </View>
-      <Text style={[err.title, { color: C.foreground }]}>Scan Failed</Text>
-      <Text style={[err.message, { color: C.mutedForeground }]}>{message}</Text>
-      <View style={err.actions}>
-        <TouchableOpacity onPress={onRetry} style={[err.button, { backgroundColor: C.primary }]}
-          accessibilityLabel="Retry scan" accessibilityRole="button">
-          <Text style={err.btnText}>Try Again</Text>
-        </TouchableOpacity>
-        <TouchableOpacity onPress={onGoBack}
-          style={[err.button, { backgroundColor: C.backgroundSecondary, borderWidth: 1, borderColor: C.border }]}
-          accessibilityLabel="Go back" accessibilityRole="button">
-          <Text style={[err.btnText, { color: C.foreground }]}>Go Back</Text>
-        </TouchableOpacity>
-      </View>
-    </View>
-  </View>
-);
-const err = StyleSheet.create({
-  container: { flex: 1, justifyContent: 'center', paddingHorizontal: 24 },
-  card: { borderRadius: 24, padding: 24, alignItems: 'center', borderWidth: 1 },
-  iconBox: { width: 64, height: 64, borderRadius: 32, backgroundColor: `${C.danger}15`, justifyContent: 'center', alignItems: 'center', marginBottom: 20 },
-  title: { fontSize: 20, fontWeight: '800', marginBottom: 8 },
-  message: { fontSize: 14, textAlign: 'center', lineHeight: 20, marginBottom: 24 },
-  actions: { flexDirection: 'row', gap: 12, width: '100%' },
-  button: { flex: 1, paddingVertical: 14, borderRadius: 16, alignItems: 'center' },
-  btnText: { color: '#fff', fontSize: 16, fontWeight: '700' },
-});
-
-// ─── StatsGrid ────────────────────────────────────────────────────────────────
-const StatsGrid: React.FC<{ calories: number; sugar: number; hydration: number; caffeine: number }> = ({ calories, sugar, hydration, caffeine }) => {
-  const stats = [
-    { label: 'Calories',  value: `${calories}`,    icon: 'flame',     color: C.scoreMedium },
-    { label: 'Sugar',     value: `${sugar}g`,      icon: 'nutrition', color: C.scoreLow },
-    { label: 'Hydration', value: `${hydration}%`,  icon: 'water',     color: C.primary },
-    { label: 'Caffeine',  value: `${caffeine}mg`,  icon: 'flash',     color: C.secondary },
-  ];
-  return (
-    <View style={stats2.container} accessibilityLabel="Nutrition summary">
-      {stats.map((s) => (
-        <View key={s.label} style={stats2.item}>
-          <Ionicons name={s.icon as any} size={18} color={s.color} />
-          <Text style={[stats2.value, { color: C.foreground }]}>{s.value}</Text>
-          <Text style={[stats2.label, { color: C.mutedForeground }]}>{s.label}</Text>
-        </View>
-      ))}
-    </View>
-  );
-};
-const stats2 = StyleSheet.create({
-  container: { flexDirection: 'row', flexWrap: 'wrap', gap: 12 },
-  item: { width: '47%', alignItems: 'center', gap: 6, padding: 14, backgroundColor: 'rgba(255,255,255,0.06)', borderRadius: 16, borderWidth: 1, borderColor: C.border },
-  value: { fontSize: 16, fontWeight: '800' },
-  label: { fontSize: 10 },
-});
-
-// ─── AlternativesBox ──────────────────────────────────────────────────────────
-const AlternativesBox: React.FC<{ alternatives: string[] }> = ({ alternatives }) => (
-  <View style={alt.container}>
-    <Text style={[alt.title, { color: C.foreground }]}>💡 Healthier Options</Text>
-    <View style={alt.list}>
-      {alternatives.slice(0, 2).map((a, i) => (
-        <View key={i} style={alt.item}>
-          <View style={alt.dot} />
-          <Text style={[alt.text, { color: C.foreground }]}>{a}</Text>
-        </View>
-      ))}
-    </View>
-  </View>
-);
-const alt = StyleSheet.create({
-  container: { padding: 16, backgroundColor: 'rgba(255,255,255,0.06)', borderRadius: 16, borderWidth: 1, borderColor: C.border, gap: 10 },
-  title: { fontSize: 14, fontWeight: '700' },
-  list: { gap: 6 },
-  item: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  dot: { width: 6, height: 6, borderRadius: 3, backgroundColor: C.scoreHigh },
-  text: { fontSize: 13 },
-});
-
-// ─── ResultCard (maps to existing ScanResult shape) ───────────────────────────
-const ResultCard: React.FC<{ result: ScanResult; onReset: () => void }> = ({ result, onReset }) => {
-  const router = useRouter();
-  const scoreColor = getScoreColor(result.impactScore);
-  const confCfg = getConfidenceConfig(result.confidenceScore ?? 0.75);
-
-  return (
-    <GlassCard style={{ ...res.card, borderColor: `${scoreColor}30` }}>
-      <View style={res.header}>
-        <ScoreRing score={result.impactScore} size={110} strokeWidth={10} />
-        <View style={res.productInfo}>
-          <Text style={[res.productName, { color: C.foreground }]}>{result.detectedProduct}</Text>
-          {result.brand ? <Text style={[res.productBrand, { color: C.mutedForeground }]}>{result.brand}</Text> : null}
-          <View style={res.badgeRow}>
-            <View style={[res.badge, { backgroundColor: `${scoreColor}18`, borderColor: `${scoreColor}30` }]}>
-              <Text style={[res.badgeText, { color: scoreColor }]}>{getStatusLabel(result.impactScore)}</Text>
-            </View>
-            <View style={[res.badge, { backgroundColor: confCfg.bg, borderColor: confCfg.border }]}>
-              <Text style={[res.badgeText, { color: confCfg.text }]}>{confCfg.label}</Text>
-            </View>
-          </View>
-        </View>
-      </View>
-
-      {result.aiInsight ? (
-        <View style={res.insightBox}>
-          <Ionicons name="sparkles" size={16} color={C.primary} />
-          <Text style={[res.insightText, { color: C.subtext }]}>{result.aiInsight}</Text>
-        </View>
-      ) : null}
-
-      <StatsGrid
-        calories={result.composition.calories}
-        sugar={result.composition.sugarGrams}
-        hydration={result.hydrationLevel}
-        caffeine={result.composition.caffeineMg}
-      />
-
-      {result.alternatives && result.alternatives.length > 0 && (
-        <AlternativesBox alternatives={result.alternatives} />
-      )}
-
-      <TouchableOpacity
-        onPress={() => router.push(`/report?id=${result.id}`)}
-        activeOpacity={0.9}
-        style={res.reportButton}
-        accessibilityLabel="View detailed report"
-        accessibilityRole="button"
-        accessibilityHint="See full nutrition facts, ingredients, and health insights"
-      >
-        <LinearGradient colors={[C.gradientStart, C.gradientEnd]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={res.reportGradient}>
-          <Text style={res.reportText}>View Full Report</Text>
-          <Ionicons name="arrow-forward" size={16} color="#fff" />
-        </LinearGradient>
-      </TouchableOpacity>
-
-      <TouchableOpacity onPress={onReset} style={res.resetButton}
-        accessibilityLabel="Scan another drink" accessibilityRole="button">
-        <Text style={[res.resetText, { color: C.mutedForeground }]}>Scan Another Drink</Text>
-      </TouchableOpacity>
-    </GlassCard>
-  );
-};
-const res = StyleSheet.create({
-  card: { borderRadius: 28, padding: 24, gap: 20 },
-  header: { flexDirection: 'row', alignItems: 'center', gap: 24 },
-  productInfo: { alignItems: 'center', gap: 6, flex: 1 },
-  productName: { fontSize: 22, fontWeight: '800', textAlign: 'center' },
-  productBrand: { fontSize: 14 },
-  badgeRow: { flexDirection: 'row', gap: 8, marginTop: 8 },
-  badge: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 10, borderWidth: 1 },
-  badgeText: { fontSize: 11, fontWeight: '700', textTransform: 'uppercase' },
-  insightBox: { flexDirection: 'row', alignItems: 'flex-start', gap: 10, padding: 14, backgroundColor: 'rgba(6,182,212,0.1)', borderRadius: 16 },
-  insightText: { flex: 1, fontSize: 14, lineHeight: 20 },
-  reportButton: { borderRadius: 20, overflow: 'hidden', marginTop: 8 },
-  reportGradient: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, paddingVertical: 16 },
-  reportText: { color: '#fff', fontSize: 16, fontWeight: '700' },
-  resetButton: { alignItems: 'center', paddingVertical: 8 },
-  resetText: { fontSize: 14, fontWeight: '600' },
-});
-
-// ─── PremiumInfoCard ──────────────────────────────────────────────────────────
-const PremiumInfoCard: React.FC = () => (
-  <View style={[info.container, { backgroundColor: C.backgroundSecondary, borderColor: C.border }]}>
-    <Text style={[info.title, { color: C.foreground }]}>🔍 How Premium Scan Works</Text>
-    <View style={info.list}>
-      <Text style={[info.item, { color: C.mutedForeground }]}>• Prioritizes <Text style={{ color: C.primary }}>labels & packaging</Text> over liquid colour</Text>
-      <Text style={[info.item, { color: C.mutedForeground }]}>• Multi-signal detection: barcode + OCR + visual features</Text>
-      <Text style={[info.item, { color: C.mutedForeground }]}>• Weighted confidence scoring for reliable results</Text>
-      <Text style={[info.item, { color: C.mutedForeground }]}>• Corrections improve AI accuracy over time</Text>
-    </View>
-  </View>
-);
-const info = StyleSheet.create({
-  container: { padding: 16, borderRadius: 20, borderWidth: 1, marginTop: 8 },
-  title: { fontSize: 14, fontWeight: '700', marginBottom: 8 },
-  list: { gap: 6 },
-  item: { fontSize: 13, lineHeight: 18 },
-});
-
-// ─── MAIN SCREEN ─────────────────────────────────────────────────────────────
 export default function ScanScreen() {
   const { canScan, scanLimitMessage, todayScanCount, monthScanCount, addScan, state } = useApp();
   const insets = useSafeAreaInsets();
   const router = useRouter();
 
-  const limits = SUBSCRIPTION_LIMITS[state.subscription];
+  const [scanMode, setScanMode] = useState<'drink' | 'barcode' | 'ingredients'>('drink');
+  const [stage, setStage] = useState<ScanStage>('IDLE');
+  const [selectedImage, setSelectedImage] = useState<string | null>(null);
+  const [result, setResult] = useState<ScanResult | null>(null);
+  const [errorMsg, setErrorMsg] = useState('');
+  const [showSearch, setShowSearch] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
 
+  const limits = SUBSCRIPTION_LIMITS[state.subscription];
   const limitText = useMemo(() => {
     if (state.subscription === 'free') return `${todayScanCount}/${limits.daily} free scans today`;
     if (state.subscription === 'starter') return `${monthScanCount}/${limits.monthly} scans this month`;
     return 'Unlimited scans';
   }, [state.subscription, todayScanCount, monthScanCount, limits]);
 
-  // ── Local state (replaces external store) ──────────────────────────────────
-  const [scanMode, setScanMode] = useState<ScanMode>('drink');
-  const [phase, setPhase] = useState<ScanPhase>('IDLE');
-  const [selectedImage, setSelectedImage] = useState<string | null>(null);
-  const [result, setResult] = useState<ScanResult | null>(null);
-  const [errorMsg, setErrorMsg] = useState('');
-  const [imageMetrics] = useState<ImageQualityMetrics | null>(null);
+  const mapToScanResult = useCallback((record: DrinkRecord): ScanResult => ({
+    id: record.id,
+    detectedProduct: record.name,
+    brand: record.brand,
+    category: record.category,
+    liquidType: record.category as any,
+    confidenceScore: record.confidence,
+    impactScore: record.impactScore,
+    hydrationLevel: record.hydrationIndex,
+    glycemicImpact: record.glycemicImpact as any,
+    status: record.impactScore >= 70 ? 'optimal' : record.impactScore >= 50 ? 'stable' : 'risky',
+    aiInsight: record.notes,
+    viralStatement: '',
+    dehydrationRisk: record.hydrationIndex < 40,
+    alternatives: record.alternatives,
+    scannedAt: Date.now(),
+    composition: {
+      calories: record.nutrition.calories,
+      sugarGrams: record.nutrition.sugarGrams,
+      caffeineMg: record.nutrition.caffeineMg,
+      sodiumMg: record.nutrition.sodiumMg,
+      fatGrams: record.nutrition.fatGrams,
+      proteinGrams: record.nutrition.proteinGrams,
+      servingSize: 100,
+      servingUnit: 'ml',
+      artificialSweeteners: record.nutrition.artificialSweeteners,
+      additives: [],
+      ingredients: record.ingredients.map(i => ({ name: i.name, function: i.type, healthRole: 'neutral', riskLevel: i.riskLevel as any }))
+    },
+    shortTermImpact: { energyResponse: '', bloodSugarResponse: '', bodyReaction: '', hydrationImpact: '' },
+    mediumTermImpact: { energyStability: '', physicalChanges: '', habitRisk: '', sleepQuality: '' },
+    longTermImpact: { healthTrend: '', metabolicImpact: '', riskAccumulation: '', nutritionalBalance: '' },
+    healthFlags: record.healthFlags,
+    ingredientsList: record.ingredients
+  }), []);
 
-  const isMountedRef = useRef(true);
-  const abortControllerRef = useRef<AbortController | null>(null);
+  const finishScan = useCallback((data: any, method: MatchMethod) => {
+    const scanResult = data.scannedAt ? data : mapToScanResult(data);
+    addScan(scanResult);
+    setResult(scanResult);
+    setStage('ANALYSIS_COMPLETE');
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
 
-  useEffect(() => {
-    isMountedRef.current = true;
-    return () => {
-      isMountedRef.current = false;
-      abortControllerRef.current?.abort();
-    };
-  }, []);
-
-  const isProcessing = phase !== 'IDLE' && phase !== 'SUCCESS' && phase !== 'FAILED';
-
-  // ── Liquid warning ─────────────────────────────────────────────────────────
-  const liquidWarning = useMemo(() => {
-    if (!result?.liquidType || result.liquidType === 'beverage' || result.liquidType === 'alcohol' || result.liquidType === 'supplement') return null;
-    const warnings: Record<string, { message: string; color: string; icon: string }> = {
-      cooking_oil: { message: 'This is a cooking oil — not meant for direct consumption.', color: C.warning, icon: 'warning' },
-      condiment:   { message: 'This appears to be a condiment, not a beverage.',           color: C.warning, icon: 'information-circle' },
-      other:       { message: "This doesn't appear to be a typical beverage.",             color: C.danger,  icon: 'alert-circle' },
-    };
-    return warnings[result.liquidType] ?? null;
-  }, [result?.liquidType]);
-
-  // ── Simulated pipeline phase sequencing during analysis ───────────────────
-  // Phases spread over ~14s to match typical GPT-4o latency
-  const runPipelineSimulation = useCallback((abort: AbortController) => {
-    const sequence: { phase: ScanPhase; delay: number }[] = [
-      { phase: 'PREPARING',           delay: 0 },
-      { phase: 'VALIDATING_IMAGE',    delay: 1500 },
-      { phase: 'DETECTING_PACKAGING', delay: 3500 },
-      { phase: 'MATCHING_PRODUCT',    delay: 6000 },
-      { phase: 'ANALYZING_NUTRITION', delay: 9000 },
-      { phase: 'CALCULATING_IMPACT',  delay: 12000 },
-    ];
-    const timers: ReturnType<typeof setTimeout>[] = [];
-    for (const { phase, delay } of sequence) {
-      const t = setTimeout(() => {
-        if (abort.signal.aborted || !isMountedRef.current) return;
-        setPhase(phase);
-      }, delay);
-      timers.push(t);
+    if (method === 'barcode' && data.barcode?.[0]) {
+      CacheManager.set(`bc_${data.barcode[0]}`, data, 2592000000);
     }
-    abort.signal.addEventListener('abort', () => timers.forEach(clearTimeout));
-  }, []);
+  }, [addScan, mapToScanResult]);
 
-  // ── Compress image before upload ───────────────────────────────────────────
-  // Resizes to max 1024px and re-encodes at 0.82 quality — reduces payload
-  // by ~10-20x vs full-res camera output, cutting API latency significantly.
-  const compressImage = useCallback(async (uri: string): Promise<string> => {
-    try {
-      const result = await ImageManipulator.manipulateAsync(
-        uri,
-        [{ resize: { width: 1024 } }],
-        { compress: 0.82, format: ImageManipulator.SaveFormat.JPEG, base64: true },
-      );
-      return result.base64 ?? '';
-    } catch {
-      return ''; // fall through to original
-    }
-  }, []);
-
-  // ── Start analysis ─────────────────────────────────────────────────────────
-  const handleStartScan = useCallback(async (imageUri: string, originalBase64?: string) => {
+  const runPipeline = useCallback(async (imageUri?: string, barcode?: string, textQuery?: string) => {
     if (!canScan) {
-      Alert.alert('Scan Limit Reached', scanLimitMessage || 'Upgrade to continue scanning.', [
-        { text: 'Cancel', style: 'cancel' },
-        { text: 'Upgrade', onPress: () => router.push('/paywall') },
-      ]);
+      Alert.alert('Scan Limit Reached', scanLimitMessage);
       return;
     }
 
-    // Cancel any in-flight request and clear old phase timers
-    abortControllerRef.current?.abort();
-    const controller = new AbortController();
-    abortControllerRef.current = controller;
+    setStage('CHECKING_CACHE');
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
 
-    await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
-    setPhase('PREPARING');
-    setErrorMsg('');
-    setResult(null);
-
-    runPipelineSimulation(controller);
-
-    try {
-      // Compress first — dramatically reduces GPT-4o upload time
-      const compressed = await compressImage(imageUri);
-      if (controller.signal.aborted || !isMountedRef.current) return;
-
-      // Prefer compressed, fall back to original base64, then URI
-      let b64 = compressed;
-      if (!b64 && originalBase64) {
-        b64 = originalBase64.startsWith('data:') ? originalBase64.split(',')[1] : originalBase64;
+    // 1. Barcode/Cache Layer
+    if (barcode) {
+      const cached = CacheManager.get(`bc_${barcode}`);
+      if (cached) {
+        finishScan(cached, 'cache');
+        return;
       }
-      if (!b64) throw new Error('Could not prepare image for analysis.');
-
-      const scanResult = await analyzeDrink(b64);
-      if (controller.signal.aborted || !isMountedRef.current) return;
-
-      // ✅ Abort the pipeline simulation timers — result is back, no more fake phases
-      controller.abort();
-
-      addScan(scanResult);
-      setResult(scanResult);
-      setPhase('SUCCESS');
-      await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    } catch (e) {
-      if (controller.signal.aborted) return;
-      controller.abort(); // stop stale timers on error too
-      setPhase('FAILED');
-      setErrorMsg(e instanceof Error ? e.message : 'Failed to analyze image');
-      await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+      if (BEVERAGE_DB[barcode]) {
+        finishScan(BEVERAGE_DB[barcode], 'barcode');
+        return;
+      }
     }
-  }, [canScan, scanLimitMessage, addScan, router, runPipelineSimulation, compressImage]);
 
-  // ── Pick image ─────────────────────────────────────────────────────────────
-  const pickImage = useCallback(async (useCamera: boolean) => {
-    await Haptics.selectionAsync();
-    try {
-      if (useCamera) {
-        const { status } = await ImagePicker.requestCameraPermissionsAsync();
-        if (status !== 'granted') {
-          Alert.alert('Permission required', 'Camera access is needed to scan drinks.');
+    // 2. Direct Fuse Layer (if text query provided)
+    if (textQuery) {
+      setStage('FUSE_MATCHING');
+      const results = fuse.search(textQuery);
+      if (results.length > 0 && (results[0].score || 1) < 0.3) {
+        finishScan(results[0].item, 'fuse_search');
+        return;
+      }
+    }
+
+    // 3. OCR -> Fuse -> AI Pipeline
+    if (imageUri) {
+      setStage('OCR_EXTRACTING');
+      const ocrText = await processImageForOCR(imageUri);
+
+      if (ocrText) {
+        setStage('FUSE_MATCHING');
+        const fuseResults = fuse.search(ocrText);
+        if (fuseResults.length > 0 && (fuseResults[0].score || 1) < 0.35) {
+          finishScan(fuseResults[0].item, 'fuse_search');
           return;
         }
       }
 
-      // Request lower quality upfront — we compress further in handleStartScan anyway
-      const picked = useCamera
-        ? await ImagePicker.launchCameraAsync({ mediaTypes: 'images', quality: 0.9, base64: false, allowsEditing: true, aspect: [4, 3] })
-        : await ImagePicker.launchImageLibraryAsync({ mediaTypes: 'images', quality: 0.9, base64: false, allowsEditing: true, aspect: [4, 3] });
-
-      if (!picked.canceled && picked.assets[0]) {
-        const asset = picked.assets[0];
-        setSelectedImage(asset.uri);
-        setResult(null);
-        setPhase('IDLE');
-        // Small delay for the image preview to render, then start immediately
-        setTimeout(() => handleStartScan(asset.uri), 200);
+      setStage('AI_FALLBACK');
+      try {
+        const aiRes = await analyzeWithGPT4o(imageUri, ocrText || textQuery || '');
+        const mapped: ScanResult = {
+          id: `ai_${Date.now()}`,
+          detectedProduct: aiRes.product,
+          brand: aiRes.brand,
+          category: aiRes.category,
+          liquidType: aiRes.category as any,
+          confidenceScore: 0.8,
+          impactScore: aiRes.impactScore,
+          hydrationLevel: aiRes.hydrationIndex,
+          glycemicImpact: (aiRes as any).glycemicImpact || 'moderate',
+          status: aiRes.impactScore >= 70 ? 'optimal' : aiRes.impactScore >= 50 ? 'stable' : 'risky',
+          aiInsight: aiRes.shortInsight,
+          viralStatement: '',
+          dehydrationRisk: aiRes.hydrationIndex < 40,
+          alternatives: aiRes.alternatives,
+          scannedAt: Date.now(),
+          composition: {
+            calories: aiRes.nutrition.calories || 0,
+            sugarGrams: aiRes.nutrition.sugarGrams || 0,
+            caffeineMg: aiRes.nutrition.caffeineMg || 0,
+            sodiumMg: aiRes.nutrition.sodiumMg || 0,
+            fatGrams: aiRes.nutrition.fatGrams || 0,
+            proteinGrams: aiRes.nutrition.proteinGrams || 0,
+            servingSize: 100,
+            servingUnit: 'ml',
+            artificialSweeteners: aiRes.nutrition.artificialSweeteners || false,
+            additives: [],
+            ingredients: []
+          },
+          shortTermImpact: { energyResponse: '', bloodSugarResponse: '', bodyReaction: '', hydrationImpact: '' },
+          mediumTermImpact: { energyStability: aiRes.mediumTermEffects || '', physicalChanges: '', habitRisk: '', sleepQuality: '' },
+          longTermImpact: { healthTrend: aiRes.longTermEffects || '', metabolicImpact: '', riskAccumulation: '', nutritionalBalance: '' },
+          healthFlags: aiRes.healthFlags,
+        };
+        finishScan(mapped, 'gpt4o');
+      } catch (e) {
+        setStage('ERROR');
+        setErrorMsg('AI identification failed. Please try a clearer photo.');
       }
-    } catch {
-      Alert.alert('Error', 'Could not access camera or gallery.');
+    } else if (textQuery) {
+        setStage('ERROR');
+        setErrorMsg('No match found in local database.');
     }
-  }, [handleStartScan]);
+  }, [canScan, scanLimitMessage, finishScan]);
 
-  const handleReset = useCallback(() => {
-    abortControllerRef.current?.abort();
-    setSelectedImage(null);
+  const pickImage = async (useCamera: boolean) => {
+    try {
+      const { status } = await ImagePicker.requestCameraPermissionsAsync();
+      if (status !== 'granted') {
+        Alert.alert('Permission needed', 'We need camera access to scan drinks');
+        return;
+      }
+
+      const res = useCamera
+        ? await ImagePicker.launchCameraAsync({ quality: 0.7, allowsEditing: true, aspect: [4, 3] })
+        : await ImagePicker.launchImageLibraryAsync({ quality: 0.7, allowsEditing: true, aspect: [4, 3] });
+
+      if (!res.canceled && res.assets[0]) {
+        setSelectedImage(res.assets[0].uri);
+        runPipeline(res.assets[0].uri);
+      }
+    } catch (e) {
+      Alert.alert('Error', 'Could not access camera/gallery');
+    }
+  };
+
+  const handleReset = () => {
+    setStage('IDLE');
     setResult(null);
-    setPhase('IDLE');
+    setSelectedImage(null);
     setErrorMsg('');
-    Haptics.selectionAsync();
-  }, []);
+  };
 
-  const handleCancel = useCallback(() => {
-    abortControllerRef.current?.abort();
-    setPhase('IDLE');
-  }, []);
+  const handleCancel = () => setStage('IDLE');
 
-  // ── Render: full-screen processing ────────────────────────────────────────
-  // Always show the rich ProcessingView during analysis — don't let the image
-  // overlay steal the experience. The ProcessingView is the premium UX.
-  if (isProcessing) {
-    return <ProcessingView phase={phase} onCancel={handleCancel} />;
+  const filteredSearch = useMemo(() => {
+    if (searchQuery.length < 2) return [];
+    return fuse.search(searchQuery).slice(0, 10).map(r => r.item);
+  }, [searchQuery]);
+
+  if (stage !== 'IDLE' && stage !== 'ANALYSIS_COMPLETE' && stage !== 'ERROR') {
+    return <ProcessingView stage={stage} onCancel={handleCancel} />;
   }
 
-  // ── Render: full-screen error (no image) ─────────────────────────────────
-  if (phase === 'FAILED' && errorMsg && !selectedImage) {
-    return <ErrorView message={errorMsg} onRetry={handleReset} onGoBack={handleReset} />;
-  }
-
-  // ── Render: main scroll flow ──────────────────────────────────────────────
   return (
-    <ScrollView
-      style={[scr.container, { backgroundColor: C.background }]}
-      showsVerticalScrollIndicator={false}
-      contentContainerStyle={{
-        paddingTop: insets.top + 20,
-        paddingBottom: insets.bottom + 40,
-        paddingHorizontal: 24,
-        gap: 20,
-      }}
-      accessibilityLabel="Drink scanner"
-    >
-      <ScanHeader canScan={canScan} limitText={limitText} />
+    <View style={{ flex: 1, backgroundColor: C.background }}>
+      <ScrollView style={styles.container} contentContainerStyle={{ paddingTop: insets.top + 20, paddingHorizontal: 24, paddingBottom: insets.bottom + 100 }}>
+        <StatusBar barStyle="light-content" />
+        <ScanHeader canScan={canScan} limitText={limitText} onSearchPress={() => setShowSearch(true)} />
+        <ScanModeToggle currentMode={scanMode} onModeChange={setScanMode} />
 
-      <ScanModeToggle currentMode={scanMode} onModeChange={setScanMode} />
+        {stage === 'ANALYSIS_COMPLETE' && result ? (
+          <View style={styles.resultContainer}>
+            <ResultCard result={result} onReset={handleReset} />
+          </View>
+        ) : stage === 'ERROR' ? (
+          <View style={styles.errorContainer}>
+            <Ionicons name="alert-circle" size={64} color={C.danger} />
+            <Text style={styles.errorTitle}>Scan Failed</Text>
+            <Text style={styles.errorSubtitle}>{errorMsg}</Text>
+            <TouchableOpacity style={styles.retryBtn} onPress={handleReset}>
+              <Text style={styles.retryText}>Try Again</Text>
+            </TouchableOpacity>
+          </View>
+        ) : (
+          <View style={styles.captureContainer}>
+            <TouchableOpacity style={styles.captureHero} onPress={() => pickImage(true)}>
+              <LinearGradient colors={[C.gradientStart, C.gradientEnd]} style={styles.captureGradient}>
+                <View style={styles.captureIconContainer}>
+                  <Ionicons name="camera" size={48} color="#fff" />
+                </View>
+                <Text style={styles.captureTitle}>Scan with Camera</Text>
+                <Text style={styles.captureSubtitle}>Analyze any beverage bottle or glass</Text>
+              </LinearGradient>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.galleryBtn} onPress={() => pickImage(false)}>
+              <Ionicons name="images" size={20} color={C.primary} />
+              <Text style={styles.galleryText}>Choose from Gallery</Text>
+            </TouchableOpacity>
+          </View>
+        )}
 
-      <CaptureHero
-        selectedImage={selectedImage}
-        isProcessing={isProcessing}
-        imageMetrics={imageMetrics}
-        currentMode={scanMode}
-        onPickFromGallery={() => pickImage(false)}
-        onPickFromCamera={() => pickImage(true)}
-        onReset={handleReset}
-      />
-
-      {/* Manual analyse trigger (if user dismissed auto-scan) */}
-      {selectedImage && !isProcessing && phase !== 'SUCCESS' && (
-        <TouchableOpacity
-          onPress={() => handleStartScan(selectedImage)}
-          activeOpacity={0.9}
-          style={scr.analyzeButton}
-          accessibilityLabel="Start AI analysis"
-          accessibilityRole="button"
-          accessibilityHint="Analyze the selected drink image with artificial intelligence"
-        >
-          <Text style={scr.analyzeText}>✨ Analyze with AI</Text>
-        </TouchableOpacity>
-      )}
-
-      {/* Non-beverage warning */}
-      {liquidWarning && (
-        <View
-          style={[scr.warningBanner, { backgroundColor: `${liquidWarning.color}14`, borderColor: `${liquidWarning.color}30` }]}
-          accessibilityRole="alert"
-        >
-          <Ionicons name={liquidWarning.icon as any} size={18} color={liquidWarning.color} />
-          <Text style={[scr.warningText, { color: liquidWarning.color }]}>{liquidWarning.message}</Text>
+        <View style={styles.premiumInfo}>
+          <View style={styles.premiumHeaderRow}>
+            <Ionicons name="sparkles" size={18} color={C.primary} />
+            <Text style={styles.premiumTitle}>Advanced Recognition Active</Text>
+          </View>
+          <Text style={styles.premiumSubtitle}>Our AI now recognizes 5,000+ beverages including East African staples like Stoney, Brookside & Tusker.</Text>
         </View>
-      )}
+      </ScrollView>
 
-      {/* Skeleton while processing, then real result */}
-      {isProcessing && selectedImage ? (
-        <ResultSkeleton />
-      ) : result ? (
-        <ResultCard result={result} onReset={handleReset} />
-      ) : phase === 'FAILED' && errorMsg ? (
-        <View style={[scr.warningBanner, { backgroundColor: `${C.danger}14`, borderColor: `${C.danger}30` }]}>
-          <Ionicons name="alert-circle" size={18} color={C.danger} />
-          <Text style={[scr.warningText, { color: C.danger }]}>{errorMsg}</Text>
-        </View>
-      ) : null}
+      <Modal visible={showSearch} animationType="slide" transparent>
+        <BlurView intensity={90} tint="dark" style={StyleSheet.absoluteFill}>
+          <SafeAreaView style={{ flex: 1 }}>
+            <View style={search.header}>
+              <View style={search.inputBox}>
+                <Ionicons name="search" size={20} color="#666" />
+                <TextInput
+                  style={search.input}
+                  placeholder="Search 5,000+ beverages..."
+                  placeholderTextColor="#999"
+                  value={searchQuery}
+                  onChangeText={setSearchQuery}
+                  autoFocus
+                />
+                {searchQuery.length > 0 && (
+                  <TouchableOpacity onPress={() => setSearchQuery('')}>
+                    <Ionicons name="close-circle" size={20} color="#666" />
+                  </TouchableOpacity>
+                )}
+              </View>
+              <TouchableOpacity onPress={() => { setShowSearch(false); setSearchQuery(''); }}>
+                <Text style={search.cancelText}>Cancel</Text>
+              </TouchableOpacity>
+            </View>
 
-      <PremiumInfoCard />
-    </ScrollView>
+            <FlatList
+              data={filteredSearch}
+              keyExtractor={item => item.id}
+              contentContainerStyle={{ padding: 20 }}
+              renderItem={({ item }) => (
+                <TouchableOpacity style={search.item} onPress={() => {
+                  finishScan(item, 'fuse_search');
+                  setShowSearch(false);
+                  setSearchQuery('');
+                }}>
+                  <View style={[search.iconBox, { backgroundColor: (CATEGORY_META[item.category]?.color || '#ffffff') + '20' }]}>
+                    <FontAwesome5 name={CATEGORY_META[item.category]?.icon || 'beer'} size={18} color={CATEGORY_META[item.category]?.color || '#fff'} />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={search.itemName}>{item.name}</Text>
+                    <Text style={search.itemBrand}>{item.brand}</Text>
+                  </View>
+                  <View style={[search.scoreBadge, { backgroundColor: (item.impactScore >= 70 ? C.scoreHigh : item.impactScore >= 50 ? C.scoreMedium : C.scoreLow) + '20' }]}>
+                    <Text style={[search.scoreText, { color: item.impactScore >= 70 ? C.scoreHigh : item.impactScore >= 50 ? C.scoreMedium : C.scoreLow }]}>{item.impactScore}</Text>
+                  </View>
+                </TouchableOpacity>
+              )}
+              ListEmptyComponent={() => searchQuery.length > 1 ? (
+                <View style={search.empty}>
+                  <Text style={search.emptyText}>No exact match found.</Text>
+                  <TouchableOpacity style={search.aiSearchBtn} onPress={() => {
+                    setShowSearch(false);
+                    Alert.alert('AI Vision Recommended', 'For specific local drinks, try scanning the label with your camera for better results.');
+                  }}>
+                    <Text style={search.aiSearchText}>Try Camera Scan instead</Text>
+                  </TouchableOpacity>
+                </View>
+              ) : null}
+            />
+          </SafeAreaView>
+        </BlurView>
+      </Modal>
+    </View>
   );
 }
 
-const scr = StyleSheet.create({
+const ResultCard = ({ result, onReset }: { result: ScanResult, onReset: () => void }) => {
+  const router = useRouter();
+  const scoreColor = result.impactScore >= 80 ? C.scoreHigh : result.impactScore >= 60 ? C.scoreMedium : C.scoreLow;
+
+  return (
+    <GlassCard style={{ ...res.card, borderColor: `${scoreColor}30` }}>
+      <View style={res.header}>
+        <ScoreRing score={result.impactScore} size={110} />
+        <View style={res.productInfo}>
+          <Text style={res.productName} numberOfLines={2}>{result.detectedProduct}</Text>
+          <Text style={res.brandName}>{result.brand}</Text>
+          <View style={[res.badge, { backgroundColor: `${scoreColor}15` }]}>
+            <Text style={[res.badgeText, { color: scoreColor }]}>{result.status.toUpperCase()}</Text>
+          </View>
+        </View>
+      </View>
+
+      <View style={res.statsGrid}>
+        <StatItem label="Sugar" value={`${result.composition.sugarGrams}g`} icon="nutrition" color={C.scoreLow} />
+        <StatItem label="Caff" value={`${result.composition.caffeineMg}mg`} icon="flash" color={C.secondary} />
+        <StatItem label="Hyd" value={`${result.hydrationLevel}%`} icon="water" color={C.primary} />
+        <StatItem label="Cal" value={`${result.composition.calories}`} icon="flame" color={C.scoreMedium} />
+      </View>
+
+      {result.healthFlags && result.healthFlags.length > 0 && (
+        <View style={res.alerts}>
+          {result.healthFlags.map((flag, i) => (
+            <View key={i} style={[res.alertItem, { backgroundColor: flag.severity === 'danger' ? `${C.danger}10` : `${C.warning}10` }]}>
+              <Ionicons name="warning" size={14} color={flag.severity === 'danger' ? C.danger : C.warning} />
+              <Text style={[res.alertText, { color: flag.severity === 'danger' ? C.danger : C.warning }]}>{flag.message}</Text>
+            </View>
+          ))}
+        </View>
+      )}
+
+      <View style={res.insightBox}>
+        <Ionicons name="sparkles" size={16} color={C.primary} style={{ marginTop: 2 }} />
+        <Text style={res.insight}>{result.aiInsight}</Text>
+      </View>
+
+      {result.mediumTermImpact?.physicalChanges ? (
+          <View style={res.impactSection}>
+            <View style={res.impactItem}>
+              <Text style={res.impactTitle}>Metabolic Response</Text>
+              <Text style={res.impactText}>{result.mediumTermImpact.physicalChanges}</Text>
+            </View>
+          </View>
+      ) : null}
+
+      {result.alternatives && result.alternatives.length > 0 && (
+        <View style={res.alts}>
+          <Text style={res.altsTitle}>Healthier Options</Text>
+          <View style={res.altsList}>
+            {result.alternatives.map((alt, i) => (
+              <View key={i} style={res.altBadge}><Text style={res.altText}>{alt}</Text></View>
+            ))}
+          </View>
+        </View>
+      )}
+
+      <TouchableOpacity style={res.reportBtn} onPress={() => router.push(`/report?id=${result.id}`)}>
+        <LinearGradient colors={[C.gradientStart, C.gradientEnd]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={res.reportGradient}>
+          <Text style={res.reportBtnText}>View Full Report</Text>
+          <Ionicons name="arrow-forward" size={18} color="#fff" />
+        </LinearGradient>
+      </TouchableOpacity>
+
+      <TouchableOpacity onPress={onReset} style={res.reset}>
+        <Text style={res.resetText}>Scan Another Beverage</Text>
+      </TouchableOpacity>
+    </GlassCard>
+  );
+};
+
+const StatItem = ({ label, value, icon, color }: any) => (
+  <View style={res.statItem}>
+    <Ionicons name={icon} size={14} color={color} />
+    <Text style={res.statValue}>{value}</Text>
+    <Text style={res.statLabel}>{label}</Text>
+  </View>
+);
+
+const search = StyleSheet.create({
+  header: { flexDirection: 'row', alignItems: 'center', padding: 16, gap: 12, borderBottomWidth: 1, borderBottomColor: C.border },
+  inputBox: { flex: 1, flexDirection: 'row', alignItems: 'center', backgroundColor: 'rgba(255,255,255,0.08)', borderRadius: 12, paddingHorizontal: 12, gap: 8, height: 44 },
+  input: { flex: 1, color: '#fff', fontSize: 16 },
+  cancelText: { color: C.primary, fontWeight: '600' },
+  item: { flexDirection: 'row', alignItems: 'center', gap: 16, paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: 'rgba(255,255,255,0.05)' },
+  iconBox: { width: 40, height: 40, borderRadius: 12, justifyContent: 'center', alignItems: 'center' },
+  itemName: { color: '#fff', fontSize: 16, fontWeight: '700' },
+  itemBrand: { color: C.mutedForeground, fontSize: 13, marginTop: 2 },
+  scoreBadge: { width: 36, height: 36, borderRadius: 18, justifyContent: 'center', alignItems: 'center' },
+  scoreText: { fontSize: 13, fontWeight: '800' },
+  empty: { alignItems: 'center', marginTop: 40, gap: 12 },
+  emptyText: { color: C.mutedForeground, fontSize: 15 },
+  aiSearchBtn: { padding: 12 },
+  aiSearchText: { color: C.primary, fontWeight: '700' }
+});
+
+const styles = StyleSheet.create({
   container: { flex: 1 },
-  analyzeButton: {
-    backgroundColor: C.primary,
-    paddingVertical: 16,
-    borderRadius: 20,
-    alignItems: 'center',
-    shadowColor: C.primary,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 12,
-  },
-  analyzeText: { color: '#fff', fontSize: 17, fontWeight: '700' },
-  warningBanner: { flexDirection: 'row', alignItems: 'center', gap: 8, padding: 12, borderRadius: 12, borderWidth: 1 },
-  warningText: { fontSize: 13, fontWeight: '600', flex: 1 },
+  header: { marginBottom: 20 },
+  title: { fontSize: 28, fontWeight: '800', color: '#fff' },
+  limitText: { color: C.subtext, fontSize: 14, marginTop: 4 },
+  captureContainer: { gap: 16 },
+  captureHero: { height: 240, borderRadius: 32, overflow: 'hidden' },
+  captureGradient: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 24 },
+  captureIconContainer: { width: 80, height: 80, borderRadius: 40, backgroundColor: 'rgba(255,255,255,0.15)', justifyContent: 'center', alignItems: 'center', marginBottom: 16 },
+  captureTitle: { color: '#fff', fontSize: 22, fontWeight: '800' },
+  captureSubtitle: { color: 'rgba(255,255,255,0.7)', fontSize: 14, marginTop: 4, textAlign: 'center' },
+  galleryBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, padding: 18, backgroundColor: C.backgroundSecondary, borderRadius: 24, borderWidth: 1, borderColor: C.border },
+  galleryText: { color: C.primary, fontSize: 16, fontWeight: '700' },
+  premiumInfo: { marginTop: 32, padding: 24, backgroundColor: 'rgba(6,182,212,0.05)', borderRadius: 28, borderWidth: 1, borderColor: 'rgba(6,182,212,0.1)' },
+  premiumHeaderRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 8 },
+  premiumTitle: { color: C.primary, fontWeight: '700', fontSize: 15 },
+  premiumSubtitle: { color: C.mutedForeground, fontSize: 13, lineHeight: 20 },
+  resultContainer: { width: '100%' },
+  errorContainer: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 40, marginTop: 40 },
+  errorTitle: { color: '#fff', fontSize: 20, fontWeight: '800', marginTop: 16 },
+  errorSubtitle: { color: C.subtext, fontSize: 15, textAlign: 'center', marginTop: 8, marginBottom: 32 },
+  retryBtn: { backgroundColor: C.primary, paddingHorizontal: 32, paddingVertical: 14, borderRadius: 20 },
+  retryText: { color: '#fff', fontWeight: '700', fontSize: 16 }
+});
+
+const res = StyleSheet.create({
+  card: { padding: 24, gap: 20 },
+  header: { flexDirection: 'row', alignItems: 'center', gap: 20 },
+  productInfo: { flex: 1, gap: 4 },
+  productName: { fontSize: 22, fontWeight: '800', color: '#fff' },
+  brandName: { fontSize: 15, color: C.mutedForeground },
+  badge: { alignSelf: 'flex-start', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 8 },
+  badgeText: { fontSize: 11, fontWeight: '800' },
+  statsGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 12 },
+  statItem: { width: '47%', padding: 14, backgroundColor: 'rgba(255,255,255,0.05)', borderRadius: 20, alignItems: 'center', gap: 4, borderWidth: 1, borderColor: 'rgba(255,255,255,0.05)' },
+  statValue: { fontSize: 18, fontWeight: '800', color: '#fff' },
+  statLabel: { fontSize: 10, color: C.mutedForeground, textTransform: 'uppercase', letterSpacing: 0.5 },
+  alerts: { gap: 8 },
+  alertItem: { flexDirection: 'row', alignItems: 'center', gap: 8, padding: 12, borderRadius: 12 },
+  alertText: { fontSize: 13, fontWeight: '600' },
+  insightBox: { flexDirection: 'row', gap: 10, padding: 16, backgroundColor: 'rgba(6,182,212,0.1)', borderRadius: 16 },
+  insight: { flex: 1, fontSize: 14, color: '#CBD5E1', lineHeight: 20 },
+  impactSection: { gap: 12 },
+  impactItem: { gap: 4 },
+  impactTitle: { color: C.primary, fontSize: 12, fontWeight: '800', textTransform: 'uppercase' },
+  impactText: { color: '#94A3B8', fontSize: 13, lineHeight: 18 },
+  alts: { gap: 10 },
+  altsTitle: { fontSize: 14, fontWeight: '700', color: '#fff' },
+  altsList: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  altBadge: { paddingHorizontal: 12, paddingVertical: 6, backgroundColor: 'rgba(255,255,255,0.05)', borderRadius: 12, borderWidth: 1, borderColor: 'rgba(255,255,255,0.1)' },
+  altText: { color: C.mutedForeground, fontSize: 12, fontWeight: '600' },
+  reportBtn: { borderRadius: 24, overflow: 'hidden' },
+  reportGradient: { paddingVertical: 18, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 },
+  reportBtnText: { color: '#fff', fontSize: 17, fontWeight: '800' },
+  reset: { alignItems: 'center', padding: 8 },
+  resetText: { color: C.mutedForeground, fontSize: 14, fontWeight: '600' }
 });
