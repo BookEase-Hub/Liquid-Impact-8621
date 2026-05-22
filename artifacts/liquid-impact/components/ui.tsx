@@ -212,6 +212,7 @@ export function statusColor(status: ScanStatus): string {
     case "stable": return "#00B4D8";
     case "risky": return "#FF9800";
     case "damaging": return "#FF3D00";
+    default: return "#94a3b8";
   }
 }
 
@@ -221,6 +222,7 @@ export function statusLabel(status: ScanStatus): string {
     case "stable": return "Stable";
     case "risky": return "Use Less Often";
     case "damaging": return "High Impact";
+    default: return "Unknown";
   }
 }
 

@@ -1,7 +1,28 @@
-export type ScanStatus = "optimal" | "stable" | "risky" | "damaging";
+export type ScanStatus = "optimal" | "stable" | "risky" | "damaging" | "unknown";
 export type GlycemicImpact = "low" | "moderate" | "high" | "very_high";
-export type HealthRole = "positive" | "neutral" | "concerning";
-export type RiskLevel = "low" | "medium" | "high";
+export type HealthRole =
+  | "positive"
+  | "neutral"
+  | "concerning"
+  | "quick-energy"
+  | "alertness"
+  | "zero-calorie"
+  | "antioxidant"
+  | "metabolic-support"
+  | "energy-metabolism"
+  | "liver-support"
+  | "energy"
+  | "immune-support"
+  | "rehydration"
+  | "bone-support"
+  | "muscle-support"
+  | "traditional"
+  | "hydration"
+  | "flavor"
+  | "metabolism-support"
+  | "energy-support"
+  | "gut-health";
+export type RiskLevel = "low" | "medium" | "high" | "moderate";
 export type LiquidCategory =
   | "beverage"
   | "cooking_oil"
@@ -24,6 +45,26 @@ export interface Ingredient {
   riskLevel: RiskLevel;
   description?: string;
   aiNote?: string;
+  source?: string;
+  organic?: boolean;
+  allergen?: boolean;
+}
+
+export type TimeHorizon = 'short' | 'medium' | 'long';
+
+export interface ImpactFluctuation {
+  timestamp: number;
+  value: number;
+  horizon: TimeHorizon;
+}
+
+export interface TimeBasedImpact {
+  current: number;
+  shortTerm: { value: number; trend: 'up' | 'down' | 'stable'; confidence: number };
+  mediumTerm: { value: number; trend: 'up' | 'down' | 'stable'; confidence: number };
+  longTerm: { value: number; trend: 'up' | 'down' | 'stable'; confidence: number };
+  lastUpdated: number;
+  fluctuationHistory: { timestamp: number; value: number; horizon: TimeHorizon }[];
 }
 
 export interface Composition {
