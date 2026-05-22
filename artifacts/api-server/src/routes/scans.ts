@@ -1,14 +1,14 @@
 import { Router } from "express";
 import { eq, desc } from "drizzle-orm";
-import { openai } from "@workspace/integrations-openai-ai-server";
 import { db, scansTable } from "@workspace/db";
 import { verifyAccessToken } from "../middleware/authMiddleware";
+import { analyzeWithIntelligentRouting } from "../services/ai-router";
+import { analysisResponseSchema } from "../services/schema/analysis.schema";
+import { logger } from "../lib/logger";
 
 const router = Router();
 
 // ─── Improved System Prompt ───────────────────────────────────────────────────
-// Multi-stage reasoning embedded in a single GPT-4o call.
-// Emphasises uncertainty handling, alcohol detection, and non-hallucination.
 const ANALYSIS_SYSTEM_PROMPT = `You are an expert liquid analyst and nutritionist. You ONLY analyse what is visually observable in the image — you NEVER fabricate brand names, ingredients, or nutritional data you cannot see or reasonably infer.
 
 REASONING PROTOCOL — follow these stages silently before writing the JSON:
@@ -88,6 +88,7 @@ Soda/cola: 12-32 | Energy drinks: 8-28 | Alcohol: 5-22 | Spirits: 3-15
   "dehydrationRisk": <true for: alcohol, very high caffeine, high sugar; false otherwise>,
   "aiInsight": "<3-4 sentence educational wellness insight. If low confidence: start with 'This appears to be…'. If cooking oil: state it is NOT a drink. Use non-clinical language.>",
   "viralStatement": "<punchy 10-word wellness statement; if uncertain say 'Results based on visual analysis only'>",
+  "tiktokHook": "<Short hook for TikTok/Reels>",
   "alternatives": ["<healthier alternative 1>", "<healthier alternative 2>"],
   "shortTermImpact": {
     "energyResponse": "<estimated energy effect in 1-2h — use 'may' language>",
@@ -122,8 +123,8 @@ Soda/cola: 12-32 | Energy drinks: 8-28 | Alcohol: 5-22 | Spirits: 3-15
       {
         "name": "<ingredient — only include if reasonably confident it is present>",
         "function": "<biological role>",
-        "healthRole": "<positive|neutral|concerning>",
-        "riskLevel": "<low|medium|high>",
+        "healthRole": "<positive|neutral|concerning|quick-energy|alertness|zero-calorie|antioxidant|metabolic-support|energy-metabolism|liver-support|energy|immune-support|rehydration|bone-support|muscle-support|traditional|hydration|flavor|metabolism-support|energy-support|gut-health>",
+        "riskLevel": "<low|medium|high|moderate>",
         "description": "<one educational sentence>",
         "aiNote": "<specific wellness note>"
       }
@@ -140,90 +141,21 @@ router.post("/scans/analyze", async (req, res) => {
       return;
     }
 
-    // 40s timeout on the OpenAI call — fail fast rather than hanging
-    const abortController = new AbortController();
-    const timeoutId = setTimeout(() => abortController.abort(), 40_000);
+    const requestId = `scan_req_${Date.now()}`;
 
-    let content: string;
-    try {
-      const completion = await openai.chat.completions.create(
-        {
-          model: "gpt-4o",
-          messages: [
-            { role: "system", content: ANALYSIS_SYSTEM_PROMPT },
-            {
-              role: "user",
-              content: [
-                {
-                  type: "image_url",
-                  image_url: {
-                    url: `data:image/jpeg;base64,${imageBase64}`,
-                    detail: "high",
-                  },
-                },
-                { type: "text", text: ANALYSIS_USER_PROMPT },
-              ],
-            },
-          ],
-          max_tokens: 2500,
-          temperature: 0.1, // lower = less hallucination
-        },
-        { signal: abortController.signal as AbortSignal },
-      );
-      content = completion.choices[0]?.message?.content ?? "";
-    } finally {
-      clearTimeout(timeoutId);
-    }
+    const result = await analyzeWithIntelligentRouting({
+      imageBase64,
+      systemPrompt: ANALYSIS_SYSTEM_PROMPT,
+      userPrompt: ANALYSIS_USER_PROMPT,
+      schema: analysisResponseSchema,
+      requestId,
+      userId: (req as any).user?.id
+    });
 
-    const jsonMatch = content.match(/\{[\s\S]*\}/);
-    if (!jsonMatch) {
-      req.log.error({ content }, "No JSON found in OpenAI response");
-      res.status(500).json({ error: "Failed to parse AI analysis — please try again" });
-      return;
-    }
-
-    const result = JSON.parse(jsonMatch[0]) as Record<string, unknown>;
-
-    // ── Normalise & set safe defaults ────────────────────────────────────────
-    if (!result.id || typeof result.id !== "string") {
-      result.id = `scan_${Date.now().toString(36)}${Math.random().toString(36).slice(2, 7)}`;
-    }
-    if (!result.liquidType) result.liquidType = "beverage";
-    if (typeof result.confidenceScore !== "number") result.confidenceScore = 0.7;
-    if (typeof result.dehydrationRisk !== "boolean") result.dehydrationRisk = false;
-    if (!Array.isArray(result.alternatives)) result.alternatives = [];
-
-    const comp = result.composition as Record<string, unknown> | undefined;
-    if (comp) {
-      if (typeof comp.sodiumMg !== "number") comp.sodiumMg = 0;
-      if (typeof comp.fatGrams !== "number") comp.fatGrams = 0;
-      if (typeof comp.proteinGrams !== "number") comp.proteinGrams = 0;
-      if (typeof comp.servingSize !== "number") comp.servingSize = 240;
-      if (!comp.servingUnit) comp.servingUnit = "ml";
-      if (typeof comp.artificialSweeteners !== "boolean") comp.artificialSweeteners = false;
-      if (!Array.isArray(comp.additives)) comp.additives = [];
-      if (!Array.isArray(comp.ingredients)) comp.ingredients = [];
-    }
-
-    // ── If confidence is low, make the product name explicitly uncertain ─────
-    const confidence = result.confidenceScore as number;
-    if (confidence < 0.6) {
-      const product = result.detectedProduct as string;
-      if (product && !product.toLowerCase().startsWith("possible") && !product.toLowerCase().startsWith("unidentified")) {
-        result.detectedProduct = `Possible ${product}`;
-      }
-    }
-
-    req.log.info({ id: result.id, confidence, product: result.detectedProduct }, "Scan analysis complete");
-    res.json(result);
-  } catch (err) {
-    if (err instanceof Error && err.name === "AbortError") {
-      req.log.warn("OpenAI analysis timed out");
-      res.status(504).json({ error: "Analysis timed out — please try again with a clearer photo" });
-      return;
-    }
-    req.log.error({ err }, "Failed to analyze scan");
-    res.status(500).json({ error: "Failed to analyze drink image" });
+    res.json(result.response);
+  } catch (err: any) {
+    logger.error({ err }, "Failed to analyze scan");
+    res.status(err.status || 500).json({ error: err.message || "Failed to analyze drink image" });
   }
 });
 
@@ -243,7 +175,7 @@ router.post("/scans/save", async (req, res) => {
   }
 
   try {
-    const scan = req.body as Record<string, unknown>;
+    const scan = req.body as any;
     if (!scan?.id || typeof scan.id !== "string") {
       return res.status(400).json({ error: "scan.id is required" });
     }
@@ -274,10 +206,10 @@ router.post("/scans/save", async (req, res) => {
       })
       .onConflictDoNothing();
 
-    req.log.info({ userId, scanId: scan.id }, "Scan saved to cloud");
+    logger.info({ userId, scanId: scan.id }, "Scan saved to cloud");
     return res.json({ success: true });
   } catch (err) {
-    req.log.error({ err }, "Failed to save scan");
+    logger.error({ err }, "Failed to save scan");
     return res.status(500).json({ error: "Failed to save scan" });
   }
 });
@@ -329,7 +261,7 @@ router.get("/scans", async (req, res) => {
 
     return res.json({ scans });
   } catch (err) {
-    req.log.error({ err }, "Failed to fetch scans");
+    logger.error({ err }, "Failed to fetch scans");
     return res.status(500).json({ error: "Failed to fetch scans" });
   }
 });
