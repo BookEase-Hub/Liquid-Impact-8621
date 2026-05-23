@@ -51,49 +51,29 @@ export interface ProviderResult {
 export const PROVIDER_CONFIGS: Record<AIProvider, ProviderConfig> = {
   gemini: {
     id: 'gemini',
-    priority: 1, // First choice: cheapest acceptable
+    priority: 99, // Disabled — no Gemini API key
     timeoutMs: env.GOOGLE_AI_TIMEOUT_MS,
-    maxRetries: 2,
-    costPerScan: 0.0005, // ~30x cheaper than GPT-4o
+    maxRetries: 0,
+    costPerScan: 0.0005,
     capabilities: {
       vision: true,
       jsonSchema: true,
       streaming: true,
       maxImageSizeMB: 20,
-      supportsConfidence: false, // Gemini doesn't return confidence natively
+      supportsConfidence: false,
       avgLatencyMs: 1200,
     },
-    retryOn: ['rate_limit', 'timeout', 'server_error', 'bad_response'],
-    skipIf: (ctx) => {
-      // Skip for high-complexity scans in quality-first mode
-      if (env.AI_ROUTER_STRATEGY === 'quality-first' && ctx.imageComplexity === 'high') {
-        return true;
-      }
-      // Skip if budget is exhausted and this isn't emergency fallback
-      if (ctx.budgetRemaining < 0.01 && ctx.urgency !== 'high') {
-        return true;
-      }
-      return false;
-    },
-    escalateIf: (ctx, result) => {
-      // Escalate if confidence is low (inferred from response quality)
-      if (result.confidence < env.CONFIDENCE_ESCALATION_THRESHOLD) {
-        return true;
-      }
-      // Escalate for ambiguous beverage classification
-      if (ctx.scanType === 'ambiguous' && !result.parseSuccess) {
-        return true;
-      }
-      return false;
-    },
+    retryOn: [],
+    skipIf: () => true, // Always skip — no Gemini key available
+    escalateIf: () => false,
   },
 
   openai: {
     id: 'openai',
-    priority: 2, // Premium fallback (now gpt-4o-mini)
+    priority: 1, // PRIMARY provider — GPT-4o-mini
     timeoutMs: env.OPENAI_TIMEOUT_MS,
-    maxRetries: 1,
-    costPerScan: 0.0006, // GPT-4o-mini vision estimate is much cheaper than gpt-4o
+    maxRetries: 2,
+    costPerScan: 0.0006,
     capabilities: {
       vision: true,
       jsonSchema: true,
@@ -104,13 +84,10 @@ export const PROVIDER_CONFIGS: Record<AIProvider, ProviderConfig> = {
     },
     retryOn: ['rate_limit', 'timeout', 'server_error'],
     skipIf: (ctx) => {
-      // Skip if budget exhausted
-      if (ctx.budgetRemaining < 0.001) {
-        return true;
-      }
+      if (ctx.budgetRemaining < 0.001) return true;
       return false;
     },
-    escalateIf: () => false, // GPT-4o-mini is currently our top tier in this config
+    escalateIf: () => false,
   },
 
   fallback: {
