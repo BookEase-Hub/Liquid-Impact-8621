@@ -29,8 +29,8 @@ export async function callGemini(options: ProviderCallOptions & { disableLogging
     generationConfig: {
       responseMimeType: 'application/json',
       responseSchema: geminiSchema as any,
-      temperature: 0.1,
-      maxOutputTokens: 2500,
+      temperature: 0.05,
+      maxOutputTokens: 1600,
     },
     // safetySettings: [], // Can be added if needed
   });

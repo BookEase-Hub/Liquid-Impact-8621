@@ -4,9 +4,12 @@ const API_BASE = process.env.EXPO_PUBLIC_DOMAIN
   ? `https://${process.env.EXPO_PUBLIC_DOMAIN}/api`
   : "/api";
 
-const SCAN_TIMEOUT_MS = 45_000; // 45s hard timeout — GPT-4o Vision can be slow
+const SCAN_TIMEOUT_MS = 15_000; // 15s — fast enough for Gemini Flash
 
-export async function analyzeDrink(imageBase64: string): Promise<ScanResult> {
+export async function analyzeDrink(
+  imageBase64: string,
+  productHint?: string,
+): Promise<ScanResult> {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), SCAN_TIMEOUT_MS);
 
@@ -14,7 +17,10 @@ export async function analyzeDrink(imageBase64: string): Promise<ScanResult> {
     const response = await fetch(`${API_BASE}/scans/analyze`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ imageBase64 }),
+      body: JSON.stringify({
+        imageBase64,
+        ...(productHint ? { productHint } : {}),
+      }),
       signal: controller.signal,
     });
 
@@ -27,7 +33,7 @@ export async function analyzeDrink(imageBase64: string): Promise<ScanResult> {
     return { ...data, scannedAt: Date.now() } as ScanResult;
   } catch (e) {
     if (e instanceof Error && e.name === "AbortError") {
-      throw new Error("Analysis timed out — please try again with a clearer photo.");
+      throw new Error("Analysis timed out. Try a clearer photo or use Search mode.");
     }
     throw e;
   } finally {

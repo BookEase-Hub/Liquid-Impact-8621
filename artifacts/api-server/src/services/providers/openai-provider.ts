@@ -1,19 +1,33 @@
-// artifacts/api-server/src/services/providers/openai-provider.ts
-import { openai } from "@workspace/integrations-openai-ai-server";
+import OpenAI from 'openai';
 import { logger } from '../../lib/logger';
 import { ProviderCallOptions, ProviderResponse } from './base';
 import { env } from '../../lib/env';
 
-export async function callOpenAI(options: ProviderCallOptions): Promise<ProviderResponse> {
-  const { imageBase64, systemPrompt, userPrompt, schema, timeoutMs, requestId } = options;
+function getOpenAIClient(): OpenAI {
+  const baseURL = process.env.AI_INTEGRATIONS_OPENAI_BASE_URL;
+  const apiKey = process.env.AI_INTEGRATIONS_OPENAI_API_KEY || process.env.OPENAI_API_KEY;
 
+  if (!apiKey && !baseURL) {
+    throw new Error('No OpenAI credentials. Set OPENAI_API_KEY or AI_INTEGRATIONS_OPENAI_API_KEY.');
+  }
+
+  return new OpenAI({
+    apiKey: apiKey || 'sk-placeholder',
+    ...(baseURL ? { baseURL } : {}),
+  });
+}
+
+export async function callOpenAI(options: ProviderCallOptions): Promise<ProviderResponse> {
+  const { imageBase64, systemPrompt, userPrompt, timeoutMs, requestId } = options;
+
+  const openai = getOpenAIClient();
   const abortController = new AbortController();
   const timeoutId = setTimeout(() => abortController.abort(), timeoutMs);
 
   try {
     logger.debug({ model: env.OPENAI_MODEL, requestId }, 'Calling OpenAI');
 
-    const response = await (openai as any).chat.completions.create({
+    const response = await openai.chat.completions.create({
       model: env.OPENAI_MODEL,
       messages: [
         { role: 'system', content: systemPrompt },
@@ -24,15 +38,15 @@ export async function callOpenAI(options: ProviderCallOptions): Promise<Provider
               type: 'image_url',
               image_url: {
                 url: `data:image/jpeg;base64,${imageBase64}`,
-                detail: 'high',
+                detail: 'low',
               },
             },
             { type: 'text', text: userPrompt },
           ],
         },
       ],
-      temperature: 0.1,
-      max_tokens: 2500,
+      temperature: 0.05,
+      max_tokens: 1600,
       response_format: { type: 'json_object' },
     }, {
       signal: abortController.signal,
@@ -41,9 +55,7 @@ export async function callOpenAI(options: ProviderCallOptions): Promise<Provider
     clearTimeout(timeoutId);
 
     const content = response.choices[0]?.message?.content;
-    if (!content) {
-      throw new Error('Empty response from OpenAI');
-    }
+    if (!content) throw new Error('Empty response from OpenAI');
 
     const parsed = JSON.parse(content);
 
@@ -62,16 +74,9 @@ export async function callOpenAI(options: ProviderCallOptions): Promise<Provider
 
   } catch (error: any) {
     clearTimeout(timeoutId);
-
-    // Normalize OpenAI errors
-    if (error.status === 429) {
-      error.code = 'rate_limit_exceeded';
-    } else if (error.status === 408 || error.name === 'AbortError') {
-      error.code = 'timeout';
-    } else if (error.status >= 500) {
-      error.code = 'server_error';
-    }
-
+    if (error.status === 429) error.code = 'rate_limit_exceeded';
+    else if (error.status === 408 || error.name === 'AbortError') error.code = 'timeout';
+    else if (error.status >= 500) error.code = 'server_error';
     logger.error({ error: error.message, status: error.status, requestId }, 'OpenAI call failed');
     throw error;
   }
