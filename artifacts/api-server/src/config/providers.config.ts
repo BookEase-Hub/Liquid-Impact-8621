@@ -51,9 +51,9 @@ export interface ProviderResult {
 export const PROVIDER_CONFIGS: Record<AIProvider, ProviderConfig> = {
   gemini: {
     id: 'gemini',
-    priority: 99, // Disabled — no Gemini API key
+    priority: 1, // PRIMARY provider — Gemini 2.0 Flash
     timeoutMs: env.GOOGLE_AI_TIMEOUT_MS,
-    maxRetries: 0,
+    maxRetries: 2,
     costPerScan: 0.0005,
     capabilities: {
       vision: true,
@@ -63,16 +63,24 @@ export const PROVIDER_CONFIGS: Record<AIProvider, ProviderConfig> = {
       supportsConfidence: false,
       avgLatencyMs: 1200,
     },
-    retryOn: [],
-    skipIf: () => true, // Always skip — no Gemini key available
-    escalateIf: () => false,
+    retryOn: ['rate_limit', 'timeout', 'server_error', 'bad_response'],
+    skipIf: (ctx) => {
+      if (!env.GOOGLE_AI_API_KEY) return true; // Skip if no key configured
+      if (ctx.budgetRemaining < 0.01 && ctx.urgency !== 'high') return true;
+      return false;
+    },
+    escalateIf: (ctx, result) => {
+      if (result.confidence < env.CONFIDENCE_ESCALATION_THRESHOLD) return true;
+      if (ctx.scanType === 'ambiguous' && !result.parseSuccess) return true;
+      return false;
+    },
   },
 
   openai: {
     id: 'openai',
-    priority: 1, // PRIMARY provider — GPT-4o-mini
+    priority: 2, // Fallback — GPT-4o-mini
     timeoutMs: env.OPENAI_TIMEOUT_MS,
-    maxRetries: 2,
+    maxRetries: 1,
     costPerScan: 0.0006,
     capabilities: {
       vision: true,
