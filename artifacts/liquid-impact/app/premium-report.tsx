@@ -9,15 +9,16 @@ import { LinearGradient } from 'expo-linear-gradient';
 import * as Haptics from 'expo-haptics';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Circle } from 'react-native-svg';
-import type { ScanResult, TimeHorizon, TimeBasedImpact } from '../types';
+import type { ScanResult, TimeHorizon } from '../types';
 import {
   THEME,
   NUTRITION_COLORS,
   GLYCEMIC_COLORS,
   RISK_COLORS,
   STATUS_COLORS,
-  calculateTimeBasedImpact
-} from '../constants/beverages';
+  calculateTimeBasedImpact,
+  type TimeBasedImpact,
+} from '../constants/wellness-theme';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 const AnimatedCircle = Animated.createAnimatedComponent(Circle);
