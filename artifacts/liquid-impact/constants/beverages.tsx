@@ -154,7 +154,7 @@ export const NUTRITION_COLORS = {
 } as const;
 
 export const GLYCEMIC_COLORS: Record<GlycemicImpact, string> = {
-  low: THEME.colors.success, moderate: THEME.colors.warning, high: THEME.colors.error,
+  low: THEME.colors.success, moderate: THEME.colors.warning, high: THEME.colors.error, very_high: '#ef4444',
 };
 
 export const RISK_COLORS: Record<'low' | 'medium' | 'high', string> = {

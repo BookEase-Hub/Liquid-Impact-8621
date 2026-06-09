@@ -4,6 +4,7 @@ import {
   Text,
   TouchableOpacity,
   View,
+  Share,
 } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -107,13 +108,21 @@ export default function ReportScreen() {
 
   return (
     <View style={{ flex: 1, backgroundColor: colors.background }}>
-      {/* Close */}
-      <View style={{ position: "absolute", top: insets.top + 12, right: 20, zIndex: 10 }}>
+      {/* Header buttons */}
+      <View style={{ position: "absolute", top: insets.top + 12, left: 20, right: 20, zIndex: 10, flexDirection: "row", justifyContent: "space-between" }}>
         <TouchableOpacity
           onPress={() => router.back()}
           style={{ width: 38, height: 38, borderRadius: 19, backgroundColor: "rgba(255,255,255,0.1)", justifyContent: "center", alignItems: "center" }}
         >
-          <Ionicons name="close" size={18} color="#fff" />
+          <Ionicons name="chevron-back" size={20} color="#fff" />
+        </TouchableOpacity>
+        <TouchableOpacity
+          onPress={() => Share.share({
+            message: `🥤 Liquid Impact Full Report\n\n${scan.detectedProduct}${scan.brand ? ` by ${scan.brand}` : ''}\nImpact Score: ${scan.impactScore}/100 · ${scan.status.toUpperCase()}\n\nCalories: ${scan.composition.calories} · Sugar: ${scan.composition.sugarGrams}g · Caffeine: ${scan.composition.caffeineMg}mg · Hydration: ${scan.hydrationLevel}%\n\nAI Insight: ${scan.aiInsight}\n\nShort-term: ${scan.shortTermImpact.energyResponse}\nLong-term: ${scan.longTermImpact.healthTrend}\n\nScanned with Liquid Impact`,
+          })}
+          style={{ width: 38, height: 38, borderRadius: 19, backgroundColor: "rgba(255,255,255,0.1)", justifyContent: "center", alignItems: "center" }}
+        >
+          <Ionicons name="share-outline" size={18} color="#fff" />
         </TouchableOpacity>
       </View>
 

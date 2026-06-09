@@ -2,9 +2,10 @@ import React, { useState, useCallback, useRef, useMemo, useEffect } from 'react'
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity,
   Alert, Dimensions, Platform, StatusBar, Animated,
-  Easing, SafeAreaView, TextInput,
+  Easing, SafeAreaView, TextInput, Share,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useRouter } from 'expo-router';
 import { CameraView, CameraType, useCameraPermissions, BarcodeScanningResult } from 'expo-camera';
 import * as ImagePicker from 'expo-image-picker';
 import * as ImageManipulator from 'expo-image-manipulator';
@@ -290,6 +291,7 @@ function ProcessingScreen({ progress, stageIdx }: { progress: number; stageIdx: 
 
 // ─── Results Screen ───────────────────────────────────────────────────────────
 function ResultsScreen({ result, onReset }: { result: ScanResult; onReset: () => void }) {
+  const router = useRouter();
   const statusColor = getStatusColor(result.status);
 
   return (
@@ -300,7 +302,12 @@ function ResultsScreen({ result, onReset }: { result: ScanResult; onReset: () =>
           <Ionicons name="chevron-back" size={24} color="#fff" />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Scan Results</Text>
-        <TouchableOpacity style={styles.backBtn}>
+        <TouchableOpacity
+          style={styles.backBtn}
+          onPress={() => Share.share({
+            message: `🥤 Liquid Impact Scan\n\n${result.detectedProduct}${result.brand ? ` by ${result.brand}` : ''}\nImpact Score: ${result.impactScore}/100 · ${result.status.toUpperCase()}\nCalories: ${result.composition.calories} · Sugar: ${result.composition.sugarGrams}g · Hydration: ${result.hydrationLevel}%\n\n${result.aiInsight}\n\nScanned with Liquid Impact`,
+          })}
+        >
           <Ionicons name="share-outline" size={22} color="#fff" />
         </TouchableOpacity>
       </View>
@@ -380,12 +387,24 @@ function ResultsScreen({ result, onReset }: { result: ScanResult; onReset: () =>
       )}
 
       {/* CTA */}
-      <TouchableOpacity onPress={onReset} activeOpacity={0.85} style={{ marginBottom: 40 }}>
+      <TouchableOpacity
+        onPress={() => router.push({ pathname: '/report', params: { id: result.id } })}
+        activeOpacity={0.85}
+        style={{ marginBottom: 12 }}
+      >
         <LinearGradient colors={[THEME.primary, THEME.secondary]} style={styles.ctaBtn}>
-          <Ionicons name="camera" size={20} color="#fff" />
-          <Text style={styles.ctaText}>Scan Another Drink</Text>
+          <Ionicons name="document-text" size={20} color="#fff" />
+          <Text style={styles.ctaText}>View Full Report</Text>
+          <Ionicons name="arrow-forward" size={18} color="rgba(255,255,255,0.8)" />
         </LinearGradient>
       </TouchableOpacity>
+
+      <TouchableOpacity onPress={onReset} activeOpacity={0.7} style={styles.scanAgainBtn}>
+        <Ionicons name="camera-outline" size={18} color={THEME.textMuted} />
+        <Text style={styles.scanAgainText}>Scan Another Drink</Text>
+      </TouchableOpacity>
+
+      <View style={{ height: 40 }} />
     </ScrollView>
   );
 }
@@ -715,4 +734,6 @@ const styles = StyleSheet.create({
 
   ctaBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10, paddingVertical: 18, borderRadius: 32 },
   ctaText: { color: '#fff', fontSize: 17, fontWeight: '800' },
+  scanAgainBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, paddingVertical: 14 },
+  scanAgainText: { color: 'rgba(255,255,255,0.5)', fontSize: 14, fontWeight: '600' },
 });

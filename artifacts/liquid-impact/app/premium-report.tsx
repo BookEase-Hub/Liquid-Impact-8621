@@ -120,7 +120,7 @@ const NutritionBar: React.FC<NutritionBarProps> = ({
 };
 
 const InfoRow: React.FC<WellnessIndicator> = ({ label, value, status, color, icon, description }) => {
-  const statusColor = status ? GLYCEMIC_COLORS[status] || RISK_COLORS[status] || color : color;
+  const statusColor = status ? (GLYCEMIC_COLORS as Record<string, string>)[status] || (RISK_COLORS as Record<string, string>)[status] || color : color;
 
   return (
     <View style={styles.infoRow}>
@@ -137,7 +137,7 @@ const InfoRow: React.FC<WellnessIndicator> = ({ label, value, status, color, ico
 };
 
 const IngredientItemComponent: React.FC<{ ingredient: IngredientItem; index: number }> = ({ ingredient }) => {
-  const riskColor = RISK_COLORS[ingredient.riskLevel] || THEME.colors.info;
+  const riskColor = (RISK_COLORS as Record<string, string>)[ingredient.riskLevel] || THEME.colors.info;
 
   return (
     <View style={styles.ingredientRow}>
