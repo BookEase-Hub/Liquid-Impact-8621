@@ -4,11 +4,13 @@ const API_BASE = process.env.EXPO_PUBLIC_DOMAIN
   ? `https://${process.env.EXPO_PUBLIC_DOMAIN}/api`
   : "/api";
 
-const SCAN_TIMEOUT_MS = 15_000; // 15s — fast enough for Gemini Flash
+// Client timeout: generous enough for worst-case AI (Gemini 5s + OpenAI 8s + overhead)
+const SCAN_TIMEOUT_MS = 15_000;
 
 export async function analyzeDrink(
   imageBase64: string,
   productHint?: string,
+  barcode?: string,
 ): Promise<ScanResult> {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), SCAN_TIMEOUT_MS);
@@ -20,6 +22,7 @@ export async function analyzeDrink(
       body: JSON.stringify({
         imageBase64,
         ...(productHint ? { productHint } : {}),
+        ...(barcode ? { barcode } : {}),
       }),
       signal: controller.signal,
     });

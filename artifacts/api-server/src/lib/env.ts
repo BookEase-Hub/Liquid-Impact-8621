@@ -5,12 +5,12 @@ export const envSchema = z.object({
   // === AI Providers ===
   OPENAI_API_KEY: z.string().min(1).optional(),
   OPENAI_MODEL: z.string().default('gpt-4o-mini'),
-  OPENAI_TIMEOUT_MS: z.coerce.number().min(1000).max(120000).default(40000),
+  OPENAI_TIMEOUT_MS: z.coerce.number().min(1000).max(120000).default(8000),
   OPENAI_MAX_RETRIES: z.coerce.number().min(0).max(5).default(1),
 
   GOOGLE_AI_API_KEY: z.string().min(1).optional(),
   GOOGLE_AI_MODEL: z.string().default('gemini-2.0-flash'),
-  GOOGLE_AI_TIMEOUT_MS: z.coerce.number().min(1000).max(120000).default(30000),
+  GOOGLE_AI_TIMEOUT_MS: z.coerce.number().min(1000).max(120000).default(5000),
   GOOGLE_AI_DISABLE_LOGGING: z.string().transform(v => v === 'true').default('false'),
 
   // === Router Strategy ===

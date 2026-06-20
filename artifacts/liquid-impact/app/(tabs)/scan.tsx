@@ -189,7 +189,7 @@ function useScanPipeline() {
         throw new Error('Could not process image. Please try again.');
       }
 
-      const aiResult = await analyzeDrink(base64 ?? '', productHint);
+      const aiResult = await analyzeDrink(base64 ?? '', productHint, input.barcode);
 
       // Cache the AI result
       if (cacheKey) storage.set(`cache_${cacheKey}`, JSON.stringify(aiResult));
