@@ -6,10 +6,22 @@ import { analyzeWithIntelligentRouting } from "../services/ai-router";
 import { analysisResponseSchema } from "../services/schema/analysis.schema";
 import { logger } from "../lib/logger";
 import { lookupBeverageByKeywords } from "../services/beverage-cache";
+import {
+  computeImageHash,
+  buildFingerprint,
+  getCachedByImageHash,
+  getCachedByBarcode,
+  getCachedByFingerprint,
+  dbLookupByImageHash,
+  dbLookupByBarcode,
+  dbLookupByFingerprint,
+  saveProduct,
+} from "../services/product-intelligence";
+import { lookupByBarcode as offLookupByBarcode, searchByName as offSearchByName } from "../services/open-food-facts";
 
 const router = Router();
 
-// ─── Optimized System Prompt (shorter = faster LLM response) ─────────────────
+// ─── Optimized System Prompt ──────────────────────────────────────────────────
 const ANALYSIS_SYSTEM_PROMPT = `You are an expert liquid analyst. Analyse ONLY what is visually observable. Never fabricate brand names or nutritional data you cannot see.
 
 VISUAL CLASSIFICATION:
@@ -36,7 +48,7 @@ Rules:
   "id": "scan_<8chars>",
   "detectedProduct": "<name>",
   "brand": "<brand or null>",
-  "category": "<water|juice|soda|coffee|tea|energy|alcohol|spirits|beer|wine|milk|smoothie|sport|other>",
+  "category": "<water|juice|soda|coffee|tea|energy_drink|alcohol|spirits|beer|wine|milk|smoothie|sport|other>",
   "liquidType": "<beverage|cooking_oil|condiment|alcohol|supplement|other>",
   "confidenceScore": <0.0-1.0>,
   "impactScore": <0-100>,
@@ -44,7 +56,7 @@ Rules:
   "glycemicImpact": "<low|moderate|high|very_high>",
   "status": "<optimal|stable|risky|damaging>",
   "dehydrationRisk": <true|false>,
-  "aiInsight": "<3-4 sentence wellness insight>",
+  "aiInsight": "<2-3 sentence wellness insight>",
   "viralStatement": "<punchy 10-word wellness statement>",
   "tiktokHook": "<short hook>",
   "alternatives": ["<alt 1>", "<alt 2>"],
@@ -90,13 +102,15 @@ Rules:
   }
 }`;
 
-// ─── Analyze endpoint ─────────────────────────────────────────────────────────
+// ─── 3-Layer Analyze Endpoint ─────────────────────────────────────────────────
 router.post("/scans/analyze", async (req, res) => {
+  const t0 = Date.now();
   try {
-    const { imageBase64, ocrText, productHint } = req.body as {
+    const { imageBase64, ocrText, productHint, barcode } = req.body as {
       imageBase64?: string;
       ocrText?: string;
       productHint?: string;
+      barcode?: string;
     };
 
     if (!imageBase64 || typeof imageBase64 !== "string") {
@@ -104,30 +118,130 @@ router.post("/scans/analyze", async (req, res) => {
       return;
     }
 
-    // ── Layer 0: Server-side beverage cache (instant, 0ms) ──────────────────
     const searchText = [productHint, ocrText].filter(Boolean).join(" ").trim();
-    if (searchText.length > 2) {
-      const cached = lookupBeverageByKeywords(searchText);
-      if (cached) {
-        logger.info({ productHint, ocrText }, "Cache HIT — returning instant result");
-        res.json(cached);
+    const imageHash = computeImageHash(imageBase64);
+
+    // ══════════════════════════════════════════════════════════════════════════
+    // LAYER 0 — In-memory cache (fastest: <1ms, zero cost)
+    // ══════════════════════════════════════════════════════════════════════════
+
+    const memHit = getCachedByImageHash(imageHash);
+    if (memHit) {
+      logger.info({ ms: Date.now() - t0 }, "L0 HIT: image hash (memory cache)");
+      res.json(memHit);
+      return;
+    }
+
+    if (barcode) {
+      const barcodeMemHit = getCachedByBarcode(barcode);
+      if (barcodeMemHit) {
+        logger.info({ barcode, ms: Date.now() - t0 }, "L0 HIT: barcode (memory cache)");
+        res.json(barcodeMemHit);
         return;
       }
     }
 
-    // ── Layer 1: AI Vision (Gemini → OpenAI fallback) ───────────────────────
-    const requestId = `scan_req_${Date.now()}`;
+    if (searchText.length > 2) {
+      const fingerprintHit = getCachedByFingerprint(buildFingerprint(searchText));
+      if (fingerprintHit) {
+        logger.info({ searchText, ms: Date.now() - t0 }, "L0 HIT: name fingerprint (memory cache)");
+        res.json(fingerprintHit);
+        return;
+      }
 
-    const result = await analyzeWithIntelligentRouting({
+      // Keyword beverage cache (150+ common drinks, instant)
+      const keywordHit = lookupBeverageByKeywords(searchText);
+      if (keywordHit) {
+        logger.info({ searchText, ms: Date.now() - t0 }, "L0 HIT: keyword beverage cache");
+        res.json(keywordHit);
+        return;
+      }
+    }
+
+    // ══════════════════════════════════════════════════════════════════════════
+    // LAYER 1 — PostgreSQL product intelligence DB (fast: 5-20ms, zero AI cost)
+    // ══════════════════════════════════════════════════════════════════════════
+
+    const dbImageHit = await dbLookupByImageHash(imageHash);
+    if (dbImageHit) {
+      logger.info({ ms: Date.now() - t0 }, "L1 HIT: image hash (products DB)");
+      res.json(dbImageHit);
+      return;
+    }
+
+    if (barcode) {
+      const dbBarcodeHit = await dbLookupByBarcode(barcode);
+      if (dbBarcodeHit) {
+        logger.info({ barcode, ms: Date.now() - t0 }, "L1 HIT: barcode (products DB)");
+        res.json(dbBarcodeHit);
+        return;
+      }
+    }
+
+    if (searchText.length > 2) {
+      const dbFingerprintHit = await dbLookupByFingerprint(buildFingerprint(searchText));
+      if (dbFingerprintHit) {
+        logger.info({ searchText, ms: Date.now() - t0 }, "L1 HIT: fingerprint (products DB)");
+        res.json(dbFingerprintHit);
+        return;
+      }
+    }
+
+    // ══════════════════════════════════════════════════════════════════════════
+    // LAYER 2 — Open Food Facts (medium: 200-800ms, zero AI cost)
+    // Barcode lookups → exact match; name search → fuzzy match
+    // ══════════════════════════════════════════════════════════════════════════
+
+    if (barcode) {
+      const offResult = await offLookupByBarcode(barcode);
+      if (offResult) {
+        logger.info({ barcode, ms: Date.now() - t0 }, "L2 HIT: Open Food Facts barcode");
+        await saveProduct(offResult, { imageHash, barcode, source: "openfoodfacts" });
+        res.json(offResult);
+        return;
+      }
+    }
+
+    if (searchText.length > 3) {
+      const offNameResult = await offSearchByName(searchText);
+      if (offNameResult) {
+        logger.info({ searchText, ms: Date.now() - t0 }, "L2 HIT: Open Food Facts name search");
+        await saveProduct(offNameResult, { imageHash, source: "openfoodfacts" });
+        res.json(offNameResult);
+        return;
+      }
+    }
+
+    // ══════════════════════════════════════════════════════════════════════════
+    // LAYER 3 — AI Vision (slowest: 3-15s, costs money — only used when needed)
+    // ══════════════════════════════════════════════════════════════════════════
+
+    const requestId = `scan_req_${Date.now()}`;
+    logger.info({ requestId, hasBarcode: !!barcode, searchText }, "L3: calling AI (no cache hit)");
+
+    const aiResult = await analyzeWithIntelligentRouting({
       imageBase64,
       systemPrompt: ANALYSIS_SYSTEM_PROMPT,
       userPrompt: ANALYSIS_USER_PROMPT,
       schema: analysisResponseSchema,
       requestId,
-      userId: (req as any).user?.id
+      userId: (req as any).user?.id,
     });
 
-    res.json(result.response);
+    // Persist result — future identical scans will hit L0/L1 instead of AI
+    await saveProduct(aiResult.response, {
+      imageHash,
+      barcode: barcode ?? undefined,
+      source: "ai",
+    });
+
+    logger.info({
+      provider: aiResult.provider,
+      ms: Date.now() - t0,
+      product: aiResult.response.detectedProduct,
+    }, "L3 MISS → AI result saved to product DB");
+
+    res.json(aiResult.response);
   } catch (err: any) {
     logger.error({ err }, "Failed to analyze scan");
     res.status(err.status || 500).json({ error: err.message || "Failed to analyze drink image" });

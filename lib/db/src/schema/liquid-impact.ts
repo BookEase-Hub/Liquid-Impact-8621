@@ -8,6 +8,7 @@ import {
   jsonb,
   uuid,
   uniqueIndex,
+  index,
   check,
 } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
@@ -106,3 +107,37 @@ export const insertUserProfileSchema = createInsertSchema(userProfilesTable).omi
 
 export type InsertUserProfile = typeof userProfilesTable.$inferInsert;
 export type UserProfile = typeof userProfilesTable.$inferSelect;
+
+// ── Product Intelligence Database ─────────────────────────────────────────────
+// Stores every AI result permanently so future identical scans skip the AI layer.
+// Source: "ai" | "openfoodfacts" | "cache"
+export const productsTable = pgTable(
+  "products",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    name: text("name").notNull(),
+    brand: text("brand"),
+    barcode: text("barcode"),
+    nameFingerprint: text("name_fingerprint").notNull(),
+    imageHash: text("image_hash"),
+    category: text("category").notNull().default("other"),
+    liquidType: text("liquid_type").notNull().default("beverage"),
+    source: text("source").notNull().default("ai"),
+    impactScore: integer("impact_score").notNull().default(0),
+    hydrationLevel: integer("hydration_level").notNull().default(50),
+    glycemicImpact: text("glycemic_impact").notNull().default("low"),
+    status: text("status").notNull().default("stable"),
+    analysisJson: jsonb("analysis_json").$type<Record<string, unknown>>().notNull(),
+    scanCount: integer("scan_count").notNull().default(1),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at").defaultNow().notNull(),
+  },
+  (t) => [
+    index("products_barcode_idx").on(t.barcode),
+    index("products_fingerprint_idx").on(t.nameFingerprint),
+    index("products_image_hash_idx").on(t.imageHash),
+  ]
+);
+
+export type InsertProduct = typeof productsTable.$inferInsert;
+export type Product = typeof productsTable.$inferSelect;
