@@ -45,7 +45,7 @@ ACCURACY RULES:
 
 STATUS: optimal(80-100) | stable(50-79) | risky(25-49) | damaging(0-24)`;
 
-const USER_PROMPT = `Analyze this food or drink image. Return factual health impact data based on visual identification only.`;
+const USER_PROMPT = `Analyze this food or drink image. Return factual health impact data as JSON based on visual identification only.`;
 
 // ─── 3-Layer Intelligence Analyze Endpoint ───────────────────────────────────
 router.post("/scans/analyze", async (req, res) => {
