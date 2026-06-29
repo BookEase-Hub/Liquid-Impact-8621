@@ -234,7 +234,7 @@ export default function SettingsScreen() {
     try {
       await Share.share({
         message:
-          "I use Liquid Impact to track what I drink 🌊 Check it out! https://liquidimpact.app",
+          "I use Impact to scan my food and drinks for health insights ⚡ Check it out!",
         url: "https://liquidimpact.app",
       });
     } catch {

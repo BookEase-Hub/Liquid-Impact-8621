@@ -21,8 +21,12 @@ export type HealthRole =
   | "flavor"
   | "metabolism-support"
   | "energy-support"
-  | "gut-health";
+  | "gut-health"
+  | "satiety"
+  | "fiber"
+  | "protein";
 export type RiskLevel = "low" | "medium" | "high" | "moderate";
+
 export type LiquidCategory =
   | "beverage"
   | "cooking_oil"
@@ -30,6 +34,27 @@ export type LiquidCategory =
   | "alcohol"
   | "supplement"
   | "other";
+
+export type ConsumableType =
+  | "beverage"
+  | "solid_food"
+  | "mixed_meal"
+  | "snack"
+  | "condiment"
+  | "supplement";
+
+export type ProcessingLevel =
+  | "whole"
+  | "minimally_processed"
+  | "processed"
+  | "ultra_processed";
+
+export type DigestiveLoad = "light" | "moderate" | "heavy";
+export type FiberEstimate = "low" | "medium" | "high";
+export type ProteinQuality = "complete" | "incomplete" | "not_applicable";
+export type BloodSugarTrajectory = "spike" | "sustained" | "gradual" | "crash";
+export type MealTimingRating = "excellent" | "good" | "fair" | "poor";
+
 export type SubscriptionTier =
   | "free"
   | "starter"
@@ -74,11 +99,31 @@ export interface Composition {
   sodiumMg: number;
   fatGrams: number;
   proteinGrams: number;
+  fiberGrams?: number;
+  cholesterolMg?: number;
   servingSize: number;
   servingUnit: string;
   artificialSweeteners: boolean;
   additives: string[];
   ingredients: Ingredient[];
+}
+
+export interface MealTimingFit {
+  breakfast: MealTimingRating;
+  lunch: MealTimingRating;
+  dinner: MealTimingRating;
+  snack: MealTimingRating;
+}
+
+export interface ComponentBreakdown {
+  component: string;
+  percentage: number;
+  impactScore: number;
+}
+
+export interface ServingContext {
+  typicalServing?: string;
+  caloricDensity?: "low" | "medium" | "high";
 }
 
 export interface ShortTermImpact {
@@ -108,6 +153,7 @@ export interface ScanResult {
   brand?: string | null;
   category: string;
   liquidType: LiquidCategory;
+  consumableType?: ConsumableType;
   confidenceScore: number;
   impactScore: number;
   hydrationLevel: number;
@@ -122,6 +168,19 @@ export interface ScanResult {
   longTermImpact: LongTermImpact;
   composition: Composition;
   scannedAt: number;
+
+  satietyScore?: number;
+  digestiveLoad?: DigestiveLoad;
+  nutrientDensity?: number;
+  fiberEstimate?: FiberEstimate;
+  proteinQuality?: ProteinQuality;
+  mealTimingFit?: MealTimingFit;
+  bloodSugarTrajectory?: BloodSugarTrajectory;
+  componentBreakdown?: ComponentBreakdown[];
+  allergenFlags?: string[];
+  processingLevel?: ProcessingLevel;
+  servingContext?: ServingContext;
+  mealType?: "breakfast" | "lunch" | "dinner" | "snack";
 }
 
 export interface DailyMission {

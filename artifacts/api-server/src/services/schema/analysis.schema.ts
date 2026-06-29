@@ -1,7 +1,6 @@
 // artifacts/api-server/src/services/schema/analysis.schema.ts
 import { z } from 'zod';
 
-// Reuse your existing schema - this is your contract
 export const analysisResponseSchema = z.object({
   // === Identification ===
   id: z.string().regex(/^scan_[a-zA-Z0-9]{8,20}$/, "ID must be 'scan_' + 8-20 alphanumeric"),
@@ -11,11 +10,13 @@ export const analysisResponseSchema = z.object({
     'water', 'soda', 'energy_drink', 'tea', 'coffee', 'juice',
     'alcohol', 'sports_drink', 'dairy', 'plant_milk', 'supplement',
     'cooking_oil', 'vinegar', 'syrup', 'extract', 'unknown',
-    'spirits', 'beer', 'wine', 'milk', 'smoothie', 'sport', 'olive_oil', 'vegetable_oil', 'hot_sauce', 'other'
+    'spirits', 'beer', 'wine', 'milk', 'smoothie', 'sport', 'olive_oil', 'vegetable_oil', 'hot_sauce',
+    'solid_food', 'mixed_meal', 'snack', 'condiment', 'other'
   ]),
   liquidType: z.enum(['beverage', 'cooking_oil', 'condiment', 'alcohol', 'supplement', 'other']).default('beverage'),
+  consumableType: z.enum(['beverage', 'solid_food', 'mixed_meal', 'snack', 'condiment', 'supplement']).default('beverage'),
   confidenceScore: z.number().min(0).max(1).describe("Model confidence 0.0-1.0"),
-  isBeverage: z.boolean().describe("True if intended for drinking, false for cooking/condiment").optional(),
+  isBeverage: z.boolean().describe("True if intended for drinking, false for cooking/solid food").optional(),
 
   // === Composition (structured nutrition) ===
   composition: z.object({
@@ -25,13 +26,15 @@ export const analysisResponseSchema = z.object({
     sodiumMg: z.number().min(0).optional(),
     fatGrams: z.number().min(0).optional(),
     proteinGrams: z.number().min(0).optional(),
+    fiberGrams: z.number().min(0).optional(),
+    cholesterolMg: z.number().min(0).optional(),
     additives: z.array(z.string()).default([]),
     artificialSweeteners: z.boolean().default(false),
     servingSize: z.number().min(1),
-    servingUnit: z.enum(['ml', 'fl_oz', 'can', 'bottle', 'packet', 'tbsp', 'g', 'oz', 'cup']).default('ml'),
+    servingUnit: z.enum(['ml', 'fl_oz', 'can', 'bottle', 'packet', 'tbsp', 'g', 'oz', 'cup', 'piece', 'plate', 'bowl']).default('ml'),
     ingredients: z.array(z.object({
       name: z.string(),
-      healthRole: z.enum(['positive', 'neutral', 'concerning', 'negative', 'quick-energy', 'alertness', 'zero-calorie', 'antioxidant', 'metabolic-support', 'energy-metabolism', 'liver-support', 'energy', 'immune-support', 'rehydration', 'bone-support', 'muscle-support', 'traditional', 'hydration', 'flavor', 'metabolism-support', 'energy-support', 'gut-health']),
+      healthRole: z.enum(['positive', 'neutral', 'concerning', 'negative', 'quick-energy', 'alertness', 'zero-calorie', 'antioxidant', 'metabolic-support', 'energy-metabolism', 'liver-support', 'energy', 'immune-support', 'rehydration', 'bone-support', 'muscle-support', 'traditional', 'hydration', 'flavor', 'metabolism-support', 'energy-support', 'gut-health', 'satiety', 'fiber', 'protein']),
       riskLevel: z.enum(['low', 'medium', 'high', 'moderate']),
       function: z.string().optional(),
       description: z.string().optional(),
@@ -46,7 +49,32 @@ export const analysisResponseSchema = z.object({
   hydrationLevel: z.number().min(0).max(100),
   glycemicImpact: z.enum(['low', 'medium', 'high', 'moderate', 'very_high']),
   dehydrationRisk: z.boolean(),
-  alcoholContent: z.number().min(0).optional(), // ABV if applicable
+  alcoholContent: z.number().min(0).optional(),
+
+  // === Food-specific scoring (new — optional for backward compat) ===
+  satietyScore: z.number().min(0).max(100).optional().describe("0-100 how filling is this food"),
+  digestiveLoad: z.enum(['light', 'moderate', 'heavy']).optional(),
+  nutrientDensity: z.number().min(0).max(100).optional().describe("0-100 vitamins/minerals per calorie"),
+  fiberEstimate: z.enum(['low', 'medium', 'high']).optional(),
+  proteinQuality: z.enum(['complete', 'incomplete', 'not_applicable']).optional(),
+  mealTimingFit: z.object({
+    breakfast: z.enum(['excellent', 'good', 'fair', 'poor']),
+    lunch: z.enum(['excellent', 'good', 'fair', 'poor']),
+    dinner: z.enum(['excellent', 'good', 'fair', 'poor']),
+    snack: z.enum(['excellent', 'good', 'fair', 'poor']),
+  }).optional(),
+  bloodSugarTrajectory: z.enum(['spike', 'sustained', 'gradual', 'crash']).optional(),
+  componentBreakdown: z.array(z.object({
+    component: z.string(),
+    percentage: z.number().min(0).max(100),
+    impactScore: z.number().min(0).max(100),
+  })).optional().describe("For mixed meals — component decomposition"),
+  allergenFlags: z.array(z.string()).optional().describe("Common allergens: dairy, gluten, nuts, etc."),
+  processingLevel: z.enum(['whole', 'minimally_processed', 'processed', 'ultra_processed']).optional(),
+  servingContext: z.object({
+    typicalServing: z.string().optional(),
+    caloricDensity: z.enum(['low', 'medium', 'high']).optional(),
+  }).optional(),
 
   // === Time-based impacts (your unique value prop) ===
   shortTermImpact: z.object({
@@ -95,12 +123,10 @@ export const analysisResponseSchema = z.object({
 
 export type AnalysisResponse = z.infer<typeof analysisResponseSchema>;
 
-// Helper: Generate a valid scan ID
 export function generateScanId(): string {
   return `scan_${Math.random().toString(36).substring(2, 10)}`;
 }
 
-// Helper: Validate beverage vs cooking liquid
 export function validateBeverageClassification(response: Partial<AnalysisResponse>): {
   valid: boolean;
   warning?: string;
@@ -118,4 +144,9 @@ export function validateBeverageClassification(response: Partial<AnalysisRespons
   }
 
   return { valid: true };
+}
+
+export function isFood(response: Partial<AnalysisResponse>): boolean {
+  const foodTypes: Array<AnalysisResponse['consumableType']> = ['solid_food', 'mixed_meal', 'snack'];
+  return foodTypes.includes(response.consumableType as any);
 }

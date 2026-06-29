@@ -93,7 +93,7 @@ export default function PrivacyScreen() {
         </Section>
 
         <Section title="7. Children's Privacy">
-          Liquid Impact is not intended for users under 13 years of age. We do not knowingly collect personal information from children under 13.
+          Impact is not intended for users under 13 years of age. We do not knowingly collect personal information from children under 13.
         </Section>
 
         <Section title="8. Cookies and Analytics">
@@ -105,7 +105,7 @@ export default function PrivacyScreen() {
         </Section>
 
         <Section title="10. Contact Us">
-          For privacy-related questions or requests, contact our Data Protection team at: privacy@liquidimpact.app or write to: Liquid Impact Privacy Team, support@liquidimpact.app
+          For privacy-related questions or requests, contact our Data Protection team at: privacy@impact.app or write to: Impact Privacy Team, support@impact.app
         </Section>
       </ScrollView>
     </View>

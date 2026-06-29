@@ -33,10 +33,13 @@ export const SUBSCRIPTION_LIMITS: Record<
 };
 
 const DEFAULT_MISSIONS: DailyMission[] = [
-  { id: "mission_scan3", title: "Scan 3 Drinks", description: "Analyze 3 different drinks today", progress: 0, target: 3, completed: false, icon: "camera", xp: 50 },
+  { id: "mission_scan3", title: "Scan 3 Items", description: "Analyze 3 different foods or drinks today", progress: 0, target: 3, completed: false, icon: "camera", xp: 50 },
   { id: "mission_water", title: "Stay Hydrated", description: "Scan a drink with 70%+ hydration score", progress: 0, target: 1, completed: false, icon: "water", xp: 30 },
-  { id: "mission_healthy", title: "Healthy Choice", description: "Scan a drink scoring 80 or above", progress: 0, target: 1, completed: false, icon: "leaf", xp: 40 },
-  { id: "mission_streak", title: "Keep the Streak", description: "Scan at least one drink today", progress: 0, target: 1, completed: false, icon: "flame", xp: 20 },
+  { id: "mission_healthy", title: "Healthy Choice", description: "Scan a food or drink scoring 80 or above", progress: 0, target: 1, completed: false, icon: "leaf", xp: 40 },
+  { id: "mission_streak", title: "Keep the Streak", description: "Scan at least one item today", progress: 0, target: 1, completed: false, icon: "flame", xp: 20 },
+  { id: "mission_protein", title: "Protein Power", description: "Scan a meal with 20g+ protein", progress: 0, target: 1, completed: false, icon: "barbell", xp: 35 },
+  { id: "mission_whole", title: "Whole Food Win", description: "Scan a whole or minimally processed food", progress: 0, target: 1, completed: false, icon: "nutrition", xp: 45 },
+  { id: "mission_fiber", title: "Fiber Boost", description: "Scan a high-fiber food", progress: 0, target: 1, completed: false, icon: "leaf-outline", xp: 30 },
 ];
 
 type Action =
@@ -69,7 +72,10 @@ function computeStreak(lastScanDate: string | null, currentStreak: number): numb
 
 function resetMissionsIfNeeded(state: AppState): DailyMission[] {
   if (state.lastMissionReset !== TODAY()) return DEFAULT_MISSIONS;
-  return state.missions;
+  // Ensure any new missions added in DEFAULT_MISSIONS are present (migration)
+  const existingIds = new Set(state.missions.map(m => m.id));
+  const missingMissions = DEFAULT_MISSIONS.filter(m => !existingIds.has(m.id));
+  return [...state.missions, ...missingMissions];
 }
 
 function mergeScanArrays(local: ScanResult[], cloud: ScanResult[]): ScanResult[] {
@@ -102,6 +108,7 @@ function reducer(state: AppState, action: Action): AppState {
         const wasYesterday = state.lastScanDate === new Date(Date.now() - 86400000).toDateString();
         newStreak = wasYesterday ? state.streak + 1 : 1;
       }
+      const isFood = scan.consumableType && ['solid_food', 'mixed_meal', 'snack'].includes(scan.consumableType);
       const updatedMissions = state.missions.map((m) => {
         if (m.completed) return m;
         let np = m.progress;
@@ -109,6 +116,9 @@ function reducer(state: AppState, action: Action): AppState {
         if (m.id === "mission_streak") np = 1;
         if (m.id === "mission_water" && scan.hydrationLevel >= 70) np += 1;
         if (m.id === "mission_healthy" && scan.impactScore >= 80) np += 1;
+        if (m.id === "mission_protein" && isFood && (scan.composition?.proteinGrams ?? 0) >= 20) np += 1;
+        if (m.id === "mission_whole" && isFood && (scan.processingLevel === 'whole' || scan.processingLevel === 'minimally_processed')) np += 1;
+        if (m.id === "mission_fiber" && isFood && scan.fiberEstimate === 'high') np += 1;
         return { ...m, progress: Math.min(np, m.target), completed: np >= m.target };
       });
       return {
@@ -164,7 +174,6 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [state, dispatch] = useReducer(reducer, getInitialState());
   const syncedRef = useRef(false);
 
-  // ── Load from AsyncStorage on mount ────────────────────────────────────────
   useEffect(() => {
     AsyncStorage.getItem(STORAGE_KEY).then((raw) => {
       if (raw) {
@@ -181,13 +190,11 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     });
   }, []);
 
-  // ── Persist to AsyncStorage on every state change ──────────────────────────
   useEffect(() => {
     if (state.hasOnboarded === null) return;
     AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(state));
   }, [state]);
 
-  // ── Cloud sync: pull on first load if authenticated ────────────────────────
   const syncFromCloud = useCallback(async () => {
     const accessToken = useAuthStore.getState().accessToken;
     if (!accessToken) return;
@@ -201,7 +208,6 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     }
   }, []);
 
-  // ── Auto-sync from cloud once per session when auth is ready ───────────────
   useEffect(() => {
     if (state.hasOnboarded === null) return;
     if (syncedRef.current) return;
@@ -214,7 +220,6 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const addScan = useCallback(
     (scan: ScanResult) => {
       dispatch({ type: "ADD_SCAN", payload: scan });
-      // Fire-and-forget cloud upload
       const token = useAuthStore.getState().accessToken;
       if (token) {
         uploadScan(scan, token).catch(() => {});
@@ -278,17 +283,20 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const dailyStatus: DailyStatus = (() => {
     const recent = state.scans.slice(0, 5);
     if (recent.length === 0) {
-      return { dehydrationRisk: false, recommendation: "Scan a drink to see your wellness status", hydration: 0, energy: 0, recovery: 0, focus: 0 };
+      return { dehydrationRisk: false, recommendation: "Scan food or a drink to see your wellness status", hydration: 0, energy: 0, recovery: 0, focus: 0 };
     }
-    const avgHyd = Math.round(recent.reduce((s, r) => s + r.hydrationLevel, 0) / recent.length);
+    const beverageScans = recent.filter(s => !s.consumableType || s.consumableType === 'beverage' || s.consumableType === 'supplement');
+    const avgHyd = beverageScans.length > 0
+      ? Math.round(beverageScans.reduce((s, r) => s + r.hydrationLevel, 0) / beverageScans.length)
+      : Math.round(recent.reduce((s, r) => s + r.hydrationLevel, 0) / recent.length);
     const avgImpact = Math.round(recent.reduce((s, r) => s + r.impactScore, 0) / recent.length);
-    const avgCaff = recent.reduce((s, r) => s + r.composition.caffeineMg, 0) / recent.length;
+    const avgCaff = recent.reduce((s, r) => s + (r.composition?.caffeineMg ?? 0), 0) / recent.length;
     const dehydrationRisk = recent.some((s) => s.dehydrationRisk) || avgHyd < 40;
     return {
       dehydrationRisk,
       recommendation: dehydrationRisk
-        ? "⚠️ Your recent drinks may affect hydration. Consider drinking more water."
-        : "✅ Your hydration indicators look good. Keep it up!",
+        ? "⚠️ Your recent choices may affect hydration. Consider drinking more water."
+        : "✅ Your wellness indicators look good. Keep it up!",
       hydration: avgHyd,
       energy: Math.min(100, avgImpact),
       recovery: Math.min(100, Math.max(0, 100 - (avgCaff / 200) * 100)),

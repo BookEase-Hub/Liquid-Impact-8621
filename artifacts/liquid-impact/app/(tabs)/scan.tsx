@@ -305,7 +305,7 @@ function ResultsScreen({ result, onReset }: { result: ScanResult; onReset: () =>
         <TouchableOpacity
           style={styles.backBtn}
           onPress={() => Share.share({
-            message: `🥤 Liquid Impact Scan\n\n${result.detectedProduct}${result.brand ? ` by ${result.brand}` : ''}\nImpact Score: ${result.impactScore}/100 · ${result.status.toUpperCase()}\nCalories: ${result.composition.calories} · Sugar: ${result.composition.sugarGrams}g · Hydration: ${result.hydrationLevel}%\n\n${result.aiInsight}\n\nScanned with Liquid Impact`,
+            message: `⚡ Impact Scan\n\n${result.detectedProduct}${result.brand ? ` by ${result.brand}` : ''}\nImpact Score: ${result.impactScore}/100 · ${result.status.toUpperCase()}\nCalories: ${result.composition.calories} · Sugar: ${result.composition.sugarGrams}g · Hydration: ${result.hydrationLevel}%\n\n${result.aiInsight}\n\nScanned with Impact`,
           })}
         >
           <Ionicons name="share-outline" size={22} color="#fff" />
@@ -401,7 +401,7 @@ function ResultsScreen({ result, onReset }: { result: ScanResult; onReset: () =>
 
       <TouchableOpacity onPress={onReset} activeOpacity={0.7} style={styles.scanAgainBtn}>
         <Ionicons name="camera-outline" size={18} color={THEME.textMuted} />
-        <Text style={styles.scanAgainText}>Scan Another Drink</Text>
+        <Text style={styles.scanAgainText}>Scan Another Item</Text>
       </TouchableOpacity>
 
       <View style={{ height: 40 }} />
@@ -480,7 +480,7 @@ export default function ScanScreen() {
           <Ionicons name="camera" size={40} color="#fff" />
         </LinearGradient>
         <Text style={styles.permTitle}>Camera Access Required</Text>
-        <Text style={styles.permSub}>We need your camera to scan beverage labels and barcodes instantly.</Text>
+        <Text style={styles.permSub}>We need your camera to scan food, drinks, and barcodes instantly.</Text>
         <TouchableOpacity style={styles.permBtn} onPress={requestPermission}>
           <Text style={styles.permBtnText}>Enable Camera</Text>
         </TouchableOpacity>
@@ -576,7 +576,7 @@ export default function ScanScreen() {
             <View style={[styles.corner, styles.bl]} />
             <View style={[styles.corner, styles.br]} />
           </View>
-          <Text style={styles.guideText}>Point at a bottle or barcode</Text>
+          <Text style={styles.guideText}>Point at food, a drink, or a barcode</Text>
         </View>
       )}
 

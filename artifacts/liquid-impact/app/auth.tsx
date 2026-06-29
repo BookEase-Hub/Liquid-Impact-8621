@@ -345,8 +345,8 @@ export default function AuthScreen() {
           <LinearGradient colors={["#00B4D8", "#7B2CBF"]} style={styles.logo}>
             <Ionicons name="water" size={28} color="#fff" />
           </LinearGradient>
-          <Text style={styles.appName}>Liquid Impact</Text>
-          <Text style={styles.tagline}>Your drink, decoded.</Text>
+          <Text style={styles.appName}>Impact</Text>
+          <Text style={styles.tagline}>Food & drinks, decoded.</Text>
         </Animated.View>
 
         {/* Tab toggle */}

@@ -52,6 +52,7 @@ export const scansTable = pgTable("scans", {
   brand: text("brand"),
   category: text("category").notNull(),
   liquidType: text("liquid_type").notNull().default("beverage"),
+  consumableType: text("consumable_type"),
   confidenceScore: real("confidence_score").notNull().default(0.85),
   impactScore: integer("impact_score").notNull(),
   hydrationLevel: integer("hydration_level").notNull(),
@@ -65,6 +66,20 @@ export const scansTable = pgTable("scans", {
   mediumTermImpact: jsonb("medium_term_impact").notNull(),
   longTermImpact: jsonb("long_term_impact").notNull(),
   composition: jsonb("composition").notNull(),
+
+  // Food-specific columns (all nullable for backward compat)
+  satietyScore: integer("satiety_score"),
+  digestiveLoad: text("digestive_load"),
+  nutrientDensity: integer("nutrient_density"),
+  fiberEstimate: text("fiber_estimate"),
+  proteinQuality: text("protein_quality"),
+  mealTimingFit: jsonb("meal_timing_fit"),
+  bloodSugarTrajectory: text("blood_sugar_trajectory"),
+  componentBreakdown: jsonb("component_breakdown"),
+  allergenFlags: jsonb("allergen_flags"),
+  processingLevel: text("processing_level"),
+  mealType: text("meal_type"),
+
   scannedAt: timestamp("scanned_at").defaultNow().notNull(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
@@ -91,6 +106,8 @@ export const userProfilesTable = pgTable(
     longestStreak: integer("longest_streak").notNull().default(0),
     lastScanDate: text("last_scan_date"),
     totalScans: integer("total_scans").notNull().default(0),
+    totalFoodScans: integer("total_food_scans").notNull().default(0),
+    totalDrinkScans: integer("total_drink_scans").notNull().default(0),
     createdAt: timestamp("created_at").defaultNow().notNull(),
     updatedAt: timestamp("updated_at").defaultNow().notNull(),
   },
@@ -109,8 +126,6 @@ export type InsertUserProfile = typeof userProfilesTable.$inferInsert;
 export type UserProfile = typeof userProfilesTable.$inferSelect;
 
 // ── Product Intelligence Database ─────────────────────────────────────────────
-// Stores every AI result permanently so future identical scans skip the AI layer.
-// Source: "ai" | "openfoodfacts" | "cache"
 export const productsTable = pgTable(
   "products",
   {
@@ -122,6 +137,7 @@ export const productsTable = pgTable(
     imageHash: text("image_hash"),
     category: text("category").notNull().default("other"),
     liquidType: text("liquid_type").notNull().default("beverage"),
+    consumableType: text("consumable_type").default("beverage"),
     source: text("source").notNull().default("ai"),
     impactScore: integer("impact_score").notNull().default(0),
     hydrationLevel: integer("hydration_level").notNull().default(50),

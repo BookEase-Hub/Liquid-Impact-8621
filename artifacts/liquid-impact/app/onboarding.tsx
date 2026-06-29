@@ -19,9 +19,9 @@ const { width } = Dimensions.get("window");
 const SLIDES = [
   {
     key: "scan",
-    headline: "Scan any drink.",
+    headline: "Scan any food or drink.",
     subtitle:
-      "AI wellness analysis of energy, blood sugar, metabolism, and long-term health indicators.",
+      "From a glass of water to a full meal — AI health analysis of energy, blood sugar, metabolism, and long-term impact.",
     icon: "camera" as const,
     gradientColors: ["#00B4D8", "#7B2CBF"] as [string, string],
     visual: "camera",
@@ -30,16 +30,16 @@ const SLIDES = [
     key: "metrics",
     headline: "Beyond surface-level metrics.",
     subtitle:
-      "General wellness insights into hydration, glycemic indicators, and nutritional quality of every sip.",
+      "Wellness insights into hydration, satiety, glycemic indicators, nutrient density, and nutritional quality of every bite and sip.",
     icon: "analytics" as const,
     gradientColors: ["#7B2CBF", "#FF6B9D"] as [string, string],
     visual: "metrics",
   },
   {
     key: "timeline",
-    headline: "What may happen inside your body.",
+    headline: "What happens inside your body.",
     subtitle:
-      "Explore estimated short-term, medium-term, and potential long-term wellness considerations from your drinking habits.",
+      "Explore short-term, medium-term, and long-term wellness considerations from your food and drink choices.",
     icon: "time" as const,
     gradientColors: ["#FF6B9D", "#FF9800"] as [string, string],
     visual: "timeline",
@@ -48,7 +48,7 @@ const SLIDES = [
     key: "share",
     headline: "Built for everyday life.",
     subtitle:
-      "Share insights, get smart alternatives, and track your wellness progress over time.",
+      "Share insights, discover healthier alternatives, and track your wellness journey over time.",
     icon: "share-social" as const,
     gradientColors: ["#FF9800", "#00C853"] as [string, string],
     visual: "share",
@@ -57,7 +57,7 @@ const SLIDES = [
     key: "disclaimer",
     headline: "Your wellness, your call.",
     subtitle:
-      "Liquid Impact helps you make informed choices — but always listen to your body and your doctor.",
+      "Impact helps you make informed choices — but always listen to your body and your doctor.",
     icon: "shield-checkmark" as const,
     gradientColors: ["#00C853", "#00B4D8"] as [string, string],
     visual: "disclaimer",
@@ -137,7 +137,7 @@ function SlideVisual({ type, gradientColors }: { type: string; gradientColors: [
         <View style={{ flexDirection: "row", gap: 10, alignItems: "flex-start" }}>
           <Ionicons name="information-circle" size={18} color={gradientColors[0]} style={{ marginTop: 1 }} />
           <Text style={{ flex: 1, color: colors.subtext, fontSize: 13, lineHeight: 20 }}>
-            Liquid Impact is for{" "}
+            Impact is for{" "}
             <Text style={{ color: colors.foreground, fontWeight: "700" }}>general wellness and educational purposes only</Text>.
             It does not provide medical advice, diagnosis, or treatment.
           </Text>

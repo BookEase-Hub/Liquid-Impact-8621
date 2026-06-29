@@ -493,7 +493,7 @@ const LiquidImpactScanScreen: React.FC<LiquidImpactScanScreenProps> = ({ route, 
           {longTermEffects.map((effect, index) => <EffectBullet key={index} effect={effect} index={index} />)}
         </GlassCard>
         <View style={styles.disclaimer}>
-          <Text style={styles.disclaimerText}>Liquid Impact is for informational purposes only and does not constitute medical advice.</Text>
+          <Text style={styles.disclaimerText}>Impact is for informational purposes only and does not constitute medical advice.</Text>
         </View>
       </ScrollView>
     </View>

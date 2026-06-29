@@ -1,0 +1,1 @@
+- [Food pivot decisions](food-pivot.md) — Impact pivoted from drinks-only to all food+drinks; key schema/routing decisions recorded.

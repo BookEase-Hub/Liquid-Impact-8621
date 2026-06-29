@@ -105,6 +105,8 @@ export default function ReportScreen() {
   const tabColor = TAB_LABELS.find((t) => t.key === activeTab)?.color ?? colors.primary;
 
   const isNonBeverage = scan.liquidType && !["beverage", "alcohol", "supplement"].includes(scan.liquidType);
+  const isFood = scan.consumableType && ["solid_food", "mixed_meal", "snack"].includes(scan.consumableType);
+  const isMixedMeal = scan.consumableType === "mixed_meal";
 
   return (
     <View style={{ flex: 1, backgroundColor: colors.background }}>
@@ -118,7 +120,7 @@ export default function ReportScreen() {
         </TouchableOpacity>
         <TouchableOpacity
           onPress={() => Share.share({
-            message: `🥤 Liquid Impact Full Report\n\n${scan.detectedProduct}${scan.brand ? ` by ${scan.brand}` : ''}\nImpact Score: ${scan.impactScore}/100 · ${scan.status.toUpperCase()}\n\nCalories: ${scan.composition.calories} · Sugar: ${scan.composition.sugarGrams}g · Caffeine: ${scan.composition.caffeineMg}mg · Hydration: ${scan.hydrationLevel}%\n\nAI Insight: ${scan.aiInsight}\n\nShort-term: ${scan.shortTermImpact.energyResponse}\nLong-term: ${scan.longTermImpact.healthTrend}\n\nScanned with Liquid Impact`,
+            message: `⚡ Impact Analysis\n\n${scan.detectedProduct}${scan.brand ? ` by ${scan.brand}` : ''}\nImpact Score: ${scan.impactScore}/100 · ${scan.status.toUpperCase()}\n\nCalories: ${scan.composition.calories} · Sugar: ${scan.composition.sugarGrams}g · Caffeine: ${scan.composition.caffeineMg}mg\n\nAI Insight: ${scan.aiInsight}\n\nShort-term: ${scan.shortTermImpact.energyResponse}\nLong-term: ${scan.longTermImpact.healthTrend}\n\nScanned with Impact`,
           })}
           style={{ width: 38, height: 38, borderRadius: 19, backgroundColor: "rgba(255,255,255,0.1)", justifyContent: "center", alignItems: "center" }}
         >
@@ -203,25 +205,179 @@ export default function ReportScreen() {
             Body Impact Indicators
           </Text>
           <View style={{ flexDirection: "row", justifyContent: "space-around" }}>
-            <BodyRing value={scan.hydrationLevel} label="Hydration" icon="water" color={colors.primary} />
+            {isFood && scan.satietyScore !== undefined ? (
+              <BodyRing value={scan.satietyScore} label="Satiety" icon="restaurant" color="#FF9800" />
+            ) : (
+              <BodyRing value={scan.hydrationLevel} label="Hydration" icon="water" color={colors.primary} />
+            )}
             <BodyRing value={scan.impactScore} label="Impact" icon="sparkles" color={colors.secondary} />
-            <BodyRing
-              value={scan.glycemicImpact === "low" ? 20 : scan.glycemicImpact === "moderate" ? 50 : scan.glycemicImpact === "high" ? 80 : 95}
-              label="Glycemic"
-              icon="flash"
-              color={scan.glycemicImpact === "low" ? colors.scoreHigh : scan.glycemicImpact === "moderate" ? colors.scoreMedium : colors.scoreLow}
-            />
+            {isFood && scan.nutrientDensity !== undefined ? (
+              <BodyRing value={scan.nutrientDensity} label="Nutrients" icon="nutrition" color={colors.scoreHigh} />
+            ) : (
+              <BodyRing
+                value={scan.glycemicImpact === "low" ? 20 : scan.glycemicImpact === "moderate" ? 50 : scan.glycemicImpact === "high" ? 80 : 95}
+                label="Glycemic"
+                icon="flash"
+                color={scan.glycemicImpact === "low" ? colors.scoreHigh : scan.glycemicImpact === "moderate" ? colors.scoreMedium : colors.scoreLow}
+              />
+            )}
             <BodyRing
               value={scan.dehydrationRisk ? 75 : 15}
-              label="Dehyd Risk"
-              icon="warning"
-              color={scan.dehydrationRisk ? colors.danger : colors.scoreHigh}
+              label={isFood ? "Digestive" : "Dehyd Risk"}
+              icon={isFood ? "fitness" : "warning"}
+              color={isFood
+                ? (scan.digestiveLoad === "heavy" ? colors.danger : scan.digestiveLoad === "moderate" ? colors.scoreMedium : colors.scoreHigh)
+                : (scan.dehydrationRisk ? colors.danger : colors.scoreHigh)}
             />
           </View>
           <Text style={{ color: colors.mutedForeground, fontSize: 10, textAlign: "center", marginTop: 12, fontStyle: "italic" }}>
             Indicators are estimates based on image analysis, not clinical measurements.
           </Text>
         </GlassCard>
+
+        {/* ── Food-specific sections ── */}
+
+        {/* Processing Level + Allergen Flags */}
+        {isFood && scan.processingLevel && (
+          <GlassCard>
+            <Text style={{ color: colors.foreground, fontSize: 15, fontWeight: "700", fontFamily: "Inter_700Bold", marginBottom: 14 }}>
+              Food Quality
+            </Text>
+            {/* Processing level bar */}
+            <View style={{ marginBottom: 14 }}>
+              <View style={{ flexDirection: "row", justifyContent: "space-between", marginBottom: 6 }}>
+                <Text style={{ color: colors.subtext, fontSize: 13 }}>Processing Level</Text>
+                <Text style={{ color: scan.processingLevel === "whole" ? colors.scoreHigh : scan.processingLevel === "minimally_processed" ? "#8BC34A" : scan.processingLevel === "processed" ? colors.scoreMedium : colors.scoreLow, fontSize: 13, fontWeight: "700", textTransform: "capitalize" }}>
+                  {scan.processingLevel.replace(/_/g, " ")}
+                </Text>
+              </View>
+              <View style={{ flexDirection: "row", gap: 4 }}>
+                {["whole", "minimally_processed", "processed", "ultra_processed"].map((level, i) => {
+                  const levels = ["whole", "minimally_processed", "processed", "ultra_processed"];
+                  const idx = levels.indexOf(scan.processingLevel ?? "");
+                  const active = i <= idx;
+                  const c = i === 0 ? colors.scoreHigh : i === 1 ? "#8BC34A" : i === 2 ? colors.scoreMedium : colors.scoreLow;
+                  return <View key={level} style={{ flex: 1, height: 6, borderRadius: 3, backgroundColor: active ? c : colors.backgroundTertiary }} />;
+                })}
+              </View>
+              <View style={{ flexDirection: "row", justifyContent: "space-between", marginTop: 4 }}>
+                <Text style={{ color: colors.mutedForeground, fontSize: 9 }}>Whole</Text>
+                <Text style={{ color: colors.mutedForeground, fontSize: 9 }}>Ultra-processed</Text>
+              </View>
+            </View>
+            {/* Food-specific stats */}
+            <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
+              {scan.fiberEstimate && (
+                <View style={{ paddingHorizontal: 10, paddingVertical: 5, borderRadius: 10, backgroundColor: `${colors.scoreHigh}14`, borderWidth: 1, borderColor: `${colors.scoreHigh}25` }}>
+                  <Text style={{ color: colors.scoreHigh, fontSize: 12, fontWeight: "700" }}>Fiber: {scan.fiberEstimate}</Text>
+                </View>
+              )}
+              {scan.proteinQuality && scan.proteinQuality !== "not_applicable" && (
+                <View style={{ paddingHorizontal: 10, paddingVertical: 5, borderRadius: 10, backgroundColor: `${colors.primary}14`, borderWidth: 1, borderColor: `${colors.primary}25` }}>
+                  <Text style={{ color: colors.primary, fontSize: 12, fontWeight: "700" }}>Protein: {scan.proteinQuality}</Text>
+                </View>
+              )}
+              {scan.digestiveLoad && (
+                <View style={{ paddingHorizontal: 10, paddingVertical: 5, borderRadius: 10, backgroundColor: colors.backgroundTertiary, borderWidth: 1, borderColor: colors.border }}>
+                  <Text style={{ color: colors.subtext, fontSize: 12, fontWeight: "600" }}>Digestive: {scan.digestiveLoad}</Text>
+                </View>
+              )}
+            </View>
+            {/* Allergen flags */}
+            {scan.allergenFlags && scan.allergenFlags.length > 0 && (
+              <View style={{ marginTop: 12, gap: 8 }}>
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+                  <Ionicons name="warning" size={14} color={colors.scoreLow} />
+                  <Text style={{ color: colors.foreground, fontSize: 13, fontWeight: "700" }}>Allergen Flags</Text>
+                </View>
+                <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 6 }}>
+                  {scan.allergenFlags.map((flag: string, i: number) => (
+                    <View key={i} style={{ paddingHorizontal: 10, paddingVertical: 4, borderRadius: 8, backgroundColor: `${colors.scoreLow}14`, borderWidth: 1, borderColor: `${colors.scoreLow}30` }}>
+                      <Text style={{ color: colors.scoreLow, fontSize: 11, fontWeight: "700", textTransform: "capitalize" }}>{flag}</Text>
+                    </View>
+                  ))}
+                </View>
+              </View>
+            )}
+          </GlassCard>
+        )}
+
+        {/* Meal Timing Fit */}
+        {isFood && scan.mealTimingFit && (
+          <GlassCard>
+            <Text style={{ color: colors.foreground, fontSize: 15, fontWeight: "700", fontFamily: "Inter_700Bold", marginBottom: 14 }}>
+              Best Time to Eat
+            </Text>
+            <View style={{ flexDirection: "row", gap: 8 }}>
+              {(["breakfast", "lunch", "dinner", "snack"] as const).map((meal) => {
+                const fit = scan.mealTimingFit?.[meal] ?? "fair";
+                const fitColor = fit === "excellent" ? colors.scoreHigh : fit === "good" ? "#8BC34A" : fit === "fair" ? colors.scoreMedium : colors.scoreLow;
+                const mealIcon = meal === "breakfast" ? "sunny" : meal === "lunch" ? "partly-sunny" : meal === "dinner" ? "moon" : "cafe";
+                return (
+                  <View key={meal} style={{ flex: 1, alignItems: "center", gap: 6, padding: 10, borderRadius: 14, backgroundColor: `${fitColor}12`, borderWidth: 1, borderColor: `${fitColor}25` }}>
+                    <Ionicons name={mealIcon as any} size={18} color={fitColor} />
+                    <Text style={{ color: colors.foreground, fontSize: 10, fontWeight: "700", textTransform: "capitalize" }}>{meal}</Text>
+                    <Text style={{ color: fitColor, fontSize: 9, fontWeight: "700", textTransform: "capitalize" }}>{fit}</Text>
+                  </View>
+                );
+              })}
+            </View>
+          </GlassCard>
+        )}
+
+        {/* Blood Sugar Trajectory */}
+        {isFood && scan.bloodSugarTrajectory && (
+          <GlassCard>
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 12 }}>
+              <Ionicons name="analytics" size={16} color={colors.primary} />
+              <Text style={{ color: colors.foreground, fontSize: 15, fontWeight: "700", fontFamily: "Inter_700Bold" }}>Blood Sugar Trajectory</Text>
+            </View>
+            {(() => {
+              const t = scan.bloodSugarTrajectory;
+              const tColor = t === "spike" ? colors.scoreLow : t === "crash" ? colors.danger : t === "sustained" ? colors.scoreHigh : colors.scoreMedium;
+              const tIcon = t === "spike" ? "trending-up" : t === "crash" ? "trending-down" : t === "sustained" ? "remove" : "pulse";
+              const tDesc = t === "spike" ? "Rapid blood sugar rise — expect energy peak then crash" : t === "crash" ? "May cause blood sugar dip and fatigue" : t === "sustained" ? "Steady energy release — good for focus" : "Gradual, gentle blood sugar response";
+              return (
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 12, padding: 12, borderRadius: 12, backgroundColor: `${tColor}12`, borderWidth: 1, borderColor: `${tColor}25` }}>
+                  <Ionicons name={tIcon as any} size={28} color={tColor} />
+                  <View style={{ flex: 1 }}>
+                    <Text style={{ color: tColor, fontSize: 14, fontWeight: "800", textTransform: "capitalize" }}>{t}</Text>
+                    <Text style={{ color: colors.subtext, fontSize: 12, marginTop: 3, lineHeight: 16 }}>{tDesc}</Text>
+                  </View>
+                </View>
+              );
+            })()}
+          </GlassCard>
+        )}
+
+        {/* Mixed Meal Component Breakdown */}
+        {isMixedMeal && scan.componentBreakdown && scan.componentBreakdown.length > 0 && (
+          <GlassCard>
+            <Text style={{ color: colors.foreground, fontSize: 15, fontWeight: "700", fontFamily: "Inter_700Bold", marginBottom: 14 }}>
+              Meal Components
+            </Text>
+            {/* Stacked bar */}
+            <View style={{ flexDirection: "row", height: 10, borderRadius: 5, overflow: "hidden", marginBottom: 14 }}>
+              {scan.componentBreakdown.map((c: any, i: number) => {
+                const barColors = [colors.primary, colors.secondary, colors.scoreHigh, colors.scoreMedium, colors.scoreLow];
+                return <View key={i} style={{ flex: c.percentage, backgroundColor: barColors[i % barColors.length] }} />;
+              })}
+            </View>
+            {scan.componentBreakdown.map((c: any, i: number) => {
+              const barColors = [colors.primary, colors.secondary, colors.scoreHigh, colors.scoreMedium, colors.scoreLow];
+              return (
+                <View key={i} style={{ flexDirection: "row", alignItems: "center", gap: 10, paddingVertical: 7, borderBottomWidth: i < scan.componentBreakdown!.length - 1 ? 1 : 0, borderBottomColor: colors.border }}>
+                  <View style={{ width: 10, height: 10, borderRadius: 5, backgroundColor: barColors[i % barColors.length] }} />
+                  <Text style={{ color: colors.foreground, fontSize: 13, fontWeight: "600", flex: 1 }}>{c.component}</Text>
+                  <Text style={{ color: colors.mutedForeground, fontSize: 12 }}>{c.percentage}%</Text>
+                  <View style={{ paddingHorizontal: 8, paddingVertical: 2, borderRadius: 6, backgroundColor: colors.backgroundTertiary }}>
+                    <Text style={{ color: c.impactScore >= 70 ? colors.scoreHigh : c.impactScore >= 40 ? colors.scoreMedium : colors.scoreLow, fontSize: 11, fontWeight: "700" }}>{c.impactScore}</Text>
+                  </View>
+                </View>
+              );
+            })}
+          </GlassCard>
+        )}
 
         {/* AI Insight */}
         <GlassCard>

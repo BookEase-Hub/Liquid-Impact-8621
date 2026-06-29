@@ -22,19 +22,30 @@ import { lookupByBarcode as offLookupByBarcode, searchByName as offSearchByName 
 const router = Router();
 
 // ─── Optimized prompts — short = fast (schema enforces output structure) ───────
-// Gemini's responseSchema already constrains output fields/types, so we only need
-// ANALYSIS GUIDANCE here, not a full JSON template. ~80% fewer prompt tokens.
-const SYSTEM_PROMPT = `Expert beverage health analyst. Analyze only what is visually observable.
-IDENTIFY: Container type, color, carbonation, label text, brand logo.
-BRAND: Include ONLY if text is clearly readable on label. Otherwise null.
-CONFIDENCE < 0.7: Prefix detectedProduct with "Possible ".
-NON-BEVERAGE: Cooking oil or condiment → liquidType="cooking_oil", category="cooking_oil".
-ALCOHOL: Clear liquid in spirit bottle=spirits | dark carbonated can=cola or beer | slim energy can=energy_drink.
-IMPACT SCALE: water=95+ | tea=85 | coffee=72 | juice=62 | sports=52 | soda=25 | energy=18 | alcohol=15
-STATUS: optimal(80-100) | stable(50-79) | risky(25-49) | damaging(0-24)
-ACCURACY: Never fabricate nutrition values. Use visible label data. Use typical values for well-known brands.`;
+// Gemini's responseSchema constrains output fields/types. Only ANALYSIS GUIDANCE
+// is needed here, not a full JSON template. ~80% fewer tokens = faster response.
+const SYSTEM_PROMPT = `Expert food and drink health analyst. Analyze any food, meal, or beverage.
 
-const USER_PROMPT = `Analyze this drink image. Return factual health impact data based on visual identification only.`;
+STEP 1 — CLASSIFY:
+consumableType: beverage | solid_food | mixed_meal | snack | condiment | supplement
+
+STEP 2 — ANALYZE by type:
+BEVERAGES: hydration, glycemic, caffeine, alcohol. Scale: water=95+ | tea=85 | coffee=72 | juice=62 | sports=52 | soda=25 | energy=18 | alcohol=15
+SOLID FOOD/SNACKS: satiety(0-100), digestiveLoad, nutrientDensity(0-100), fiberEstimate, proteinQuality, processingLevel, allergenFlags, bloodSugarTrajectory, mealTimingFit.
+  Scale: leafy greens/whole=85+ | lean protein=78 | complex carbs=70 | processed snack=40 | fast food=30 | ultra-processed=20
+MIXED MEALS: decompose into componentBreakdown array (component, percentage, impactScore).
+
+ACCURACY RULES:
+- Brand: include ONLY if label text is clearly readable. Otherwise null.
+- Confidence < 0.7: prefix detectedProduct with "Possible ".
+- Cooking oil/condiment → liquidType="cooking_oil", consumableType="condiment".
+- Alcohol: spirit bottle + clear = spirits | dark carbonated can = beer | slim tall can = energy_drink.
+- NEVER fabricate specific nutrition numbers. Use visible label data or well-known brand values.
+- processingLevel: whole → minimally_processed → processed → ultra_processed.
+
+STATUS: optimal(80-100) | stable(50-79) | risky(25-49) | damaging(0-24)`;
+
+const USER_PROMPT = `Analyze this food or drink image. Return factual health impact data based on visual identification only.`;
 
 // ─── 3-Layer Intelligence Analyze Endpoint ───────────────────────────────────
 router.post("/scans/analyze", async (req, res) => {
@@ -192,6 +203,7 @@ router.post("/scans/save", async (req, res) => {
         brand: (scan.brand as string | null) ?? null,
         category: (scan.category as string) ?? "other",
         liquidType: (scan.liquidType as string) ?? "beverage",
+        consumableType: (scan.consumableType as string | null) ?? null,
         confidenceScore: (scan.confidenceScore as number) ?? 0.7,
         impactScore: (scan.impactScore as number) ?? 0,
         hydrationLevel: (scan.hydrationLevel as number) ?? 0,
@@ -206,6 +218,17 @@ router.post("/scans/save", async (req, res) => {
         longTermImpact: scan.longTermImpact as object,
         composition: scan.composition as object,
         scannedAt: scan.scannedAt ? new Date(scan.scannedAt as number) : new Date(),
+        satietyScore: (scan.satietyScore as number | null) ?? null,
+        digestiveLoad: (scan.digestiveLoad as string | null) ?? null,
+        nutrientDensity: (scan.nutrientDensity as number | null) ?? null,
+        fiberEstimate: (scan.fiberEstimate as string | null) ?? null,
+        proteinQuality: (scan.proteinQuality as string | null) ?? null,
+        mealTimingFit: scan.mealTimingFit ? scan.mealTimingFit as object : null,
+        bloodSugarTrajectory: (scan.bloodSugarTrajectory as string | null) ?? null,
+        componentBreakdown: scan.componentBreakdown ? scan.componentBreakdown as object : null,
+        allergenFlags: scan.allergenFlags ? scan.allergenFlags as string[] : null,
+        processingLevel: (scan.processingLevel as string | null) ?? null,
+        mealType: (scan.mealType as string | null) ?? null,
       })
       .onConflictDoNothing();
 
@@ -246,6 +269,7 @@ router.get("/scans", async (req, res) => {
       brand: r.brand,
       category: r.category,
       liquidType: r.liquidType,
+      consumableType: r.consumableType,
       confidenceScore: r.confidenceScore,
       impactScore: r.impactScore,
       hydrationLevel: r.hydrationLevel,
@@ -260,6 +284,17 @@ router.get("/scans", async (req, res) => {
       longTermImpact: r.longTermImpact,
       composition: r.composition,
       scannedAt: r.scannedAt.getTime(),
+      satietyScore: r.satietyScore,
+      digestiveLoad: r.digestiveLoad,
+      nutrientDensity: r.nutrientDensity,
+      fiberEstimate: r.fiberEstimate,
+      proteinQuality: r.proteinQuality,
+      mealTimingFit: r.mealTimingFit,
+      bloodSugarTrajectory: r.bloodSugarTrajectory,
+      componentBreakdown: r.componentBreakdown,
+      allergenFlags: r.allergenFlags,
+      processingLevel: r.processingLevel,
+      mealType: r.mealType,
     }));
 
     return res.json({ scans });

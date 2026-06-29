@@ -60,7 +60,7 @@ export default function HomeScreen() {
   const impactStories = (() => {
     const stories = [];
     if (state.scans.length === 0) {
-      stories.push({ icon: "camera" as const, iconColor: colors.primary, title: "Start Scanning", message: "Scan your first drink to unlock AI-powered health insights." });
+      stories.push({ icon: "camera" as const, iconColor: colors.primary, title: "Start Scanning", message: "Scan your first food or drink to unlock AI-powered health insights." });
     }
     if (dailyStatus.dehydrationRisk) {
       stories.push({ icon: "warning" as const, iconColor: colors.danger, title: "Dehydration Alert", message: "Your recent drinks may cause dehydration. Drink more water!" });
@@ -77,7 +77,7 @@ export default function HomeScreen() {
       stories.push({ icon: "checkmark-circle" as const, iconColor: colors.scoreHigh, title: "Great Choices!", message: `${goodDrinks} of your recent drinks scored 80+. Your body thanks you!` });
     }
     if (stories.length < 2) {
-      stories.push({ icon: "sparkles" as const, iconColor: colors.secondary, title: "AI Health Intelligence", message: "Scan drinks to get short, medium, and long-term health impact analysis." });
+      stories.push({ icon: "sparkles" as const, iconColor: colors.secondary, title: "AI Health Intelligence", message: "Scan food or drinks to get short, medium, and long-term health impact analysis." });
     }
     return stories.slice(0, 2);
   })();
@@ -103,7 +103,7 @@ export default function HomeScreen() {
               {getGreeting()}
             </Text>
             <Text style={{ color: colors.foreground, fontSize: 26, fontWeight: "800", fontFamily: "Inter_700Bold", marginTop: 2 }}>
-              Liquid Impact
+              Impact
             </Text>
           </View>
           <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>

@@ -1489,7 +1489,7 @@ const LiquidImpactScanScreen: React.FC<LiquidImpactScanScreenProps> = ({ route, 
         </Animated.View>
 
         <View style={styles.disclaimer}>
-          <Text style={styles.disclaimerText}>Liquid Impact is for informational and general wellness purposes only and does not constitute medical advice.</Text>
+          <Text style={styles.disclaimerText}>Impact is for informational and general wellness purposes only and does not constitute medical advice.</Text>
         </View>
       </ScrollView>
     </View>

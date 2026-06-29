@@ -1,11 +1,11 @@
 {
   "expo": {
-    "name": "Liquid Impact",
+    "name": "Impact",
     "slug": "liquid-impact",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
-    "scheme": "liquidimpact",
+    "scheme": "impact",
     "userInterfaceStyle": "dark",
     "newArchEnabled": true,
     "splash": {
@@ -15,15 +15,15 @@
     },
     "ios": {
       "supportsTablet": false,
-      "bundleIdentifier": "com.liquidimpact.app",
+      "bundleIdentifier": "com.impact.app",
       "infoPlist": {
-        "NSCameraUsageDescription": "Liquid Impact needs camera access to scan your drinks and analyze their health impact.",
-        "NSPhotoLibraryUsageDescription": "Liquid Impact needs photo library access so you can choose an existing photo of your drink to scan.",
-        "NSPhotoLibraryAddUsageDescription": "Liquid Impact saves scanned drink images to your photo library."
+        "NSCameraUsageDescription": "Impact needs camera access to scan your food and drinks and analyze their health impact.",
+        "NSPhotoLibraryUsageDescription": "Impact needs photo library access so you can choose an existing photo of your food or drink to scan.",
+        "NSPhotoLibraryAddUsageDescription": "Impact saves scanned images to your photo library."
       }
     },
     "android": {
-      "package": "com.liquidimpact.app",
+      "package": "com.impact.app",
       "permissions": [
         "android.permission.CAMERA",
         "android.permission.READ_EXTERNAL_STORAGE",
@@ -49,8 +49,8 @@
       [
         "expo-image-picker",
         {
-          "photosPermission": "Liquid Impact needs photo library access so you can choose an existing photo of your drink to scan.",
-          "cameraPermission": "Liquid Impact needs camera access to scan your drinks and analyze their health impact."
+          "photosPermission": "Impact needs photo library access so you can choose an existing photo of your food or drink to scan.",
+          "cameraPermission": "Impact needs camera access to scan your food and drinks and analyze their health impact."
         }
       ],
       "expo-secure-store",

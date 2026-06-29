@@ -1,0 +1,427 @@
+# 🚀 Comprehensive Pivot Prompt for Replit
+
+Copy-paste this entire prompt into Replit. It's engineered to be executable by the agent without breaking your existing codebase.
+
+---
+
+```
+# PROJECT PIVOT: Liquid Impact → Impact (All-Food AI Scanner)
+
+## 🎯 OBJECTIVE
+Pivot the app from drinks-only to ALL FOOD + DRINKS while preserving 100% of existing functionality. 
+This is a SCOPE EXPANSION, not a rewrite. Every existing feature (drink scanning, gamification, 
+scoring, subscriptions, streaks, missions, paywall, onboarding) must continue working unchanged.
+
+---
+
+## 🏷️ PART 1: BRANDING PIVOT
+
+### New Brand Identity
+- **Old name:** Liquid Impact
+- **New name:** Impact
+- **App Store title:** "Impact - AI Food & Drink Scanner"
+- **Tagline:** "See what your food really does to your body"
+- **Bundle ID (iOS):** com.impact.app
+- **Package name (Android):** com.impact.app
+- **Web domain:** impact.app (update all references)
+
+### Files to update for rebrand
+1. `artifacts/liquid-impact/app.json` → rename folder to `artifacts/impact`, update:
+   - `expo.name` → "Impact"
+   - `expo.slug` → "impact"
+   - `expo.ios.bundleIdentifier` → "com.impact.app"
+   - `expo.android.package` → "com.impact.app"
+2. All UI strings: replace "Liquid Impact" with "Impact" in:
+   - `app/(tabs)/index.tsx` (HomeScreen title)
+   - `app/onboarding.tsx` (all slide copy)
+   - `app/auth.tsx` (welcome text)
+   - `app/profile.tsx` (footer)
+   - All `strings`/i18n files if they exist
+3. Update `assets/images/icon.png` — regenerate app icon with new "Impact" branding
+   (use a bold, modern "I" monogram with the cyan→purple gradient)
+4. Update `PrivacyScreen.tsx`, `TermsScreen.tsx` — replace all "Liquid Impact" references
+5. Update email addresses: `support@impact.app`, `privacy@impact.app`, `legal@impact.app`
+6. Update `package.json` name field to `@workspace/impact`
+7. Update Replit config if it references the old name
+
+### Visual identity refresh
+- Keep the cyan (#06b6d4) → purple (#8b5cf6) gradient — it's strong
+- Update the app icon to feature a bold "I" or abstract impact/burst symbol
+- Keep the dark cyberpunk aesthetic — it differentiates from MyFitnessPal's clinical look
+
+---
+
+## ✅ PART 2: PRESERVE THESE FEATURES (DO NOT MODIFY BEHAVIOR)
+
+These must continue working exactly as they do today:
+- ✅ Drink scanning via camera (GPT-4o Vision)
+- ✅ Impact scoring (0-100) with status labels (optimal/stable/risky/damaging)
+- ✅ Short/medium/long-term impact insights
+- ✅ Composition breakdown (calories, sugar, caffeine, sodium, fat, protein)
+- ✅ Ingredient analysis with health roles
+- ✅ Glycemic impact detection
+- ✅ Hydration level scoring
+- ✅ Alternatives suggestions
+- ✅ Viral statements / AI insights
+- ✅ Confidence scoring (VERIFIED/GOOD/REVIEW)
+- ✅ Scan guidance overlay (blur, light, label detection)
+- ✅ Processing pipeline animation with incremental states
+- ✅ Barcode scan mode
+- ✅ Ingredients/nutrition label scan mode
+- ✅ Home dashboard (weekly score, body status, missions, streaks)
+- ✅ Status screen (hydration, energy, recovery, focus rings)
+- ✅ History screen (weekly bar chart, filters)
+- ✅ Profile screen (stats, missions, subscription)
+- ✅ Paywall with 5 tiers (Free/Starter/Pro/Elite/Family)
+- ✅ RevenueCat integration
+- ✅ Onboarding flow (4 slides)
+- ✅ Authentication (email, Google, Apple)
+- ✅ Daily missions system
+- ✅ Streak tracking
+- ✅ Dark theme + glassmorphism UI
+- ✅ Haptic feedback throughout
+- ✅ Accessibility labels
+- ✅ Medical disclaimers
+- ✅ Offline queue stub
+- ✅ Cloud sync via AsyncStorage + API
+
+---
+
+## 🆕 PART 3: NEW FOOD FEATURES TO ADD
+
+### 3.1 Expand the AI System Prompt
+**CRITICAL FILE:** `artifacts/api-server/src/routes/scans.ts`
+
+The current `ANALYSIS_SYSTEM_PROMPT` is hardcoded for liquids. Replace it with a universal 
+food+drink prompt. The new prompt must:
+
+1. First classify: `beverage` | `solid_food` | `mixed_meal` | `snack` | `condiment` | `supplement`
+2. For beverages: keep all existing liquid-specific analysis (hydration, glycemic, etc.)
+3. For solid foods: add NEW analysis dimensions:
+   - **Satiety score** (0-100): how filling is this?
+   - **Digestive load** (light/moderate/heavy): how hard is this to digest?
+   - **Nutrient density** (0-100): vitamins/minerals per calorie
+   - **Protein quality** (if applicable): complete/incomplete amino acid profile
+   - **Fiber content estimate** (low/medium/high)
+   - **Meal timing fit**: good for breakfast/lunch/dinner/snack?
+   - **Blood sugar trajectory**: spike/sustained/crash pattern
+4. For mixed meals (e.g., "chicken rice bowl"): decompose into components and analyze each
+5. Keep all existing beverage fields for backward compatibility
+
+**New JSON schema addition** (extend, don't replace):
+```typescript
+{
+  // ... all existing fields remain ...
+  
+  // NEW fields for food:
+  "consumableType": "beverage" | "solid_food" | "mixed_meal" | "snack" | "condiment" | "supplement",
+  "satietyScore": 0-100,                    // only for solid food/mixed meal/snack
+  "digestiveLoad": "light" | "moderate" | "heavy",
+  "nutrientDensity": 0-100,
+  "fiberEstimate": "low" | "medium" | "high",
+  "proteinQuality": "complete" | "incomplete" | "not_applicable",
+  "mealTimingFit": {
+    "breakfast": "excellent" | "good" | "fair" | "poor",
+    "lunch": "excellent" | "good" | "fair" | "poor",
+    "dinner": "excellent" | "good" | "fair" | "poor",
+    "snack": "excellent" | "good" | "fair" | "poor"
+  },
+  "bloodSugarTrajectory": "spike" | "sustained" | "gradual" | "crash",
+  "componentBreakdown": [                   // for mixed meals only
+    {
+      "component": "grilled chicken breast",
+      "percentage": 40,
+      "impactScore": 85
+    },
+    {
+      "component": "white rice",
+      "percentage": 45,
+      "impactScore": 55
+    }
+  ],
+  "allergenFlags": ["dairy", "gluten", "nuts"],  // common allergens detected
+  "processingLevel": "whole" | "minimally_processed" | "processed" | "ultra_processed",
+  "servingContext": {
+    "typicalServing": "1 plate (350g)",
+    "caloricDensity": "medium"  // low/medium/high per gram
+  }
+}
+```
+
+### 3.2 Update TypeScript Types
+**File:** `artifacts/liquid-impact/src/types.ts` (or wherever types live)
+
+- Rename `LiquidCategory` → `ConsumableCategory` (keep backward compat with union type)
+- Add new category values: `solid_food`, `mixed_meal`, `snack`, `condiment`, `supplement`
+- Extend `ScanResult` interface with new optional fields above
+- Extend `Composition` to include: `fiberGrams`, `cholesterolMg`, `vitamins`, `minerals`
+- Add `ConsumableType` type
+
+### 3.3 Expand Scan Modes
+**File:** `artifacts/liquid-impact/app/(tabs)/scan.tsx`
+
+Update `ScanMode` type from `'drink' | 'barcode' | 'ingredients'` to:
+```typescript
+type ScanMode = 
+  | 'drink'           // beverages (existing)
+  | 'solid_food'      // NEW: plates, bowls, whole foods
+  | 'mixed_meal'      // NEW: composed meals
+  | 'barcode'         // existing
+  | 'ingredients'     // existing (nutrition label)
+  | 'packaging'       // NEW: photograph packaged food for brand/product detection
+```
+
+Update the `MODES` array with new icons and hints:
+- solid_food → icon: "restaurant" / "Plate a meal"
+- mixed_meal → icon: "restaurant" with different styling / "Full meal"
+- packaging → icon: "cube" / "Packaged product"
+
+### 3.4 Update the UI for Food Scans
+**File:** `artifacts/liquid-impact/app/report.tsx` and related components
+
+When `consumableType !== 'beverage'`:
+- Hide "Hydration Impact" ring (doesn't apply to solid food)
+- Show "Satiety Score" ring instead
+- Show "Digestive Load" indicator
+- Show "Nutrient Density" ring
+- Show "Meal Timing Fit" as 4-slot grid (breakfast/lunch/dinner/snack with color coding)
+- Show "Blood Sugar Trajectory" as a visual curve (spike/sustained/crash)
+- Show "Processing Level" badge (whole → ultra-processed gradient)
+- Show "Allergen Flags" as warning chips if detected
+- For mixed meals: show component breakdown as horizontal stacked bar
+
+**Keep beverage-specific UI intact** when consumableType === 'beverage'. Use conditional rendering.
+
+### 3.5 Update the Home Dashboard
+**File:** `artifacts/liquid-impact/app/(tabs)/index.tsx`
+
+- Update greeting from "Scan a Drink" → "Scan your food or drink"
+- Update "Recent Scans" → "Recent Scans" (already generic, keep)
+- Add new body metric: "Satiety" alongside Hydration/Energy/Recovery/Focus
+- Update `dailyStatus` computation in AppContext to factor in solid food satiety
+- Update mission system to include food-specific missions:
+  - "Scan a high-protein meal"
+  - "Eat something whole/unprocessed"
+  - "Avoid ultra-processed food today"
+
+### 3.6 Update Missions System
+**File:** `artifacts/liquid-impact/src/context/AppContext.tsx` (DEFAULT_MISSIONS)
+
+Add new food missions alongside existing drink missions:
+```typescript
+{ id: "mission_protein", title: "High-Protein Meal", description: "Scan a meal with 25g+ protein", ... },
+{ id: "mission_whole", title: "Whole Food Win", description: "Scan an unprocessed food", ... },
+{ id: "mission_fiber", title: "Fiber Boost", description: "Scan a high-fiber food", ... },
+```
+
+Update mission completion logic in `ADD_SCAN` reducer to check new fields.
+
+### 3.7 Add Barcode/UPC Lookup Enhancement
+The existing barcode mode should now:
+- Detect if barcode is food (UPC-A, EAN-13) vs drink
+- Use Open Food Facts API as fallback for packaged foods (free, open database)
+- Add `openfoodfacts` npm package
+- Create `services/openfoodfacts.ts` with lookup function
+- Integrate into scan pipeline: if barcode scan → try Open Food Facts first → fall back to AI
+
+### 3.8 Add Meal Logging Context
+New feature: when user scans food, ask "What meal is this?" (breakfast/lunch/dinner/snack)
+- Store in scan record
+- Use for personalized insights ("You've had 3 heavy dinners this week")
+- Add to `scansTable` schema: `mealType` column (optional, nullable for backward compat)
+
+---
+
+## 🗄️ PART 4: DATABASE SCHEMA UPDATES
+
+**File:** `lib/db/src/schema/liquid-impact.ts`
+
+Add new columns to `scansTable` (all nullable for backward compatibility):
+```typescript
+consumableType: text("consumable_type"),  // beverage | solid_food | mixed_meal | snack | condiment | supplement
+satietyScore: integer("satiety_score"),
+digestiveLoad: text("digestive_load"),
+nutrientDensity: integer("nutrient_density"),
+fiberEstimate: text("fiber_estimate"),
+proteinQuality: text("protein_quality"),
+mealTimingFit: jsonb("meal_timing_fit"),
+bloodSugarTrajectory: text("blood_sugar_trajectory"),
+componentBreakdown: jsonb("component_breakdown"),
+allergenFlags: jsonb("allergen_flags"),
+processingLevel: text("processing_level"),
+mealType: text("meal_type"),  // breakfast | lunch | dinner | snack
+```
+
+**DO NOT** drop or rename existing columns. Only add new ones.
+
+Update `userProfilesTable` to add:
+```typescript
+totalFoodScans: integer("total_food_scans").default(0),
+totalDrinkScans: integer("total_drink_scans").default(0),
+```
+
+Run migration: `pnpm --filter @workspace/db run push`
+
+---
+
+## 🎨 PART 5: UI/UX UPDATES
+
+### 5.1 Onboarding Flow Update
+**File:** `artifacts/liquid-impact/app/onboarding.tsx`
+
+Update slide copy:
+- Slide 1: "Scan any food or drink" (was "Scan any drink")
+- Slide 2: "From an apple to a full meal — AI analyzes it all"
+- Slide 3: Keep "Understand what happens inside your body"
+- Slide 4: Keep "Built for everyday life"
+
+Update visual mockups in slides to show both food AND drink examples.
+
+### 5.2 Scan Screen Header
+Update `ScanHeader` component:
+- Title: "Scan Food or Drink" (was "Scan a Drink")
+- Subtitle: "AI analyzes meals, snacks, and beverages"
+
+### 5.3 Add Food-Specific Visual Indicators
+Create new component: `components/ProcessingLevelBadge.tsx`
+- Gradient badge from green (whole) → red (ultra-processed)
+- 4 levels with icons
+
+Create new component: `components/BloodSugarCurve.tsx`
+- Small SVG curve showing spike/sustained/crash pattern
+- Color-coded by trajectory type
+
+Create new component: `components/MealTimingGrid.tsx`
+- 4-slot grid (breakfast/lunch/dinner/snack)
+- Each slot colored by fit quality (excellent=green, poor=red)
+
+### 5.4 Update Empty States
+Update empty state copy in HistoryScreen, HomeScreen to reference "food and drinks" not just drinks.
+
+---
+
+## 🔧 PART 6: TECHNICAL IMPLEMENTATION NOTES
+
+### 6.1 AI Prompt Strategy
+The new universal prompt should:
+1. Start with classification (beverage vs food vs mixed)
+2. Branch logic based on classification
+3. Always return the existing beverage fields (for backward compat)
+4. Add new food fields as optional
+5. For mixed meals, decompose into components
+
+**Critical:** Test with these inputs after implementation:
+- A glass of water (beverage) → should work exactly as before
+- A plate of spaghetti (solid food) → should trigger food analysis
+- A sushi platter (mixed meal) → should decompose into components
+- A protein bar (packaged snack) → should use barcode + visual
+- A bowl of salad → should identify components
+
+### 6.2 Backward Compatibility
+- All existing scans in database remain valid (new fields are nullable)
+- All existing UI code paths for beverages must continue working
+- Use feature flags or conditional rendering based on `consumableType`
+- Do NOT change the scoring algorithm for beverages — only extend for food
+
+### 6.3 Performance Considerations
+- Food analysis may be more complex → increase OpenAI timeout from 45s to 60s
+- Mixed meal decomposition → may need more tokens → increase `max_tokens` to 3500
+- Component breakdown → parse carefully, validate JSON structure
+
+### 6.4 Testing Checklist
+After implementation, verify:
+- [ ] Drink scan still works identically
+- [ ] Food scan returns new fields
+- [ ] Mixed meal scan decomposes correctly
+- [ ] Barcode scan works for both food and drink products
+- [ ] History shows both food and drink scans
+- [ ] Missions trigger correctly for both
+- [ ] Paywall still works
+- [ ] Onboarding shows new copy
+- [ ] All "Liquid Impact" text replaced with "Impact"
+- [ ] App icon updated
+- [ ] Bundle ID updated in app.json
+
+---
+
+## 🚫 PART 7: DO NOT CHANGE THESE
+
+- ❌ Do NOT rewrite the scoring algorithm for beverages
+- ❌ Do NOT remove any existing scan modes
+- ❌ Do NOT change the paywall tier structure
+- ❌ Do NOT modify the authentication flow
+- ❌ Do NOT change the dark theme or glassmorphism aesthetic
+- ❌ Do NOT remove haptic feedback
+- ❌ Do NOT change the database column names (only add new ones)
+- ❌ Do NOT modify RevenueCat integration
+- ❌ Do NOT change the tab navigation structure
+- ❌ Do NOT remove medical disclaimers
+- ❌ Do NOT change the existing AI prompt structure — only EXTEND it
+
+---
+
+## 📋 PART 8: EXECUTION ORDER
+
+Execute in this exact sequence:
+
+1. **Rebrand first** — update app.json, all UI strings, metadata
+2. **Database migration** — add new nullable columns
+3. **Type updates** — extend TypeScript types
+4. **AI prompt overhaul** — update ANALYSIS_SYSTEM_PROMPT in scans.ts
+5. **Scan mode expansion** — add new modes to scan.tsx
+6. **New UI components** — ProcessingLevelBadge, BloodSugarCurve, MealTimingGrid
+7. **Report screen update** — conditional rendering for food vs drink
+8. **Home dashboard update** — new body metrics, updated copy
+9. **Missions expansion** — add food missions
+10. **Open Food Facts integration** — barcode lookup enhancement
+11. **Onboarding update** — new copy and visuals
+12. **Testing** — run through full checklist
+
+---
+
+## 🎯 SUCCESS CRITERIA
+
+The pivot is successful when:
+- ✅ App is renamed to "Impact" throughout
+- ✅ User can scan a plate of food and get detailed analysis
+- ✅ User can still scan a drink and get identical results to before
+- ✅ New food-specific insights appear (satiety, digestive load, nutrient density)
+- ✅ Mixed meals decompose into components
+- ✅ All existing features still work
+- ✅ No regressions in scoring, gamification, or subscriptions
+
+---
+
+## 💡 FINAL NOTES
+
+- Keep the cyberpunk aesthetic — it's your differentiator
+- The "Impact" brand is strong — lean into it
+- Your edge is "what it does to your body" not "how many calories"
+- Do NOT become a calorie tracker — you are a physiological impact engine
+- Test extensively with real food photos before shipping
+- The AI prompt quality is everything — iterate on it until food analysis is as good as drink analysis
+
+BEGIN EXECUTION.
+```
+
+---
+
+## 🎯 Why This Prompt Works
+
+1. **Preserves everything** — explicit "DO NOT CHANGE" list prevents regressions
+2. **Clear execution order** — Replit's agent can follow step-by-step
+3. **Technical specificity** — file paths, type names, schema changes are explicit
+4. **Backward compatibility** — all new DB columns are nullable, all new UI is conditional
+5. **Testing checklist** — ensures nothing breaks
+6. **Brand coherence** — keeps the strong "Impact" identity while removing "Liquid" limitation
+
+## 🏆 Recommended Brand Direction
+
+Go with **"Impact"** as the primary brand:
+- **App Store title:** "Impact - AI Food & Drink Scanner"
+- **Short name:** "Impact"
+- **Tagline:** "See what your food really does to your body"
+
+This keeps your existing brand equity in "Impact" while removing the "Liquid" limitation. It's short, memorable, powerful, and works for both food and drinks.
+
+When you're ready, paste the prompt above into Replit and it will execute the full pivot.
