@@ -23,13 +23,13 @@ const TODAY = () => new Date().toDateString();
 
 export const SUBSCRIPTION_LIMITS: Record<
   SubscriptionTier,
-  { daily: number | null; monthly: number | null; label: string; color: string }
+  { total: number | null; monthly: number | null; label: string; color: string }
 > = {
-  free: { daily: 3, monthly: null, label: "Free", color: "#6B6B80" },
-  starter: { daily: null, monthly: 100, label: "Starter", color: "#00B4D8" },
-  pro: { daily: null, monthly: null, label: "Pro", color: "#7B2CBF" },
-  elite: { daily: null, monthly: null, label: "Elite", color: "#FFD700" },
-  family: { daily: null, monthly: null, label: "Family", color: "#FF6B9D" },
+  free: { total: 3, monthly: null, label: "Free", color: "#6B6B80" },
+  starter: { total: null, monthly: 100, label: "Starter", color: "#00B4D8" },
+  pro: { total: null, monthly: null, label: "Pro", color: "#7B2CBF" },
+  elite: { total: null, monthly: null, label: "Elite", color: "#FFD700" },
+  family: { total: null, monthly: null, label: "Family", color: "#FF6B9D" },
 };
 
 const DEFAULT_MISSIONS: DailyMission[] = [
