@@ -39,10 +39,10 @@ const THEME = {
 
 // ─── Staged loading messages ──────────────────────────────────────────────────
 const LOADING_STAGES = [
-  { progress: 0.08, message: 'Drink detected', sub: 'Scanning label...' },
+  { progress: 0.08, message: 'Item detected', sub: 'Scanning label...' },
   { progress: 0.25, message: 'Reading ingredients', sub: 'Extracting nutritional data...' },
   { progress: 0.50, message: 'Calculating impact', sub: 'Analysing health effects...' },
-  { progress: 0.75, message: 'Almost ready', sub: 'Generating insights...' },
+  { progress: 0.75, message: 'Almost ready', sub: 'Generating detailed insights...' },
   { progress: 0.92, message: 'Finalising results', sub: 'Preparing your score...' },
 ];
 
@@ -67,7 +67,8 @@ const fuseInstance = new Fuse(Object.values(DRINK_DATABASE), {
 type Phase = 'IDLE' | 'PROCESSING' | 'SUCCESS' | 'ERROR';
 
 function useScanPipeline() {
-  const { addScan, canScan } = useApp();
+  const { addScan, canScan, scanLimitMessage, state } = useApp();
+  const router = useRouter();
   const [phase, setPhase] = useState<Phase>('IDLE');
   const [result, setResult] = useState<ScanResult | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -100,7 +101,16 @@ function useScanPipeline() {
   }) => {
     if (isRunning.current) return;
     if (!canScan) {
-      Alert.alert('Daily Limit Reached', 'Upgrade your plan to continue scanning.', [{ text: 'OK' }]);
+      await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+      const isFreeTier = state.subscription === 'free';
+      Alert.alert(
+        isFreeTier ? 'Free Scan Limit Reached' : 'Monthly Limit Reached',
+        scanLimitMessage,
+        [
+          { text: 'Not Now', style: 'cancel' },
+          { text: 'Upgrade Now', style: 'default', onPress: () => router.push('/paywall') },
+        ]
+      );
       return;
     }
 
@@ -289,6 +299,38 @@ function ProcessingScreen({ progress, stageIdx }: { progress: number; stageIdx: 
   );
 }
 
+// ─── Confidence Badge ─────────────────────────────────────────────────────────
+function ConfidenceBadge({ score }: { score: number }) {
+  let label: string;
+  let color: string;
+  let icon: 'shield-checkmark' | 'checkmark-circle' | 'alert-circle' | 'help-circle';
+
+  if (score >= 0.95) {
+    label = 'VERIFIED';
+    color = THEME.success;
+    icon = 'shield-checkmark';
+  } else if (score >= 0.85) {
+    label = 'HIGH CONFIDENCE';
+    color = THEME.success;
+    icon = 'checkmark-circle';
+  } else if (score >= 0.70) {
+    label = 'MODERATE';
+    color = THEME.warning;
+    icon = 'alert-circle';
+  } else {
+    label = 'LOW CONFIDENCE';
+    color = THEME.danger;
+    icon = 'help-circle';
+  }
+
+  return (
+    <View style={[styles.confidenceBadge, { backgroundColor: color + '18', borderColor: color + '40' }]}>
+      <Ionicons name={icon} size={12} color={color} />
+      <Text style={[styles.confidenceBadgeText, { color }]}>{label}</Text>
+    </View>
+  );
+}
+
 // ─── Results Screen ───────────────────────────────────────────────────────────
 function ResultsScreen({ result, onReset }: { result: ScanResult; onReset: () => void }) {
   const router = useRouter();
@@ -323,13 +365,7 @@ function ResultsScreen({ result, onReset }: { result: ScanResult; onReset: () =>
               <View style={[styles.statusDot, { backgroundColor: statusColor }]} />
               <Text style={[styles.statusText, { color: statusColor }]}>{result.status.toUpperCase()}</Text>
             </View>
-            {result.confidenceScore >= 0.85 ? (
-              <Text style={styles.confidenceTag}>High confidence</Text>
-            ) : result.confidenceScore >= 0.65 ? (
-              <Text style={[styles.confidenceTag, { color: THEME.warning }]}>Estimated match</Text>
-            ) : (
-              <Text style={[styles.confidenceTag, { color: THEME.textMuted }]}>Low confidence</Text>
-            )}
+            <ConfidenceBadge score={result.confidenceScore} />
           </View>
         </View>
 
@@ -583,7 +619,7 @@ export default function ScanScreen() {
       {/* Manual search */}
       {scanMode === 'manual' && (
         <View style={styles.searchContainer}>
-          <Text style={styles.searchTitle}>Search 1,000+ beverages</Text>
+          <Text style={styles.searchTitle}>Search foods & drinks</Text>
           <GlassCard style={styles.searchCard}>
             <Ionicons name="search" size={20} color={THEME.textMuted} />
             <TextInput
@@ -608,7 +644,7 @@ export default function ScanScreen() {
             disabled={searchQuery.length < 2}
           >
             <LinearGradient colors={[THEME.primary, THEME.secondary]} style={styles.searchSubmitGradient}>
-              <Text style={styles.searchSubmitText}>Analyse Drink</Text>
+              <Text style={styles.searchSubmitText}>Analyse Item</Text>
               <Ionicons name="arrow-forward" size={18} color="#fff" />
             </LinearGradient>
           </TouchableOpacity>
@@ -681,6 +717,10 @@ const styles = StyleSheet.create({
   frameBox: { width: 260, height: 260, position: 'relative' },
   corner: { position: 'absolute', width: 36, height: 36, borderColor: THEME.primary, borderWidth: 4 },
   guideText: { color: '#fff', fontSize: 15, fontWeight: '500', marginTop: 32, backgroundColor: 'rgba(0,0,0,0.55)', paddingVertical: 8, paddingHorizontal: 20, borderRadius: 20 },
+
+  // Confidence badge
+  confidenceBadge: { flexDirection: 'row', alignItems: 'center', gap: 5, alignSelf: 'flex-start', paddingVertical: 4, paddingHorizontal: 9, borderRadius: 8, borderWidth: 1, marginTop: 8 },
+  confidenceBadgeText: { fontSize: 10, fontWeight: '800', letterSpacing: 0.5 },
 
   // Manual search
   searchContainer: { flex: 1, justifyContent: 'center', paddingHorizontal: 24 },

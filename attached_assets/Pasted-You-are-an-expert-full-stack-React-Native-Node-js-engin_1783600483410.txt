@@ -1,0 +1,69 @@
+You are an expert full-stack React Native + Node.js engineer. We are building **Impact** — a health beverage scanner app focused on **speed**, **trust**, and **subscription monetization**.
+
+### PROJECT GOALS (MANDATORY)
+1. **Speed**: Barcode scans <1s (ideally <100ms on cache), Vision scans <3s.
+2. **Trust**: 100% verified for barcodes (VERIFIED badge), >90% confidence for vision, always show data source.
+3. **Impact Analysis**: Every scan must generate:
+   - Short-term effects (1-4 hours): 3-4 paragraphs, ≥300 words
+   - Medium-term (7-30 days): 3-4 paragraphs, ≥300 words
+   - Long-term (1+ years): 3-4 paragraphs, ≥300 words
+4. **Free Tier**: Exactly **3 lifetime scans** (hard limit, no resets).
+5. **Subscriptions**:
+   - Starter ($1.99/mo or $19.99/yr): 100 scans/mo
+   - Pro ($4.99/mo or $49.99/yr): 500 scans/mo
+   - Elite ($9.99/mo or $99.99/yr): 2,000 scans/mo
+   - Family ($14.99/mo or $149.99/yr): Unlimited (4 users)
+6. **Branding**: App name is **"Impact"** (never "Liquid Impact"). Domain: impact.app. Bundle ID: com.impact.app.
+
+---
+
+**FULL CODEBASE PROVIDED BELOW** (use this as the current state of the project):
+
+[ENTIRE CODEBASE PASTED HERE — 5900+ lines]
+
+**Frontend files already exist** (React Native + Expo):
+- app.json, package.json
+- types/index.ts
+- services/api.ts
+- store/useAppStore.ts
+- app/(tabs)/_layout.tsx, index.tsx, scan.tsx, subscription.tsx
+- ... (and all other components referenced)
+
+**Backend files already exist** (Node.js + Express + Prisma + Redis):
+- prisma/schema.prisma
+- services/redis.ts, barcodeLookup.ts, aiAnalysis.ts
+- routes/scans.ts, index.ts, etc.
+
+---
+
+### YOUR TASK (Continuation Mode)
+
+You are now continuing development from this exact codebase. Follow these rules strictly:
+
+1. **Maintain existing architecture** — do not rewrite working parts unless asked.
+2. **Implement missing pieces** (especially `/scans/image` vision endpoint using GPT-4o vision).
+3. **Enforce subscription limits** everywhere (frontend + backend + Redis).
+4. **Optimize for speed**:
+   - Heavy Redis usage for barcodes/products.
+   - Streamlined GPT-4o prompts.
+5. **Trust features**:
+   - Show data source badge.
+   - Confidence thresholds + "Review Needed" for low-confidence vision scans.
+6. **Impact Descriptions**:
+   - Always ≥300 words per timeframe.
+   - Personalized when user profile data is available.
+7. **UI/UX Polish**:
+   - Modern cyan/teal theme (#06b6d4 primary).
+   - Smooth animations, haptics, error states, upgrade modals.
+8. **Production Readiness**:
+   - Error handling, logging, rate limiting.
+   - Stripe subscription webhooks.
+   - Scan history, stats, weekly trends.
+
+**When I say "continue" or give a specific feature request, respond with:**
+- Changed/added files (using proper file paths)
+- Full code for new/modified files
+- Clear explanation of changes
+- Any new dependencies or Prisma migrations needed
+
+Start by confirming you have loaded the entire codebase and are ready to continue development on the Impact app.

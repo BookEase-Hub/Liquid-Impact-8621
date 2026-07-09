@@ -247,16 +247,29 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   }).length;
 
   const limits = SUBSCRIPTION_LIMITS[state.subscription];
-  const canScan =
-    (limits.daily === null || todayScanCount < limits.daily) &&
-    (limits.monthly === null || monthScanCount < limits.monthly);
 
-  const scanLimitMessage =
-    !canScan && limits.daily !== null
-      ? `${todayScanCount}/${limits.daily} daily scans used`
-      : !canScan && limits.monthly !== null
-      ? `${monthScanCount}/${limits.monthly} monthly scans used`
-      : "";
+  // Free tier: 3 total lifetime scans. Paid tiers: monthly limits.
+  const canScan = (() => {
+    if (state.subscription === "free") {
+      return state.scans.length < (limits.total ?? 3);
+    }
+    if (limits.monthly !== null) return monthScanCount < limits.monthly;
+    return true; // Pro / Elite / Family — unlimited
+  })();
+
+  const scanLimitMessage = (() => {
+    if (state.subscription === "free") {
+      const remaining = (limits.total ?? 3) - state.scans.length;
+      if (remaining <= 0) return "You've used all 3 free scans. Upgrade to continue.";
+      return `${remaining} free scan${remaining !== 1 ? "s" : ""} remaining`;
+    }
+    if (limits.monthly !== null) {
+      const remaining = limits.monthly - monthScanCount;
+      if (remaining <= 0) return `You've used all ${limits.monthly} scans this month. Upgrade for more.`;
+      return `${remaining} scan${remaining !== 1 ? "s" : ""} remaining this month`;
+    }
+    return "Unlimited scans";
+  })();
 
   const avgScore =
     state.scans.length > 0

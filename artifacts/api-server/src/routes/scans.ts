@@ -23,16 +23,15 @@ const router = Router();
 // ─── Prompts — verbose enough to satisfy OpenAI json_object requirement ────────
 // CRITICAL: The word "JSON" must appear in messages for response_format:json_object.
 // We embed a full JSON template in the user prompt to guarantee this and guide output.
-const ANALYSIS_SYSTEM_PROMPT = `You are an expert food and beverage analyst specialising in nutrition and health impact.
-You analyse images of food, drinks, and meals to provide comprehensive nutritional and health insights.
-Your response must always be a single valid JSON object — no markdown, no preamble, no extra text.
+const ANALYSIS_SYSTEM_PROMPT = `You are an expert food and beverage analyst and nutritional scientist specialising in comprehensive health impact analysis.
+You analyse images of food, drinks, and meals and return a single valid JSON object — no markdown, no preamble, no extra text.
 
-CLASSIFICATION (choose one consumableType):
+CLASSIFICATION (consumableType):
 • beverage — water, juice, soda, coffee, tea, alcohol, milk, energy drink, smoothie
 • solid_food — apple, sandwich, steak, salad, rice, bread, etc.
-• mixed_meal — a plate/bowl with multiple distinct food components
+• mixed_meal — plate/bowl with multiple distinct components
 • snack — protein bar, chips, cookies, nuts, etc.
-• condiment — ketchup, hot sauce, sauces used in small amounts
+• condiment — ketchup, hot sauce, dressings in small amounts
 • supplement — vitamins, protein powder, pills
 
 IMPACT SCORES (0–100, higher = healthier):
@@ -42,7 +41,14 @@ Foods: leafy greens/raw veg 90 | whole fruit 88 | legumes 82 | whole grains 75 |
   eggs 72 | dairy 65 | processed snack 38 | fast food burger 28 | fried food 30 | candy 15
 
 STATUS: optimal(80–100) | stable(50–79) | risky(25–49) | damaging(0–24)
-PROCESSING: whole → minimally_processed → processed → ultra_processed`;
+PROCESSING: whole → minimally_processed → processed → ultra_processed
+
+IMPACT DESCRIPTION REQUIREMENTS — CRITICAL:
+Each impact field (energyResponse, bloodSugarResponse, bodyReaction, hydrationImpact, energyStability,
+physicalChanges, habitRisk, sleepQuality, healthTrend, metabolicImpact, riskAccumulation, nutritionalBalance)
+MUST be a detailed paragraph of 3–4 sentences covering the relevant health dimension in depth.
+Use language like "may", "appears to", "research suggests", "estimated". Be educational and specific.
+Minimum 50 words per field. Do NOT use one-liners.`;
 
 const ANALYSIS_USER_PROMPT = `Analyse this image and return EXACTLY the following JSON structure. 
 Return only valid JSON — no markdown code blocks, no extra text before or after.
@@ -76,26 +82,26 @@ Return only valid JSON — no markdown code blocks, no extra text before or afte
   "allergenFlags": [],
   "processingLevel": "<whole|minimally_processed|processed|ultra_processed>",
   "mealType": "<breakfast|lunch|dinner|snack>",
-  "aiInsight": "<2-3 sentence educational wellness insight using 'may', 'estimated', 'appears to'>",
+  "aiInsight": "<3-4 sentence educational wellness insight covering the key health aspects of this item, using 'may', 'estimated', 'appears to'. Be specific and scientific.>",
   "viralStatement": "<punchy 10-word health take>",
   "alternatives": ["<healthier alternative 1>", "<healthier alternative 2>"],
   "shortTermImpact": {
-    "energyResponse": "<estimated energy effect in 1–2h>",
-    "bloodSugarResponse": "<blood sugar indicator>",
-    "bodyReaction": "<general physiological response>",
-    "hydrationImpact": "<hydration effect>"
+    "energyResponse": "<3-4 sentences on immediate energy effects in the first 1-4 hours: glucose response, adenosine effects, stimulant impact, estimated energy curve. Include specific timeframes and mechanisms. Min 60 words.>",
+    "bloodSugarResponse": "<3-4 sentences on blood sugar trajectory: estimated glycemic response, insulin demand, spike-and-crash risk, speed of absorption. Reference the glycemic impact of key ingredients. Min 60 words.>",
+    "bodyReaction": "<3-4 sentences on immediate physiological reactions: digestive response, gut motility, stomach acid effects, inflammation markers, any expected discomfort or benefits within hours. Min 60 words.>",
+    "hydrationImpact": "<3-4 sentences on net hydration effect: osmolarity, diuretic or anti-diuretic effects, electrolyte contribution, how it affects fluid balance over 1-4 hours. Min 60 words.>"
   },
   "mediumTermImpact": {
-    "energyStability": "<estimated energy pattern over weeks>",
-    "physicalChanges": "<potential physical indicators>",
-    "habitRisk": "<habit-formation consideration>",
-    "sleepQuality": "<potential sleep effect>"
+    "energyStability": "<3-4 sentences on energy patterns if consumed regularly over 7-30 days: mitochondrial effects, adrenal impact, cortisol patterns, estimated effect on sustained energy vs. crashes. Min 60 words.>",
+    "physicalChanges": "<3-4 sentences on body composition and physical changes with regular consumption: weight trajectory, water retention, muscle impact, skin and appearance effects, estimated caloric contribution. Min 60 words.>",
+    "habitRisk": "<3-4 sentences on habit-formation and dependency risk: reward pathway activation, craving potential, withdrawal effects if stopped, tolerance build-up, psychological dependency patterns. Min 60 words.>",
+    "sleepQuality": "<3-4 sentences on sleep impact with regular use: effect on sleep latency, deep sleep stages, REM quality, melatonin interaction, optimal consumption timing to protect sleep. Min 60 words.>"
   },
   "longTermImpact": {
-    "healthTrend": "<general wellness trajectory>",
-    "metabolicImpact": "<potential metabolic consideration>",
-    "riskAccumulation": "<general wellness consideration>",
-    "nutritionalBalance": "<nutritional contribution>"
+    "healthTrend": "<3-4 sentences on overall health trajectory with years of regular consumption: longevity markers, cardiovascular indicators, systemic inflammation, estimated quality-of-life impact. Reference epidemiological patterns. Min 60 words.>",
+    "metabolicImpact": "<3-4 sentences on metabolic health: insulin sensitivity over time, liver processing burden, lipid profile effects, visceral fat risk, estimated impact on metabolic syndrome markers. Min 60 words.>",
+    "riskAccumulation": "<3-4 sentences on cumulative chronic disease risk: cancer associations, cardiovascular disease probability, diabetes risk, kidney/liver stress, bone density effects with multi-year consumption. Min 60 words.>",
+    "nutritionalBalance": "<3-4 sentences on nutritional contribution or displacement: micronutrient density, whether it crowds out healthier options, vitamin/mineral provision or depletion, gut microbiome effects long-term. Min 60 words.>"
   },
   "composition": {
     "calories": 0,
@@ -285,7 +291,7 @@ async function callAIVision(imageBase64: string): Promise<Record<string, unknown
             ],
           },
         ],
-        max_tokens: 3000,
+        max_tokens: 4000,
         temperature: 0.1,
         // No response_format here — we extract JSON ourselves via regex
         // This avoids the "messages must contain 'json'" 400 error from OpenAI
