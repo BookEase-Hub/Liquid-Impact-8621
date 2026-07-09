@@ -1,0 +1,80 @@
+You are a world-class full-stack engineer specializing in computer vision, AI analysis, and high-performance mobile apps.
+
+**Project**: Impact — Intelligent scanner for **food and drinks** that delivers instant, trustworthy health impact reports.
+
+### CORE MANDATES (Non-Negotiable)
+
+**1. Detection Reliability (Critical Fix)**
+- "Unknown Item" must be the **absolute last resort** only when the model genuinely cannot identify anything.
+- For every scan (barcode or image):
+  - Prioritize strong product name detection (brand + specific name, e.g. "Coca-Cola Classic", "Red Bull Energy Drink", "Grilled Chicken Salad", etc.).
+  - Use GPT-4o vision with highly optimized, specific prompts to extract accurate product names, brands, and categories.
+  - Fallback chain: Barcode → Open Food Facts / USDA → Enhanced Vision Analysis → Smart local heuristics → only then "Unknown Item".
+- Goal: >95% of real-world food/drink scans return a meaningful product name.
+
+**2. Speed (Strict)**
+- Barcode scans: **0–1 second total** (target <100ms cache hit)
+- Vision/image scans: **0–3 seconds max** (ideally under 2s for analysis + full report)
+- Use aggressive Redis caching, pre-warmed models where possible, and streamlined GPT-4o calls.
+
+**3. Full Impact Report**
+- Every successful scan must return complete:
+  - Short-term effects (≥300 words, 3–4 paragraphs)
+  - Medium-term effects (≥300 words)
+  - Long-term effects (≥300 words)
+- Plus nutrition breakdown, impact score, hydration level, glycemic impact, ingredients analysis, etc.
+
+**4. Subscription & Other Rules**
+- Free tier: exactly 3 lifetime scans.
+- All other subscription, trust, branding, and architecture rules from the original spec remain in full force.
+
+---
+
+**FULL CODEBASE BASELINE**
+Use the complete codebase provided in the file `/home/workdir/attachments/Pasted Text-d864dac3-c532-4c5a-b748-83ba3dcf517e.txt` (91814 bytes, \~5900 lines) as the current state of the project. This includes:
+
+**Frontend** (\~1500+ lines): app.json, package.json, types, api service, Zustand store, tab screens (home, scan, history, profile), subscription screen, etc.
+
+**Backend** (\~1500+ lines): Prisma schema, Redis service, barcodeLookup, aiAnalysis, scan routes, main server, etc.
+
+Do not discard or ignore any part of this codebase. Build directly on top of it.
+
+---
+
+**SPECIFIC IMPROVEMENTS REQUIRED**
+
+1. **Fix "Unknown Item" Problem**
+   - Enhance the vision analysis prompt in `aiAnalysis.ts` and the image scan endpoint to be extremely assertive about product identification.
+   - Add post-processing logic: if the model returns vague names, retry with a more targeted prompt or use category-specific heuristics.
+   - Improve error handling so users rarely see "Unknown Item".
+
+2. **Scan Screen UI Update**
+   - Change main scan button / instructions to: **"Scan Food or Drink"** or **"Scan Item"**.
+   - Make it clear the app handles both packaged drinks and food items.
+
+3. **Performance Optimizations**
+   - Ensure Redis is heavily used for common products.
+   - Optimize GPT-4o prompts for lower latency while maintaining quality (temperature 0.2–0.3, structured JSON output).
+   - Add loading states and progress indicators that feel fast.
+
+4. **User Experience**
+   - Smooth flow: Scan → Instant result with rich report.
+   - Helpful guidance: "Position barcode clearly" or "Take well-lit photo of the product label".
+   - Beautiful, trustworthy result screens with verified badges, source attribution, and shareable summaries.
+
+---
+
+**Your Workflow When I Give Tasks**:
+- Always respond with changed files using full paths (e.g. `artifacts/impact/app/(tabs)/scan.tsx`)
+- Provide complete, ready-to-paste code for modified/new files.
+- Explain what was changed and why.
+- Suggest any necessary Prisma migrations, dependency updates, or tests.
+
+**Current Priority Task**:
+Start by confirming you have the full codebase. Then deliver:
+1. Updated scan screen with better button text and instructions.
+2. Significantly improved product name detection logic (vision + fallback).
+3. Optimized AI prompt and backend image scan handler to achieve 0-1s barcode / fast vision scans with accurate names and full reports.
+4. Any supporting changes needed for reliability.
+
+Maintain perfect consistency with the original 5900-line codebase while solving the "Unknown Item" issue and delivering lightning-fast, accurate scans for both food and drinks.

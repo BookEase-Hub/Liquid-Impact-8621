@@ -23,41 +23,44 @@ const router = Router();
 // ─── Prompts — verbose enough to satisfy OpenAI json_object requirement ────────
 // CRITICAL: The word "JSON" must appear in messages for response_format:json_object.
 // We embed a full JSON template in the user prompt to guarantee this and guide output.
-const ANALYSIS_SYSTEM_PROMPT = `You are an expert food and beverage analyst and nutritional scientist specialising in comprehensive health impact analysis.
-You analyse images of food, drinks, and meals and return a single valid JSON object — no markdown, no preamble, no extra text.
+const ANALYSIS_SYSTEM_PROMPT = `You are an elite food and beverage analyst with encyclopaedic knowledge of global products, nutrition science, and health impact.
+You ALWAYS return a single valid JSON object — no markdown fences, no preamble, no trailing text.
 
-CLASSIFICATION (consumableType):
-• beverage — water, juice, soda, coffee, tea, alcohol, milk, energy drink, smoothie
-• solid_food — apple, sandwich, steak, salad, rice, bread, etc.
-• mixed_meal — plate/bowl with multiple distinct components
-• snack — protein bar, chips, cookies, nuts, etc.
-• condiment — ketchup, hot sauce, dressings in small amounts
-• supplement — vitamins, protein powder, pills
+━━━ PRODUCT IDENTIFICATION — ABSOLUTE RULES ━━━
+• YOU MUST identify every product. "Unknown Item" is NEVER acceptable as a final answer.
+• Use ALL visual evidence: brand logos, label colours, packaging shape, font style, product colour, container type, any visible text or barcode.
+• If you can only see part of the label, infer from what's visible — e.g. red-and-silver can with bull logo = "Red Bull Energy Drink".
+• Confident identification: use the exact product name (e.g. "Coca-Cola Classic 330ml", "Lay's Classic Chips", "Grilled Chicken Caesar Salad").
+• Partial identification: use "Possible [Best Guess]" (e.g. "Possible Energy Drink", "Possible Dark Chocolate Bar").
+• Completely unidentifiable: use the most specific category possible (e.g. "Brown Carbonated Beverage", "Fried Snack Food", "Fresh Salad Bowl") — never plain "Unknown".
+• Set confidenceScore: 0.95+ = certain, 0.80–0.94 = highly likely, 0.65–0.79 = probable, 0.50–0.64 = best guess, below 0.5 = category-only.
 
-IMPACT SCORES (0–100, higher = healthier):
-Beverages: water 95 | herbal tea 88 | green tea 82 | black coffee 74 | fresh juice 72 | oat milk 65
-  sports drink 50 | packaged juice 48 | soda 22 | energy drink 18 | beer 20 | spirits 12
-Foods: leafy greens/raw veg 90 | whole fruit 88 | legumes 82 | whole grains 75 | lean protein 78
-  eggs 72 | dairy 65 | processed snack 38 | fast food burger 28 | fried food 30 | candy 15
+━━━ CLASSIFICATION ━━━
+consumableType: beverage | solid_food | mixed_meal | snack | condiment | supplement
+category: water | soda | energy_drink | tea | coffee | juice | alcohol | sports_drink | dairy | plant_milk | supplement | cooking_oil | solid_food | mixed_meal | snack | condiment | other
 
+━━━ IMPACT SCORES (0–100, higher = healthier) ━━━
+Beverages: water 95 | herbal tea 88 | green tea 82 | black coffee 74 | fresh juice 72 | oat milk 65 | sports drink 50 | packaged juice 48 | soda 22 | energy drink 18 | beer 20 | spirits 12
+Foods: leafy greens 90 | whole fruit 88 | legumes 82 | lean protein 78 | whole grains 75 | eggs 72 | dairy 65 | processed snack 38 | fast food 28 | fried food 30 | candy 15
 STATUS: optimal(80–100) | stable(50–79) | risky(25–49) | damaging(0–24)
 PROCESSING: whole → minimally_processed → processed → ultra_processed
 
-IMPACT DESCRIPTION REQUIREMENTS — CRITICAL:
-Each impact field (energyResponse, bloodSugarResponse, bodyReaction, hydrationImpact, energyStability,
-physicalChanges, habitRisk, sleepQuality, healthTrend, metabolicImpact, riskAccumulation, nutritionalBalance)
-MUST be a detailed paragraph of 3–4 sentences covering the relevant health dimension in depth.
-Use language like "may", "appears to", "research suggests", "estimated". Be educational and specific.
-Minimum 50 words per field. Do NOT use one-liners.`;
+━━━ IMPACT FIELDS — MANDATORY DETAIL ━━━
+Each of the 12 impact text fields MUST be 3–4 sentences, minimum 60 words, written in accessible scientific language.
+Cover mechanisms, timeframes, and use hedged language ("may", "research suggests", "appears to", "estimated").
+Never use one-liners. These are the core value of the product.`;
 
-const ANALYSIS_USER_PROMPT = `Analyse this image and return EXACTLY the following JSON structure. 
-Return only valid JSON — no markdown code blocks, no extra text before or after.
+const ANALYSIS_USER_PROMPT = `Look carefully at this image. Identify the product using every visual clue available — brand logo, label text, packaging colour, container type, product appearance.
+
+CRITICAL: You MUST provide a specific product name. Never return "Unknown Item". Use your best inference from visual evidence.
+
+Return ONLY this JSON object — no markdown, no extra text:
 
 {
   "id": "scan_XXXXXXXX",
-  "detectedProduct": "<specific name, or 'Possible X' if low confidence>",
-  "brand": "<visible brand name or null>",
-  "category": "<one of: water|soda|energy_drink|tea|coffee|juice|alcohol|sports_drink|dairy|plant_milk|supplement|cooking_oil|solid_food|mixed_meal|snack|condiment|other>",
+  "detectedProduct": "<REQUIRED: exact name like 'Coca-Cola Classic', 'Red Bull Energy Drink', 'Grilled Chicken Salad', 'Banana', 'Lay's Classic Chips' — or 'Possible [BestGuess]' if partially visible — NEVER 'Unknown Item'>",
+  "brand": "<brand name visible on packaging, or null if fresh/unbranded food>",
+  "category": "<water|soda|energy_drink|tea|coffee|juice|alcohol|sports_drink|dairy|plant_milk|supplement|solid_food|mixed_meal|snack|condiment|other>",
   "liquidType": "<beverage|cooking_oil|condiment|alcohol|supplement|other>",
   "consumableType": "<beverage|solid_food|mixed_meal|snack|condiment|supplement>",
   "confidenceScore": 0.85,
@@ -71,37 +74,32 @@ Return only valid JSON — no markdown code blocks, no extra text before or afte
   "nutrientDensity": 50,
   "fiberEstimate": "<low|medium|high>",
   "proteinQuality": "<complete|incomplete|not_applicable>",
-  "mealTimingFit": {
-    "breakfast": "<excellent|good|fair|poor>",
-    "lunch": "<excellent|good|fair|poor>",
-    "dinner": "<excellent|good|fair|poor>",
-    "snack": "<excellent|good|fair|poor>"
-  },
+  "mealTimingFit": { "breakfast": "<excellent|good|fair|poor>", "lunch": "<excellent|good|fair|poor>", "dinner": "<excellent|good|fair|poor>", "snack": "<excellent|good|fair|poor>" },
   "bloodSugarTrajectory": "<spike|sustained|gradual|crash>",
   "componentBreakdown": [],
   "allergenFlags": [],
   "processingLevel": "<whole|minimally_processed|processed|ultra_processed>",
   "mealType": "<breakfast|lunch|dinner|snack>",
-  "aiInsight": "<3-4 sentence educational wellness insight covering the key health aspects of this item, using 'may', 'estimated', 'appears to'. Be specific and scientific.>",
-  "viralStatement": "<punchy 10-word health take>",
-  "alternatives": ["<healthier alternative 1>", "<healthier alternative 2>"],
+  "aiInsight": "<3-4 sentences covering the key health aspects, mechanisms, and nutritional significance of this specific item. Be precise and scientific. Min 60 words.>",
+  "viralStatement": "<punchy 8-12 word health truth about this item>",
+  "alternatives": ["<1 healthier swap>", "<1 healthier swap>"],
   "shortTermImpact": {
-    "energyResponse": "<3-4 sentences on immediate energy effects in the first 1-4 hours: glucose response, adenosine effects, stimulant impact, estimated energy curve. Include specific timeframes and mechanisms. Min 60 words.>",
-    "bloodSugarResponse": "<3-4 sentences on blood sugar trajectory: estimated glycemic response, insulin demand, spike-and-crash risk, speed of absorption. Reference the glycemic impact of key ingredients. Min 60 words.>",
-    "bodyReaction": "<3-4 sentences on immediate physiological reactions: digestive response, gut motility, stomach acid effects, inflammation markers, any expected discomfort or benefits within hours. Min 60 words.>",
-    "hydrationImpact": "<3-4 sentences on net hydration effect: osmolarity, diuretic or anti-diuretic effects, electrolyte contribution, how it affects fluid balance over 1-4 hours. Min 60 words.>"
+    "energyResponse": "<3-4 sentences on energy in hours 1-4: glucose/caffeine/stimulant mechanisms, adenosine blockade if relevant, estimated energy curve and crash potential. Name the specific compound driving the effect. Min 70 words.>",
+    "bloodSugarResponse": "<3-4 sentences on glycaemic trajectory: GI estimate, insulin demand, spike timing, risk of rebound hypoglycaemia, relevant ingredient (e.g. fructose, glucose syrup). Min 70 words.>",
+    "bodyReaction": "<3-4 sentences on immediate physiology: gastric acid, gut motility, inflammation, osmotic effect in gut, any bloating/discomfort risk, microbiome interaction in first hours. Min 70 words.>",
+    "hydrationImpact": "<3-4 sentences on fluid balance: net hydrating or diuretic, electrolyte contribution (Na, K, Mg), osmolarity vs body fluids, practical hydration rating for this item. Min 70 words.>"
   },
   "mediumTermImpact": {
-    "energyStability": "<3-4 sentences on energy patterns if consumed regularly over 7-30 days: mitochondrial effects, adrenal impact, cortisol patterns, estimated effect on sustained energy vs. crashes. Min 60 words.>",
-    "physicalChanges": "<3-4 sentences on body composition and physical changes with regular consumption: weight trajectory, water retention, muscle impact, skin and appearance effects, estimated caloric contribution. Min 60 words.>",
-    "habitRisk": "<3-4 sentences on habit-formation and dependency risk: reward pathway activation, craving potential, withdrawal effects if stopped, tolerance build-up, psychological dependency patterns. Min 60 words.>",
-    "sleepQuality": "<3-4 sentences on sleep impact with regular use: effect on sleep latency, deep sleep stages, REM quality, melatonin interaction, optimal consumption timing to protect sleep. Min 60 words.>"
+    "energyStability": "<3-4 sentences on 7-30 day energy pattern with regular use: adrenal adaptation, cortisol rhythm, mitochondrial effect, caffeine tolerance if relevant, energy quality vs stimulant dependency. Min 70 words.>",
+    "physicalChanges": "<3-4 sentences on body composition over weeks: caloric surplus/deficit contribution, water retention, insulin-driven fat storage, muscle protein synthesis impact, skin and appearance markers. Min 70 words.>",
+    "habitRisk": "<3-4 sentences on psychological dependency: dopamine/reward pathway activation, craving cycle, sugar/caffeine addiction potential, withdrawal symptoms if stopped, frequency risk. Min 70 words.>",
+    "sleepQuality": "<3-4 sentences on sleep with regular use: melatonin interference, adenosine disruption, blood-sugar nocturnal effects, REM impact, recommended cutoff time for consumption. Min 70 words.>"
   },
   "longTermImpact": {
-    "healthTrend": "<3-4 sentences on overall health trajectory with years of regular consumption: longevity markers, cardiovascular indicators, systemic inflammation, estimated quality-of-life impact. Reference epidemiological patterns. Min 60 words.>",
-    "metabolicImpact": "<3-4 sentences on metabolic health: insulin sensitivity over time, liver processing burden, lipid profile effects, visceral fat risk, estimated impact on metabolic syndrome markers. Min 60 words.>",
-    "riskAccumulation": "<3-4 sentences on cumulative chronic disease risk: cancer associations, cardiovascular disease probability, diabetes risk, kidney/liver stress, bone density effects with multi-year consumption. Min 60 words.>",
-    "nutritionalBalance": "<3-4 sentences on nutritional contribution or displacement: micronutrient density, whether it crowds out healthier options, vitamin/mineral provision or depletion, gut microbiome effects long-term. Min 60 words.>"
+    "healthTrend": "<3-4 sentences on 1+ year trajectory: cardiovascular markers (LDL, blood pressure), systemic inflammation (CRP), longevity associations, epidemiological evidence for or against this product type. Min 70 words.>",
+    "metabolicImpact": "<3-4 sentences on metabolic health: insulin sensitivity drift, hepatic fat accumulation risk, lipid profile changes, visceral adiposity, metabolic syndrome probability with habitual intake. Min 70 words.>",
+    "riskAccumulation": "<3-4 sentences on chronic disease risk: cancer epidemiology (if applicable), cardiovascular disease odds, type 2 diabetes association, kidney or liver stress, dental or bone health effects. Min 70 words.>",
+    "nutritionalBalance": "<3-4 sentences on dietary impact: micronutrient density vs caloric density, nutrient displacement risk, vitamin/mineral contribution or depletion, gut microbiome diversity effects over years. Min 70 words.>"
   },
   "composition": {
     "calories": 0,
@@ -114,24 +112,21 @@ Return only valid JSON — no markdown code blocks, no extra text before or afte
     "servingSize": 100,
     "servingUnit": "<ml|g|oz|cup|piece|bowl>",
     "artificialSweeteners": false,
-    "additives": [],
+    "additives": ["<e.g. E150d Caramel Colour>"],
     "ingredients": [
       {
-        "name": "<ingredient name>",
-        "function": "<biological role>",
+        "name": "<ingredient>",
+        "function": "<biological role in body>",
         "healthRole": "<positive|neutral|concerning>",
         "riskLevel": "<low|medium|high>",
-        "description": "<one educational sentence>",
-        "aiNote": "<specific wellness note>"
+        "description": "<one sentence: what it is and what it does>",
+        "aiNote": "<specific health insight for this ingredient>"
       }
     ]
   }
 }
 
-Fill ALL fields based on what you see. Use realistic estimates from nutritional databases.
-For mixed_meal: populate componentBreakdown with each visible component.
-For beverages: set satietyScore to null.
-Never leave required string fields empty — use "Unknown" as last resort.`;
+Rules: Fill ALL fields. Use nutritional database estimates for composition. For whole foods (apple, banana, salad) use standard 100g values. For beverages set satietyScore to null. Include 3-5 real ingredients.`;
 
 // ─── Robust JSON extraction + defaults ────────────────────────────────────────
 function extractAndNormalize(raw: string): Record<string, unknown> {
@@ -287,52 +282,113 @@ function extractAndNormalize(raw: string): Record<string, unknown> {
   return data;
 }
 
+// ─── Focused ID prompt used when main analysis returns a weak name ─────────────
+const IDENTIFY_PROMPT = `What food or drink product is in this image? Look at the logo, label text, packaging colours, and container shape.
+Return ONLY a JSON object with these fields:
+{"detectedProduct": "<specific name>", "brand": "<brand or null>", "confidenceScore": 0.8, "category": "<category>", "consumableType": "<consumableType>"}
+Examples: {"detectedProduct":"Red Bull Energy Drink","brand":"Red Bull","confidenceScore":0.97,"category":"energy_drink","consumableType":"beverage"}
+{"detectedProduct":"Grilled Chicken Sandwich","brand":null,"confidenceScore":0.85,"category":"solid_food","consumableType":"solid_food"}
+NEVER return "Unknown Item" — use your best visual inference.`;
+
+function isWeakName(name: unknown): boolean {
+  if (typeof name !== "string") return true;
+  const lower = name.toLowerCase();
+  return (
+    lower === "unknown item" ||
+    lower === "unknown" ||
+    lower === "unknown food" ||
+    lower === "unknown drink" ||
+    lower === "item" ||
+    lower === "food" ||
+    lower === "drink" ||
+    lower === "product" ||
+    lower.trim().length === 0
+  );
+}
+
+async function identifyProductOnly(imageBase64: string): Promise<Partial<Record<string, unknown>>> {
+  const ctrl = new AbortController();
+  const tid = setTimeout(() => ctrl.abort(), 20_000);
+  try {
+    const completion = await openai.chat.completions.create(
+      {
+        model: "gpt-4o",
+        messages: [{
+          role: "user",
+          content: [
+            { type: "image_url", image_url: { url: `data:image/jpeg;base64,${imageBase64}`, detail: "auto" } },
+            { type: "text", text: IDENTIFY_PROMPT },
+          ],
+        }],
+        max_tokens: 200,
+        temperature: 0.2,
+      },
+      { signal: ctrl.signal as AbortSignal },
+    );
+    clearTimeout(tid);
+    const raw = completion.choices[0]?.message?.content ?? "";
+    const cleaned = raw.replace(/```json\s*/gi, "").replace(/```\s*/g, "").trim();
+    const start = cleaned.indexOf("{");
+    const end = cleaned.lastIndexOf("}");
+    if (start !== -1 && end !== -1) {
+      return JSON.parse(cleaned.slice(start, end + 1)) as Partial<Record<string, unknown>>;
+    }
+  } catch (e) {
+    clearTimeout(tid);
+    logger.warn({ err: (e as Error).message }, "identifyProductOnly failed");
+  }
+  return {};
+}
+
 // ─── Direct AI call — no response_format wrapper, extract JSON from text ────────
 async function callAIVision(imageBase64: string): Promise<Record<string, unknown>> {
-  const MAX_ATTEMPTS = 2;
-  let lastError: Error = new Error("Unknown AI error");
+  const abortController = new AbortController();
+  const timeoutId = setTimeout(() => abortController.abort(), 65_000);
 
-  for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
-    const abortController = new AbortController();
-    const timeoutId = setTimeout(() => abortController.abort(), 60_000);
+  let result: Record<string, unknown>;
 
-    try {
-      const completion = await openai.chat.completions.create(
-        {
-          model: "gpt-4o",
-          messages: [
-            { role: "system", content: ANALYSIS_SYSTEM_PROMPT },
-            {
-              role: "user",
-              content: [
-                {
-                  type: "image_url",
-                  image_url: { url: `data:image/jpeg;base64,${imageBase64}`, detail: "auto" },
-                },
-                { type: "text", text: ANALYSIS_USER_PROMPT },
-              ],
-            },
-          ],
-          max_tokens: 3000,
-          temperature: 0.1,
-          // No response_format here — we extract JSON ourselves via regex
-          // This avoids the "messages must contain 'json'" 400 error from OpenAI
-        },
-        { signal: abortController.signal as AbortSignal },
-      );
-      clearTimeout(timeoutId);
-      return extractAndNormalize(completion.choices[0]?.message?.content ?? "");
-    } catch (err: unknown) {
-      clearTimeout(timeoutId);
-      lastError = err instanceof Error ? err : new Error(String(err));
-      logger.warn({ attempt, err: lastError.message }, "AI vision attempt failed");
-      if (attempt < MAX_ATTEMPTS) {
-        await new Promise((r) => setTimeout(r, 1500));
-      }
+  try {
+    const completion = await openai.chat.completions.create(
+      {
+        model: "gpt-4o",
+        messages: [
+          { role: "system", content: ANALYSIS_SYSTEM_PROMPT },
+          {
+            role: "user",
+            content: [
+              { type: "image_url", image_url: { url: `data:image/jpeg;base64,${imageBase64}`, detail: "auto" } },
+              { type: "text", text: ANALYSIS_USER_PROMPT },
+            ],
+          },
+        ],
+        max_tokens: 3200,
+        temperature: 0.15,
+        // No response_format — JSON extracted via brace-matching to avoid 400 error
+      },
+      { signal: abortController.signal as AbortSignal },
+    );
+    clearTimeout(timeoutId);
+    result = extractAndNormalize(completion.choices[0]?.message?.content ?? "");
+  } catch (err: unknown) {
+    clearTimeout(timeoutId);
+    throw err instanceof Error ? err : new Error(String(err));
+  }
+
+  // ── Smart retry: if the main call returned a weak product name, run a fast focused ID call ──
+  if (isWeakName(result.detectedProduct)) {
+    logger.warn({ name: result.detectedProduct }, "Weak product name — running focused ID retry");
+    const idResult = await identifyProductOnly(imageBase64);
+    if (idResult.detectedProduct && !isWeakName(idResult.detectedProduct)) {
+      result.detectedProduct = idResult.detectedProduct;
+      if (idResult.brand !== undefined) result.brand = idResult.brand;
+      if (typeof idResult.confidenceScore === "number") result.confidenceScore = idResult.confidenceScore;
+      if (idResult.category) result.category = idResult.category;
+      if (idResult.consumableType) result.consumableType = idResult.consumableType;
+      logger.info({ name: result.detectedProduct }, "ID retry succeeded");
     }
   }
 
-  throw lastError;
+  return result;
 }
 
 // ─── Analyze endpoint ─────────────────────────────────────────────────────────
