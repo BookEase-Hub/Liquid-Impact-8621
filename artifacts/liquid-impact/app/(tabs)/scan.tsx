@@ -385,10 +385,10 @@ function ResultsScreen({ result, onReset }: { result: ScanResult; onReset: () =>
       {/* Stats grid */}
       <View style={styles.statsGrid}>
         {[
-          { label: 'Sugar', value: `${result.composition.sugarGrams}g`, icon: 'nutrition', color: result.composition.sugarGrams > 25 ? THEME.danger : THEME.success },
-          { label: 'Hydration', value: `${result.hydrationLevel}%`, icon: 'water', color: result.hydrationLevel >= 70 ? THEME.success : THEME.warning },
-          { label: 'Calories', value: `${result.composition.calories}`, icon: 'flame', color: THEME.warning },
-          { label: 'Caffeine', value: `${result.composition.caffeineMg}mg`, icon: 'lightning-bolt', color: result.composition.caffeineMg > 100 ? THEME.danger : THEME.primary },
+          { label: 'Calories', value: result.composition.calories != null ? `${result.composition.calories}` : '—', icon: 'flame', color: THEME.warning },
+          { label: 'Protein', value: result.composition.proteinGrams != null ? `${result.composition.proteinGrams}g` : '—', icon: 'arm-flex', color: THEME.success },
+          { label: 'Sugar', value: result.composition.sugarGrams != null ? `${result.composition.sugarGrams}g` : '—', icon: 'nutrition', color: (result.composition.sugarGrams ?? 0) > 25 ? THEME.danger : THEME.success },
+          { label: 'Fat', value: result.composition.fatGrams != null ? `${result.composition.fatGrams}g` : '—', icon: 'water', color: THEME.warning },
         ].map((stat) => (
           <GlassCard key={stat.label} style={styles.statBox}>
             <MaterialCommunityIcons name={stat.icon as any} size={22} color={stat.color} />

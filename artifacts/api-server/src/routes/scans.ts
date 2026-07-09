@@ -54,79 +54,87 @@ const ANALYSIS_USER_PROMPT = `Look carefully at this image. Identify the product
 
 CRITICAL: You MUST provide a specific product name. Never return "Unknown Item". Use your best inference from visual evidence.
 
+CRITICAL NUTRITION RULES (read before writing composition):
+• NEVER output 0 for calories, protein, fat, or carbs unless the item is literally calorie-free water.
+• Every real food or drink has non-zero nutrition. A full meal plate has 400–800+ kcal. A soda has 100–150 kcal. A snack bar has 200–300 kcal. A banana has ~90 kcal.
+• Calories must be consistent with macros: roughly (protein×4) + (carbs×4) + (fat×9) ≈ calories.
+• Estimate from standard food composition databases (USDA, NUTTAB, regional databases).
+• For mixed meals: estimate total for the full plate visible (not per 100g).
+• Portion size must always be estimated — never leave it at 0.
+
 Return ONLY this JSON object — no markdown, no extra text:
 
 {
   "id": "scan_XXXXXXXX",
-  "detectedProduct": "<REQUIRED: exact name like 'Coca-Cola Classic', 'Red Bull Energy Drink', 'Grilled Chicken Salad', 'Banana', 'Lay's Classic Chips' — or 'Possible [BestGuess]' if partially visible — NEVER 'Unknown Item'>",
-  "brand": "<brand name visible on packaging, or null if fresh/unbranded food>",
+  "detectedProduct": "<REQUIRED: specific name like 'Coca-Cola Classic', 'Red Bull Energy Drink', 'Grilled Chicken Caesar Salad', 'Banana', 'Mbuzi Wet Fry with Ugali and Sukuma Wiki' — NEVER 'Unknown Item'>",
+  "brand": "<visible brand name, or null for fresh/home-cooked food>",
   "category": "<water|soda|energy_drink|tea|coffee|juice|alcohol|sports_drink|dairy|plant_milk|supplement|solid_food|mixed_meal|snack|condiment|other>",
   "liquidType": "<beverage|cooking_oil|condiment|alcohol|supplement|other>",
   "consumableType": "<beverage|solid_food|mixed_meal|snack|condiment|supplement>",
-  "confidenceScore": 0.85,
-  "impactScore": 50,
-  "hydrationLevel": 50,
-  "glycemicImpact": "<low|moderate|high|very_high>",
-  "status": "<optimal|stable|risky|damaging>",
+  "confidenceScore": 0.88,
+  "impactScore": 62,
+  "hydrationLevel": 45,
+  "glycemicImpact": "moderate",
+  "status": "stable",
   "dehydrationRisk": false,
-  "satietyScore": null,
-  "digestiveLoad": "<light|moderate|heavy>",
-  "nutrientDensity": 50,
-  "fiberEstimate": "<low|medium|high>",
-  "proteinQuality": "<complete|incomplete|not_applicable>",
-  "mealTimingFit": { "breakfast": "<excellent|good|fair|poor>", "lunch": "<excellent|good|fair|poor>", "dinner": "<excellent|good|fair|poor>", "snack": "<excellent|good|fair|poor>" },
-  "bloodSugarTrajectory": "<spike|sustained|gradual|crash>",
+  "satietyScore": 75,
+  "digestiveLoad": "moderate",
+  "nutrientDensity": 65,
+  "fiberEstimate": "medium",
+  "proteinQuality": "complete",
+  "mealTimingFit": { "breakfast": "fair", "lunch": "excellent", "dinner": "good", "snack": "poor" },
+  "bloodSugarTrajectory": "gradual",
   "componentBreakdown": [],
   "allergenFlags": [],
-  "processingLevel": "<whole|minimally_processed|processed|ultra_processed>",
-  "mealType": "<breakfast|lunch|dinner|snack>",
-  "aiInsight": "<3-4 sentences covering the key health aspects, mechanisms, and nutritional significance of this specific item. Be precise and scientific. Min 60 words.>",
-  "viralStatement": "<punchy 8-12 word health truth about this item>",
-  "alternatives": ["<1 healthier swap>", "<1 healthier swap>"],
+  "processingLevel": "minimally_processed",
+  "mealType": "lunch",
+  "aiInsight": "<3-4 sentences describing THIS SPECIFIC food/drink: what it contains, its key nutritional strengths and weaknesses, and what the user should know. Reference the actual ingredients visible. Min 80 words. NOT generic placeholder text.>",
+  "viralStatement": "<punchy 8-12 word health truth specific to this item>",
+  "alternatives": ["<specific healthier alternative>", "<specific healthier alternative>"],
   "shortTermImpact": {
-    "energyResponse": "<3-4 sentences on energy in hours 1-4: glucose/caffeine/stimulant mechanisms, adenosine blockade if relevant, estimated energy curve and crash potential. Name the specific compound driving the effect. Min 70 words.>",
-    "bloodSugarResponse": "<3-4 sentences on glycaemic trajectory: GI estimate, insulin demand, spike timing, risk of rebound hypoglycaemia, relevant ingredient (e.g. fructose, glucose syrup). Min 70 words.>",
-    "bodyReaction": "<3-4 sentences on immediate physiology: gastric acid, gut motility, inflammation, osmotic effect in gut, any bloating/discomfort risk, microbiome interaction in first hours. Min 70 words.>",
-    "hydrationImpact": "<3-4 sentences on fluid balance: net hydrating or diuretic, electrolyte contribution (Na, K, Mg), osmolarity vs body fluids, practical hydration rating for this item. Min 70 words.>"
+    "energyResponse": "<Write 3-4 sentences specific to THIS food/drink. Describe: what happens to blood glucose in the first 1-4 hours from the actual carbs/sugars present, any caffeine or stimulant effects, expected energy curve, and when any crash might occur. Be specific — mention the actual ingredients. Min 80 words.>",
+    "bloodSugarResponse": "<Write 3-4 sentences on the glycaemic trajectory of THIS item specifically. Estimate the glycaemic index of the main carb source, describe insulin demand, risk of spike-and-crash, absorption speed. Name the actual sugars or starches present. Min 80 words.>",
+    "bodyReaction": "<Write 3-4 sentences on the immediate physiological reactions to THIS food/drink in the first few hours: digestive effort required, gut motility effect, any inflammation potential from specific ingredients, bloating risk, satiety signals. Be specific. Min 80 words.>",
+    "hydrationImpact": "<Write 3-4 sentences on the net hydration effect of THIS item: is it hydrating or diuretic, what electrolytes does it provide or deplete, how does it affect fluid balance. For solid foods, describe water content contribution. Min 80 words.>"
   },
   "mediumTermImpact": {
-    "energyStability": "<3-4 sentences on 7-30 day energy pattern with regular use: adrenal adaptation, cortisol rhythm, mitochondrial effect, caffeine tolerance if relevant, energy quality vs stimulant dependency. Min 70 words.>",
-    "physicalChanges": "<3-4 sentences on body composition over weeks: caloric surplus/deficit contribution, water retention, insulin-driven fat storage, muscle protein synthesis impact, skin and appearance markers. Min 70 words.>",
-    "habitRisk": "<3-4 sentences on psychological dependency: dopamine/reward pathway activation, craving cycle, sugar/caffeine addiction potential, withdrawal symptoms if stopped, frequency risk. Min 70 words.>",
-    "sleepQuality": "<3-4 sentences on sleep with regular use: melatonin interference, adenosine disruption, blood-sugar nocturnal effects, REM impact, recommended cutoff time for consumption. Min 70 words.>"
+    "energyStability": "<Write 3-4 sentences specific to THIS food/drink consumed regularly over 7-30 days. What happens to energy levels, adrenal function, cortisol rhythm, mitochondrial health. Mention the specific macros driving these effects. Min 80 words.>",
+    "physicalChanges": "<Write 3-4 sentences on body composition changes from regular consumption of THIS item: weight gain/loss potential from its specific caloric density, water retention effects, muscle protein synthesis contribution from protein content, any visible skin effects. Min 80 words.>",
+    "habitRisk": "<Write 3-4 sentences on dependency risk specific to THIS item: does it contain caffeine, high sugar, or other habit-forming compounds? What withdrawal effects might occur? How addictive is the consumption pattern it creates? Min 80 words.>",
+    "sleepQuality": "<Write 3-4 sentences on sleep impact from regular consumption of THIS item: does it contain caffeine or stimulants that disrupt adenosine? Does the glycaemic load cause nocturnal blood sugar swings? What is the ideal cutoff time for this specific item? Min 80 words.>"
   },
   "longTermImpact": {
-    "healthTrend": "<3-4 sentences on 1+ year trajectory: cardiovascular markers (LDL, blood pressure), systemic inflammation (CRP), longevity associations, epidemiological evidence for or against this product type. Min 70 words.>",
-    "metabolicImpact": "<3-4 sentences on metabolic health: insulin sensitivity drift, hepatic fat accumulation risk, lipid profile changes, visceral adiposity, metabolic syndrome probability with habitual intake. Min 70 words.>",
-    "riskAccumulation": "<3-4 sentences on chronic disease risk: cancer epidemiology (if applicable), cardiovascular disease odds, type 2 diabetes association, kidney or liver stress, dental or bone health effects. Min 70 words.>",
-    "nutritionalBalance": "<3-4 sentences on dietary impact: micronutrient density vs caloric density, nutrient displacement risk, vitamin/mineral contribution or depletion, gut microbiome diversity effects over years. Min 70 words.>"
+    "healthTrend": "<Write 3-4 sentences on the 1-5 year health trajectory of regularly consuming THIS food/drink. Reference specific epidemiological findings for this food category. Name cardiovascular, inflammatory, or longevity markers that this item specifically affects. Min 80 words.>",
+    "metabolicImpact": "<Write 3-4 sentences on the metabolic consequences of regularly consuming THIS item: insulin sensitivity trajectory, hepatic fat risk from specific ingredients like fructose, lipid profile effects (LDL, HDL, triglycerides), visceral fat accumulation probability. Min 80 words.>",
+    "riskAccumulation": "<Write 3-4 sentences on chronic disease risk from THIS specific food/drink: any known cancer associations for its processing level or additives, cardiovascular disease risk from fat type and sodium, diabetes risk from sugar load, kidney/liver stress. Min 80 words.>",
+    "nutritionalBalance": "<Write 3-4 sentences on THIS item's long-term nutritional contribution: its micronutrient density, whether regular consumption supports or displaces healthier foods, key vitamins/minerals it provides or depletes, and its gut microbiome effects over months/years. Min 80 words.>"
   },
   "composition": {
-    "calories": 0,
-    "sugarGrams": 0,
+    "calories": 420,
+    "sugarGrams": 12,
     "caffeineMg": 0,
-    "sodiumMg": 0,
-    "fatGrams": 0,
-    "proteinGrams": 0,
-    "fiberGrams": 0,
-    "servingSize": 100,
-    "servingUnit": "<ml|g|oz|cup|piece|bowl>",
+    "sodiumMg": 380,
+    "fatGrams": 18,
+    "proteinGrams": 32,
+    "fiberGrams": 4,
+    "servingSize": 350,
+    "servingUnit": "g",
     "artificialSweeteners": false,
-    "additives": ["<e.g. E150d Caramel Colour>"],
+    "additives": [],
     "ingredients": [
       {
-        "name": "<ingredient>",
-        "function": "<biological role in body>",
+        "name": "<primary ingredient name>",
+        "function": "<what this ingredient does in the body>",
         "healthRole": "<positive|neutral|concerning>",
         "riskLevel": "<low|medium|high>",
-        "description": "<one sentence: what it is and what it does>",
-        "aiNote": "<specific health insight for this ingredient>"
+        "description": "<one sentence: what it is and its nutritional role>",
+        "aiNote": "<specific actionable health insight about this ingredient>"
       }
     ]
   }
 }
 
-Rules: Fill ALL fields. Use nutritional database estimates for composition. For whole foods (apple, banana, salad) use standard 100g values. For beverages set satietyScore to null. Include 3-5 real ingredients.`;
+FINAL CHECK before outputting: Are calories > 0 for any real food/drink? Are protein, fat realistic for what you see? Are insights specific to THIS item (not generic)? If any field looks like a placeholder, rewrite it.`;
 
 // ─── Robust JSON extraction + defaults ────────────────────────────────────────
 function extractAndNormalize(raw: string): Record<string, unknown> {
@@ -256,14 +264,21 @@ function extractAndNormalize(raw: string): Record<string, unknown> {
     };
   } else {
     const c = data.composition as Record<string, unknown>;
-    if (typeof c.calories !== "number") c.calories = 0;
-    if (typeof c.sugarGrams !== "number") c.sugarGrams = 0;
-    if (typeof c.caffeineMg !== "number") c.caffeineMg = 0;
-    if (typeof c.sodiumMg !== "number") c.sodiumMg = 0;
-    if (typeof c.fatGrams !== "number") c.fatGrams = 0;
-    if (typeof c.proteinGrams !== "number") c.proteinGrams = 0;
-    if (typeof c.fiberGrams !== "number") c.fiberGrams = 0;
-    if (typeof c.servingSize !== "number") c.servingSize = 100;
+    // Coerce string numbers to actual numbers — AI sometimes returns "420" instead of 420
+    const toNum = (v: unknown, fallback: number): number => {
+      if (typeof v === "number") return isNaN(v) ? fallback : v;
+      if (typeof v === "string") { const n = parseFloat(v); return isNaN(n) ? fallback : n; }
+      return fallback;
+    };
+    // Use -1 sentinel so we can detect truly missing values vs intentional zero (water)
+    c.calories    = toNum(c.calories,    -1); if ((c.calories as number) < 0) c.calories = null;
+    c.sugarGrams  = toNum(c.sugarGrams,  -1); if ((c.sugarGrams as number) < 0) c.sugarGrams = null;
+    c.caffeineMg  = toNum(c.caffeineMg,   0);
+    c.sodiumMg    = toNum(c.sodiumMg,    -1); if ((c.sodiumMg as number) < 0) c.sodiumMg = null;
+    c.fatGrams    = toNum(c.fatGrams,    -1); if ((c.fatGrams as number) < 0) c.fatGrams = null;
+    c.proteinGrams= toNum(c.proteinGrams,-1); if ((c.proteinGrams as number) < 0) c.proteinGrams = null;
+    c.fiberGrams  = toNum(c.fiberGrams,  -1); if ((c.fiberGrams as number) < 0) c.fiberGrams = null;
+    c.servingSize = toNum(c.servingSize, 100); if ((c.servingSize as number) <= 0) c.servingSize = 100;
     if (!c.servingUnit) c.servingUnit = "g";
     if (typeof c.artificialSweeteners !== "boolean") c.artificialSweeteners = false;
     if (!Array.isArray(c.additives)) c.additives = [];

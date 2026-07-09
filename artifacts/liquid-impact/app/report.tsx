@@ -36,17 +36,20 @@ function ImpactRow({ label, value }: { label: string; value: string }) {
   );
 }
 
-function NutritionBar({ label, value, max, unit, color }: { label: string; value: number; max: number; unit: string; color: string }) {
+function NutritionBar({ label, value, max, unit, color }: { label: string; value: number | null | undefined; max: number; unit: string; color: string }) {
   const colors = useColors();
-  const pct = Math.min(100, (value / max) * 100);
+  const hasValue = value != null && value >= 0;
+  const pct = hasValue ? Math.min(100, ((value as number) / max) * 100) : 0;
   return (
     <View style={{ gap: 6, marginBottom: 12 }}>
       <View style={{ flexDirection: "row", justifyContent: "space-between" }}>
         <Text style={{ color: colors.subtext, fontSize: 13 }}>{label}</Text>
-        <Text style={{ color: colors.foreground, fontSize: 13, fontWeight: "700" }}>{value}{unit}</Text>
+        <Text style={{ color: colors.foreground, fontSize: 13, fontWeight: "700" }}>
+          {hasValue ? `${value}${unit}` : '—'}
+        </Text>
       </View>
       <View style={{ height: 5, backgroundColor: colors.backgroundTertiary, borderRadius: 3, overflow: "hidden" }}>
-        <View style={{ width: `${pct}%`, height: "100%", backgroundColor: color, borderRadius: 3 }} />
+        <View style={{ width: `${pct}%`, height: "100%", backgroundColor: hasValue ? color : colors.backgroundTertiary, borderRadius: 3 }} />
       </View>
     </View>
   );
@@ -184,12 +187,12 @@ export default function ReportScreen() {
         {/* Quick stats — 6 metrics */}
         <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
           {[
-            { icon: "flame", label: "Calories", value: `${scan.composition.calories}`, color: colors.scoreMedium },
-            { icon: "nutrition", label: "Sugar", value: `${scan.composition.sugarGrams}g`, color: colors.scoreLow },
+            { icon: "flame", label: "Calories", value: scan.composition.calories != null ? `${scan.composition.calories}` : '—', color: colors.scoreMedium },
+            { icon: "nutrition", label: "Sugar", value: scan.composition.sugarGrams != null ? `${scan.composition.sugarGrams}g` : '—', color: colors.scoreLow },
             { icon: "water", label: "Hydration", value: `${scan.hydrationLevel}%`, color: colors.primary },
-            { icon: "flash", label: "Caffeine", value: `${scan.composition.caffeineMg}mg`, color: colors.secondary },
+            { icon: "flash", label: "Caffeine", value: scan.composition.caffeineMg != null ? `${scan.composition.caffeineMg}mg` : '—', color: colors.secondary },
             { icon: "cellular", label: "Sodium", value: `${scan.composition.sodiumMg}mg`, color: colors.scoreMedium },
-            { icon: "ellipse", label: "Fat", value: `${scan.composition.fatGrams}g`, color: "#FF6B9D" },
+            { icon: "ellipse", label: "Fat", value: scan.composition.fatGrams != null ? `${scan.composition.fatGrams}g` : '—', color: "#FF6B9D" },
           ].map((item) => (
             <View key={item.label} style={{ width: "30%", backgroundColor: colors.backgroundSecondary, borderRadius: 14, padding: 10, alignItems: "center", gap: 4, borderWidth: 1, borderColor: colors.border }}>
               <Ionicons name={item.icon as any} size={14} color={item.color} />
