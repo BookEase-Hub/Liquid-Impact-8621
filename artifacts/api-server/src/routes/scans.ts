@@ -136,19 +136,37 @@ Never leave required string fields empty — use "Unknown" as last resort.`;
 // ─── Robust JSON extraction + defaults ────────────────────────────────────────
 function extractAndNormalize(raw: string): Record<string, unknown> {
   // Strip markdown code fences if present
-  let cleaned = raw.replace(/```json\s*/gi, "").replace(/```\s*/g, "").trim();
+  const cleaned = raw.replace(/```json\s*/gi, "").replace(/```\s*/g, "").trim();
 
-  // Extract first complete JSON object
-  const match = cleaned.match(/\{[\s\S]*\}/);
-  if (!match) throw new Error("No JSON object found in AI response");
+  // Try to find a JSON object — scan from the first { to match all nested braces
+  let data: Record<string, unknown> | null = null;
+  const start = cleaned.indexOf("{");
+  if (start !== -1) {
+    // Walk backwards from end to find matching closing brace
+    let depth = 0;
+    let end = -1;
+    for (let i = start; i < cleaned.length; i++) {
+      if (cleaned[i] === "{") depth++;
+      else if (cleaned[i] === "}") { depth--; if (depth === 0) { end = i; break; } }
+    }
+    if (end !== -1) {
+      const candidate = cleaned.slice(start, end + 1);
+      try {
+        data = JSON.parse(candidate);
+      } catch {
+        // Repair trailing commas and control characters then retry
+        const repaired = candidate
+          .replace(/,\s*([}\]])/g, "$1")
+          .replace(/[\u0000-\u001F\u007F]/g, " ");
+        try { data = JSON.parse(repaired); } catch { /* fall through to fallback */ }
+      }
+    }
+  }
 
-  let data: Record<string, unknown>;
-  try {
-    data = JSON.parse(match[0]);
-  } catch {
-    // Try to repair common trailing-comma issues
-    const repaired = match[0].replace(/,\s*([}\]])/g, "$1");
-    data = JSON.parse(repaired);
+  // If we still have nothing, build a fallback so the user always sees a result
+  if (!data) {
+    logger.warn({ rawLen: raw.length, rawSnippet: raw.slice(0, 200) }, "AI returned no parseable JSON — using fallback");
+    data = {};
   }
 
   // ── ID ──────────────────────────────────────────────────────────────────────
@@ -289,7 +307,7 @@ async function callAIVision(imageBase64: string): Promise<Record<string, unknown
               content: [
                 {
                   type: "image_url",
-                  image_url: { url: `data:image/jpeg;base64,${imageBase64}`, detail: "low" },
+                  image_url: { url: `data:image/jpeg;base64,${imageBase64}`, detail: "auto" },
                 },
                 { type: "text", text: ANALYSIS_USER_PROMPT },
               ],

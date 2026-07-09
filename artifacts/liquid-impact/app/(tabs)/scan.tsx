@@ -189,8 +189,8 @@ function useScanPipeline() {
         // Aggressive compression: 512px, 0.65 quality — fastest upload
         const manipulated = await ImageManipulator.manipulateAsync(
           input.imageUri,
-          [{ resize: { width: 512 } }],
-          { compress: 0.65, format: ImageManipulator.SaveFormat.JPEG, base64: true }
+          [{ resize: { width: 800 } }],
+          { compress: 0.82, format: ImageManipulator.SaveFormat.JPEG, base64: true }
         );
         base64 = manipulated.base64 ?? undefined;
       }
