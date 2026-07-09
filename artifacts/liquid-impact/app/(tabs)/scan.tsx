@@ -39,11 +39,11 @@ const THEME = {
 
 // ─── Staged loading messages ──────────────────────────────────────────────────
 const LOADING_STAGES = [
-  { progress: 0.08, message: 'Item detected', sub: 'Scanning label...' },
-  { progress: 0.25, message: 'Reading ingredients', sub: 'Extracting nutritional data...' },
-  { progress: 0.50, message: 'Calculating impact', sub: 'Analysing health effects...' },
-  { progress: 0.75, message: 'Almost ready', sub: 'Generating detailed insights...' },
-  { progress: 0.92, message: 'Finalising results', sub: 'Preparing your score...' },
+  { progress: 0.08, message: 'Item detected', sub: 'Sending to AI — this takes ~20s...' },
+  { progress: 0.25, message: 'Reading ingredients', sub: 'GPT-4o extracting nutritional data...' },
+  { progress: 0.50, message: 'Calculating impact', sub: 'Analysing short, medium & long-term effects...' },
+  { progress: 0.75, message: 'Almost ready', sub: 'Generating detailed health insights...' },
+  { progress: 0.92, message: 'Finalising results', sub: 'Preparing your full impact report...' },
 ];
 
 const getStatusColor = (status: ScanStatus) => {

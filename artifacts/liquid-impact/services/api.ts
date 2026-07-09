@@ -4,8 +4,8 @@ const API_BASE = process.env.EXPO_PUBLIC_DOMAIN
   ? `https://${process.env.EXPO_PUBLIC_DOMAIN}/api`
   : "/api";
 
-// Client timeout: generous enough for worst-case AI (Gemini 5s + OpenAI 8s + overhead)
-const SCAN_TIMEOUT_MS = 15_000;
+// Client timeout: GPT-4o with detailed prompts can take 25-40s — give it 75s
+const SCAN_TIMEOUT_MS = 75_000;
 
 export async function analyzeDrink(
   imageBase64: string,
@@ -36,7 +36,7 @@ export async function analyzeDrink(
     return { ...data, scannedAt: Date.now() } as ScanResult;
   } catch (e) {
     if (e instanceof Error && e.name === "AbortError") {
-      throw new Error("Analysis timed out. Try a clearer photo or use Search mode.");
+      throw new Error("Analysis is taking longer than expected. Please try again — or use Search mode to type the item name.");
     }
     throw e;
   } finally {

@@ -271,37 +271,50 @@ function extractAndNormalize(raw: string): Record<string, unknown> {
 
 // ─── Direct AI call — no response_format wrapper, extract JSON from text ────────
 async function callAIVision(imageBase64: string): Promise<Record<string, unknown>> {
-  const abortController = new AbortController();
-  const timeoutId = setTimeout(() => abortController.abort(), 55_000);
+  const MAX_ATTEMPTS = 2;
+  let lastError: Error = new Error("Unknown AI error");
 
-  try {
-    const completion = await openai.chat.completions.create(
-      {
-        model: "gpt-4o",
-        messages: [
-          { role: "system", content: ANALYSIS_SYSTEM_PROMPT },
-          {
-            role: "user",
-            content: [
-              {
-                type: "image_url",
-                image_url: { url: `data:image/jpeg;base64,${imageBase64}`, detail: "high" },
-              },
-              { type: "text", text: ANALYSIS_USER_PROMPT },
-            ],
-          },
-        ],
-        max_tokens: 4000,
-        temperature: 0.1,
-        // No response_format here — we extract JSON ourselves via regex
-        // This avoids the "messages must contain 'json'" 400 error from OpenAI
-      },
-      { signal: abortController.signal as AbortSignal },
-    );
-    return extractAndNormalize(completion.choices[0]?.message?.content ?? "");
-  } finally {
-    clearTimeout(timeoutId);
+  for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+    const abortController = new AbortController();
+    const timeoutId = setTimeout(() => abortController.abort(), 60_000);
+
+    try {
+      const completion = await openai.chat.completions.create(
+        {
+          model: "gpt-4o",
+          messages: [
+            { role: "system", content: ANALYSIS_SYSTEM_PROMPT },
+            {
+              role: "user",
+              content: [
+                {
+                  type: "image_url",
+                  image_url: { url: `data:image/jpeg;base64,${imageBase64}`, detail: "low" },
+                },
+                { type: "text", text: ANALYSIS_USER_PROMPT },
+              ],
+            },
+          ],
+          max_tokens: 3000,
+          temperature: 0.1,
+          // No response_format here — we extract JSON ourselves via regex
+          // This avoids the "messages must contain 'json'" 400 error from OpenAI
+        },
+        { signal: abortController.signal as AbortSignal },
+      );
+      clearTimeout(timeoutId);
+      return extractAndNormalize(completion.choices[0]?.message?.content ?? "");
+    } catch (err: unknown) {
+      clearTimeout(timeoutId);
+      lastError = err instanceof Error ? err : new Error(String(err));
+      logger.warn({ attempt, err: lastError.message }, "AI vision attempt failed");
+      if (attempt < MAX_ATTEMPTS) {
+        await new Promise((r) => setTimeout(r, 1500));
+      }
+    }
   }
+
+  throw lastError;
 }
 
 // ─── Analyze endpoint ─────────────────────────────────────────────────────────
