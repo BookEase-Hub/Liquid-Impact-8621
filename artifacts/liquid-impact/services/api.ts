@@ -4,8 +4,11 @@ const API_BASE = process.env.EXPO_PUBLIC_DOMAIN
   ? `https://${process.env.EXPO_PUBLIC_DOMAIN}/api`
   : "/api";
 
-// Client timeout: GPT-4o with detailed prompts can take 25-40s — give it 75s
 const SCAN_TIMEOUT_MS = 75_000;
+
+function genScanId(): string {
+  return `scan_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 10)}`;
+}
 
 export async function analyzeDrink(
   imageBase64: string,
@@ -29,11 +32,18 @@ export async function analyzeDrink(
 
     if (!response.ok) {
       const err = await response.json().catch(() => ({ error: "Unknown error" }));
-      throw new Error(err.error ?? "Failed to analyze drink");
+      throw new Error(err.error ?? "Failed to analyze item");
     }
 
     const data = await response.json();
-    return { ...data, scannedAt: Date.now() } as ScanResult;
+    // CRITICAL: Always assign a fresh unique ID + timestamp client-side.
+    // The server may return a cached result with an existing ID — we must
+    // never share IDs between independent scan sessions.
+    return {
+      ...data,
+      id: genScanId(),
+      scannedAt: Date.now(),
+    } as ScanResult;
   } catch (e) {
     if (e instanceof Error && e.name === "AbortError") {
       throw new Error("Analysis is taking longer than expected. Please try again — or use Search mode to type the item name.");

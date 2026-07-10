@@ -1,6 +1,7 @@
 import React, { useEffect } from "react";
 import {
   ActivityIndicator,
+  Image,
   StyleSheet,
   Text,
   TouchableOpacity,
@@ -361,6 +362,7 @@ export function DrinkCard({ scan, onPress }: DrinkCardProps) {
   const colors = useColors();
   const color = statusColor(scan.status);
   const timeStr = new Date(scan.scannedAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+  const dateStr = new Date(scan.scannedAt).toLocaleDateString([], { month: "short", day: "numeric" });
 
   return (
     <TouchableOpacity
@@ -381,8 +383,17 @@ export function DrinkCard({ scan, onPress }: DrinkCardProps) {
         width: 52, height: 52, borderRadius: 16,
         backgroundColor: `${color}14`, borderWidth: 1, borderColor: `${color}25`,
         justifyContent: "center", alignItems: "center",
+        overflow: "hidden",
       }}>
-        <Ionicons name={categoryIcon(scan.category)} size={22} color={color} />
+        {scan.imageUri ? (
+          <Image
+            source={{ uri: scan.imageUri }}
+            style={{ width: 52, height: 52, borderRadius: 16 }}
+            resizeMode="cover"
+          />
+        ) : (
+          <Ionicons name={categoryIcon(scan.category)} size={22} color={color} />
+        )}
       </View>
       <View style={{ flex: 1 }}>
         <Text style={{ color: colors.foreground, fontSize: 15, fontWeight: "700", fontFamily: "Inter_700Bold" }} numberOfLines={1}>

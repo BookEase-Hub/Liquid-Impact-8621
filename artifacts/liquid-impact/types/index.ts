@@ -93,14 +93,15 @@ export interface TimeBasedImpact {
 }
 
 export interface Composition {
-  calories: number;
-  sugarGrams: number;
+  calories: number | null;
+  sugarGrams: number | null;
   caffeineMg: number;
-  sodiumMg: number;
-  fatGrams: number;
-  proteinGrams: number;
-  fiberGrams?: number;
-  cholesterolMg?: number;
+  sodiumMg: number | null;
+  fatGrams: number | null;
+  proteinGrams: number | null;
+  fiberGrams?: number | null;
+  carbsGrams?: number | null;
+  cholesterolMg?: number | null;
   servingSize: number;
   servingUnit: string;
   artificialSweeteners: boolean;
@@ -168,6 +169,7 @@ export interface ScanResult {
   longTermImpact: LongTermImpact;
   composition: Composition;
   scannedAt: number;
+  imageUri?: string;
 
   satietyScore?: number;
   digestiveLoad?: DigestiveLoad;
@@ -181,6 +183,15 @@ export interface ScanResult {
   processingLevel?: ProcessingLevel;
   servingContext?: ServingContext;
   mealType?: "breakfast" | "lunch" | "dinner" | "snack";
+
+  hydrationScore?: number;
+  sugarLoadScore?: number;
+  caffeineScore?: number;
+  electrolyteScore?: number;
+  micronutrientScore?: number;
+  proteinQualityScore?: number;
+  fiberScore?: number;
+  healthyFatScore?: number;
 }
 
 export interface DailyMission {

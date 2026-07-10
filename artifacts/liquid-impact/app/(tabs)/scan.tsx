@@ -37,6 +37,12 @@ const THEME = {
   border: 'rgba(255,255,255,0.1)',
 };
 
+// Every scan in history must be an independent immutable record with a unique ID.
+// This is generated client-side so cached/local results never share IDs across sessions.
+function genScanId(): string {
+  return `scan_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 10)}`;
+}
+
 // ─── Staged loading messages ──────────────────────────────────────────────────
 const LOADING_STAGES = [
   { progress: 0.08, message: 'Item detected', sub: 'Sending to AI — this takes ~20s...' },
@@ -125,7 +131,10 @@ function useScanPipeline() {
     advanceStages();
 
     try {
-      // ── Layer 0: MMKV device cache (instant) ─────────────────────────────
+      // ── Layer 0: MMKV device cache (instant, barcode/text only) ──────────
+      // IMPORTANT: only cache barcode/text matches — never cache image scans
+      // by image hash, because different items may look similar. Each session
+      // gets a guaranteed-fresh ID so history is always correct.
       const cacheKey = input.barcode
         ? `barcode_${input.barcode}`
         : input.text
@@ -136,10 +145,17 @@ function useScanPipeline() {
         const raw = storage.getString(`cache_${cacheKey}`);
         if (raw) {
           const cached = JSON.parse(raw) as ScanResult;
+          // CRITICAL: fresh ID + timestamp per scan — never share IDs between sessions
+          const freshResult: ScanResult = {
+            ...cached,
+            id: genScanId(),
+            scannedAt: Date.now(),
+            imageUri: input.imageUri,
+          };
           stopStages();
           setProgress(1);
-          addScan(cached);
-          setResult(cached);
+          addScan(freshResult);
+          setResult(freshResult);
           setPhase('SUCCESS');
           Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
           isRunning.current = false;
@@ -149,12 +165,18 @@ function useScanPipeline() {
 
       // ── Layer 1: Local drink database (fuzzy match, <5ms) ─────────────────
       if (input.barcode && DRINK_DATABASE[input.barcode]) {
-        const match = DRINK_DATABASE[input.barcode];
-        if (cacheKey) storage.set(`cache_${cacheKey}`, JSON.stringify(match));
+        const baseMatch = DRINK_DATABASE[input.barcode];
+        const freshMatch: ScanResult = {
+          ...baseMatch,
+          id: genScanId(),
+          scannedAt: Date.now(),
+          imageUri: input.imageUri,
+        };
+        if (cacheKey) storage.set(`cache_${cacheKey}`, JSON.stringify(baseMatch));
         stopStages();
         setProgress(1);
-        addScan(match);
-        setResult(match);
+        addScan(freshMatch);
+        setResult(freshMatch);
         setPhase('SUCCESS');
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
         isRunning.current = false;
@@ -164,12 +186,18 @@ function useScanPipeline() {
       if (input.text && input.text.trim().length > 2) {
         const fuzzy = fuseInstance.search(input.text);
         if (fuzzy.length > 0 && (fuzzy[0].score ?? 1) < 0.25) {
-          const match = fuzzy[0].item;
-          if (cacheKey) storage.set(`cache_${cacheKey}`, JSON.stringify(match));
+          const baseMatch = fuzzy[0].item;
+          const freshMatch: ScanResult = {
+            ...baseMatch,
+            id: genScanId(),
+            scannedAt: Date.now(),
+            imageUri: input.imageUri,
+          };
+          if (cacheKey) storage.set(`cache_${cacheKey}`, JSON.stringify(baseMatch));
           stopStages();
           setProgress(1);
-          addScan(match);
-          setResult(match);
+          addScan(freshMatch);
+          setResult(freshMatch);
           setPhase('SUCCESS');
           Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
           isRunning.current = false;
@@ -177,7 +205,7 @@ function useScanPipeline() {
         }
       }
 
-      // ── Layer 2: AI Vision (Gemini → OpenAI fallback) ────────────────────
+      // ── Layer 2: AI Vision ────────────────────────────────────────────────
       if (!input.imageUri && !input.text) {
         throw new Error('No image or text provided for analysis.');
       }
@@ -186,7 +214,6 @@ function useScanPipeline() {
       let productHint: string | undefined = input.text;
 
       if (input.imageUri) {
-        // Aggressive compression: 512px, 0.65 quality — fastest upload
         const manipulated = await ImageManipulator.manipulateAsync(
           input.imageUri,
           [{ resize: { width: 800 } }],
@@ -199,15 +226,19 @@ function useScanPipeline() {
         throw new Error('Could not process image. Please try again.');
       }
 
+      // analyzeDrink already stamps a fresh ID + scannedAt (see services/api.ts)
       const aiResult = await analyzeDrink(base64 ?? '', productHint, input.barcode);
 
-      // Cache the AI result
+      // Attach the original image URI so history can show the correct thumbnail
+      const finalResult: ScanResult = { ...aiResult, imageUri: input.imageUri };
+
+      // Cache the AI result by barcode/text key for future fast lookups
       if (cacheKey) storage.set(`cache_${cacheKey}`, JSON.stringify(aiResult));
 
       stopStages();
       setProgress(1);
-      addScan(aiResult);
-      setResult(aiResult);
+      addScan(finalResult);
+      setResult(finalResult);
       setPhase('SUCCESS');
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     } catch (err: any) {
@@ -382,14 +413,22 @@ function ResultsScreen({ result, onReset }: { result: ScanResult; onReset: () =>
         </View>
       </GlassCard>
 
-      {/* Stats grid */}
+      {/* Stats grid — food vs drink adaptive */}
       <View style={styles.statsGrid}>
-        {[
-          { label: 'Calories', value: result.composition.calories != null ? `${result.composition.calories}` : '—', icon: 'flame', color: THEME.warning },
-          { label: 'Protein', value: result.composition.proteinGrams != null ? `${result.composition.proteinGrams}g` : '—', icon: 'arm-flex', color: THEME.success },
-          { label: 'Sugar', value: result.composition.sugarGrams != null ? `${result.composition.sugarGrams}g` : '—', icon: 'nutrition', color: (result.composition.sugarGrams ?? 0) > 25 ? THEME.danger : THEME.success },
-          { label: 'Fat', value: result.composition.fatGrams != null ? `${result.composition.fatGrams}g` : '—', icon: 'water', color: THEME.warning },
-        ].map((stat) => (
+        {(result.consumableType === 'beverage'
+          ? [
+              { label: 'Calories', value: result.composition.calories != null ? `${result.composition.calories}` : '—', icon: 'fire', color: THEME.warning },
+              { label: 'Hydration', value: `${result.hydrationLevel}%`, icon: 'water', color: result.hydrationLevel >= 70 ? THEME.success : THEME.warning },
+              { label: 'Sugar', value: result.composition.sugarGrams != null ? `${result.composition.sugarGrams}g` : '—', icon: 'cube', color: (result.composition.sugarGrams ?? 0) > 25 ? THEME.danger : THEME.success },
+              { label: 'Caffeine', value: result.composition.caffeineMg != null ? `${result.composition.caffeineMg}mg` : '—', icon: 'lightning-bolt', color: (result.composition.caffeineMg ?? 0) > 100 ? THEME.danger : THEME.primary },
+            ]
+          : [
+              { label: 'Calories', value: result.composition.calories != null ? `${result.composition.calories}` : '—', icon: 'fire', color: THEME.warning },
+              { label: 'Protein', value: result.composition.proteinGrams != null ? `${result.composition.proteinGrams}g` : '—', icon: 'arm-flex', color: THEME.success },
+              { label: 'Carbs', value: (result.composition as any).carbsGrams != null ? `${(result.composition as any).carbsGrams}g` : result.composition.sugarGrams != null ? `${result.composition.sugarGrams}g` : '—', icon: 'grain', color: THEME.primary },
+              { label: 'Fat', value: result.composition.fatGrams != null ? `${result.composition.fatGrams}g` : '—', icon: 'water', color: THEME.warning },
+            ]
+        ).map((stat) => (
           <GlassCard key={stat.label} style={styles.statBox}>
             <MaterialCommunityIcons name={stat.icon as any} size={22} color={stat.color} />
             <Text style={styles.statValue}>{stat.value}</Text>

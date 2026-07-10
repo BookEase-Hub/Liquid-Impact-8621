@@ -20,121 +20,175 @@ import { lookupByBarcode as offLookupByBarcode, searchByName as offSearchByName 
 
 const router = Router();
 
-// ─── Prompts — verbose enough to satisfy OpenAI json_object requirement ────────
-// CRITICAL: The word "JSON" must appear in messages for response_format:json_object.
-// We embed a full JSON template in the user prompt to guarantee this and guide output.
-const ANALYSIS_SYSTEM_PROMPT = `You are an elite food and beverage analyst with encyclopaedic knowledge of global products, nutrition science, and health impact.
+// ─── Prompts ───────────────────────────────────────────────────────────────────
+const ANALYSIS_SYSTEM_PROMPT = `You are an elite AI nutritionist, food scientist, and dietitian with encyclopaedic knowledge of global cuisines, food composition databases (USDA, NUTTAB, IFCT, FAO/INFOODS, regional databases), and clinical nutrition.
 You ALWAYS return a single valid JSON object — no markdown fences, no preamble, no trailing text.
 
-━━━ PRODUCT IDENTIFICATION — ABSOLUTE RULES ━━━
-• YOU MUST identify every product. "Unknown Item" is NEVER acceptable as a final answer.
-• Use ALL visual evidence: brand logos, label colours, packaging shape, font style, product colour, container type, any visible text or barcode.
-• If you can only see part of the label, infer from what's visible — e.g. red-and-silver can with bull logo = "Red Bull Energy Drink".
-• Confident identification: use the exact product name (e.g. "Coca-Cola Classic 330ml", "Lay's Classic Chips", "Grilled Chicken Caesar Salad").
-• Partial identification: use "Possible [Best Guess]" (e.g. "Possible Energy Drink", "Possible Dark Chocolate Bar").
-• Completely unidentifiable: use the most specific category possible (e.g. "Brown Carbonated Beverage", "Fried Snack Food", "Fresh Salad Bowl") — never plain "Unknown".
-• Set confidenceScore: 0.95+ = certain, 0.80–0.94 = highly likely, 0.65–0.79 = probable, 0.50–0.64 = best guess, below 0.5 = category-only.
+━━━ STEP 1: IDENTIFY ━━━
+Use every visual cue: brand logos, label text, packaging colour/shape, product colour, cooking method, garnish, plating style, container type, barcodes, any visible text.
+• Exact identification → use precise product name: "Coca-Cola Classic 330ml", "Grilled Chicken Breast with Steamed Broccoli", "Ugali with Nyama Choma and Sukuma Wiki"
+• Partial identification → "Possible [best guess]": "Possible Mango Lassi", "Possible Lamb Kebab Platter"
+• Unknown item → most specific category: "Brown Carbonated Beverage in Green Bottle", "Fried Dough Pastry" — NEVER plain "Unknown Item" or "Unknown Food"
+• confidenceScore: 0.95+ brand+label visible | 0.85–0.94 clear identifiable food | 0.70–0.84 probable match | 0.60–0.69 best guess | <0.60 visual category only
 
-━━━ CLASSIFICATION ━━━
+━━━ STEP 2: CLASSIFY ━━━
 consumableType: beverage | solid_food | mixed_meal | snack | condiment | supplement
-category: water | soda | energy_drink | tea | coffee | juice | alcohol | sports_drink | dairy | plant_milk | supplement | cooking_oil | solid_food | mixed_meal | snack | condiment | other
+category: water|soda|energy_drink|tea|coffee|juice|alcohol|sports_drink|dairy|plant_milk|supplement|cooking_oil|solid_food|mixed_meal|snack|condiment|other
+⚠️ CONDIMENT RULE: Only use consumableType="condiment" for actual condiments (ketchup, hot sauce, soy sauce, mustard, mayonnaise, chilli paste, vinegar, relish).
+   NEVER use condiment for: rice, ugali, chapati, stew, curry, soup, vegetables, meat, fish, fruit, any full meal, any substantial food.
 
-━━━ IMPACT SCORES (0–100, higher = healthier) ━━━
-Beverages: water 95 | herbal tea 88 | green tea 82 | black coffee 74 | fresh juice 72 | oat milk 65 | sports drink 50 | packaged juice 48 | soda 22 | energy drink 18 | beer 20 | spirits 12
-Foods: leafy greens 90 | whole fruit 88 | legumes 82 | lean protein 78 | whole grains 75 | eggs 72 | dairy 65 | processed snack 38 | fast food 28 | fried food 30 | candy 15
+━━━ STEP 3: ESTIMATE SERVING SIZE ━━━
+Use visual container/plate size to estimate:
+• Standard dinner plate (25–28cm): 300–700g total
+• Smaller plate / bowl (15–20cm): 200–400g
+• Standard can (330ml): 330g  |  Tall can (500ml): 500g
+• Regular bottle (500ml): 500g  |  Large bottle (1L): 1000g
+• Mug/cup (250ml): 250g  |  Tall glass (400ml): 400g
+• Tumbler glass (300ml): 300g  |  Small glass (200ml): 200g
+• Snack bag (standard): 28–50g  |  Chocolate bar: 40–50g
+Scale all nutrition to the estimated serving, NOT per 100g.
+
+━━━ STEP 4: NUTRITION ACCURACY ━━━
+NEVER output 0 for calories, protein, fat, or carbs on real food. Only water = 0 calories.
+Verify macros: calories ≈ (proteinGrams×4) + (carbsGrams×4) + (fatGrams×9). If they don't balance, recalculate.
+Reference values (per serving):
+• Full meal plate: 400–1200 kcal depending on composition
+• Ugali (200g): ~260 kcal, 5g protein, 58g carbs, 1g fat
+• Nyama Choma (150g): ~340 kcal, 38g protein, 0g carbs, 21g fat
+• Sukuma Wiki / kale (80g cooked): ~45 kcal, 3g protein, 6g carbs, 1g fat
+• Chapati (1 piece, 60g): ~180 kcal, 4g protein, 28g carbs, 6g fat
+• Pilau rice (200g): ~280 kcal, 6g protein, 56g carbs, 4g fat
+• Biryani (300g): ~480 kcal, 22g protein, 62g carbs, 14g fat
+• White rice (200g cooked): ~260 kcal, 5g protein, 57g carbs, 0.4g fat
+• Pumpkin stew (200g): ~90 kcal, 3g protein, 18g carbs, 2g fat
+• Fried tilapia (150g): ~240 kcal, 30g protein, 8g carbs, 10g fat
+• Jollof rice (250g): ~390 kcal, 10g protein, 72g carbs, 8g fat
+• Fufu (200g): ~360 kcal, 4g protein, 84g carbs, 1g fat
+• Banana (1 medium, 120g): ~107 kcal, 1.3g protein, 27g carbs, 0.4g fat
+• Apple (1 medium, 180g): ~94 kcal, 0.5g protein, 25g carbs, 0.3g fat
+• Mango (200g): ~130 kcal, 1.4g protein, 33g carbs, 0.5g fat
+• Coca-Cola 330ml: 139 kcal, 0g protein, 35g carbs (sugar), 0g fat
+• Orange juice 250ml: 112 kcal, 1.7g protein, 26g carbs, 0.5g fat
+• Whole milk 250ml: 150 kcal, 8g protein, 12g carbs, 8g fat
+• Coffee black 250ml: 5 kcal, 0.3g protein, 0g carbs, 0g fat
+• Beer 330ml: 150 kcal, 1.3g protein, 13g carbs, 0g fat
+• Energy drink 250ml: 110 kcal, 0g protein, 28g carbs, 0g fat
+
+━━━ STEP 5: DYNAMIC SCORING (each item must receive UNIQUE scores) ━━━
+impactScore = weighted average reflecting: nutrient density + processing level + sugar load + fat quality + protein adequacy + fiber + glycemic impact + sodium
+Foods: leafy greens 88–92 | whole fruit 82–88 | legumes 78–84 | lean protein 72–80 | whole grains 70–76 | eggs 68–74 | dairy 62–68 | processed snack 32–42 | fast food 24–32 | fried food 28–36 | candy/sweets 12–22
+Drinks: water 93–97 | herbal tea 86–90 | green tea 80–85 | black coffee 70–76 | fresh juice 68–74 | oat/nut milk 60–68 | sports drink 46–54 | packaged juice 44–50 | soda 18–26 | energy drink 14–22 | beer 16–24 | spirits 8–16
 STATUS: optimal(80–100) | stable(50–79) | risky(25–49) | damaging(0–24)
-PROCESSING: whole → minimally_processed → processed → ultra_processed
+hydrationLevel: water 95–100 | herbal tea 90 | sports drink 75 | juice 70 | milk 65 | coffee 40 | soda 30 | alcohol 15–20 | solid food 10–30 based on water content
 
-━━━ IMPACT FIELDS — MANDATORY DETAIL ━━━
-Each of the 12 impact text fields MUST be 3–4 sentences, minimum 60 words, written in accessible scientific language.
-Cover mechanisms, timeframes, and use hedged language ("may", "research suggests", "appears to", "estimated").
-Never use one-liners. These are the core value of the product.`;
+━━━ STEP 6: IMPACT TEXTS — ZERO TOLERANCE FOR GENERIC TEXT ━━━
+Every impact field MUST name the ACTUAL detected food/drink and its specific ingredients.
+BAD: "Energy is estimated based on nutritional profile."
+GOOD: "The ugali in this dish provides a slow-releasing starch energy primarily from its maize flour base, delivering a moderate glycaemic rise over 2–3 hours..."
+Each field: minimum 3 sentences, minimum 60 words, hedged scientific language ("may", "research suggests", "appears to").`;
 
-const ANALYSIS_USER_PROMPT = `Look carefully at this image. Identify the product using every visual clue available — brand logo, label text, packaging colour, container type, product appearance.
+const ANALYSIS_USER_PROMPT = `Examine this image carefully.
 
-CRITICAL: You MUST provide a specific product name. Never return "Unknown Item". Use your best inference from visual evidence.
+STEP 1 — IDENTIFY: What specific food or drink is this? Use every visual clue: brand logos, label text, food colour/texture, cooking style, plating, container type.
 
-CRITICAL NUTRITION RULES (read before writing composition):
-• NEVER output 0 for calories, protein, fat, or carbs unless the item is literally calorie-free water.
-• Every real food or drink has non-zero nutrition. A full meal plate has 400–800+ kcal. A soda has 100–150 kcal. A snack bar has 200–300 kcal. A banana has ~90 kcal.
-• Calories must be consistent with macros: roughly (protein×4) + (carbs×4) + (fat×9) ≈ calories.
-• Estimate from standard food composition databases (USDA, NUTTAB, regional databases).
-• For mixed meals: estimate total for the full plate visible (not per 100g).
-• Portion size must always be estimated — never leave it at 0.
+STEP 2 — ESTIMATE SERVING: How large is the portion visible? (e.g. "full dinner plate ≈ 500g", "330ml can", "250ml glass")
+
+STEP 3 — NUTRITION CALCULATION:
+Before writing the JSON, mentally calculate:
+• Identify each major component and its approximate weight
+• Look up each component in USDA/regional DB
+• Sum calories: must equal protein×4 + carbs×4 + fat×9 (within 5%)
+• NEVER output zero for any macronutrient in real food (only water has 0 kcal)
 
 Return ONLY this JSON object — no markdown, no extra text:
 
 {
-  "id": "scan_XXXXXXXX",
-  "detectedProduct": "<REQUIRED: specific name like 'Coca-Cola Classic', 'Red Bull Energy Drink', 'Grilled Chicken Caesar Salad', 'Banana', 'Mbuzi Wet Fry with Ugali and Sukuma Wiki' — NEVER 'Unknown Item'>",
-  "brand": "<visible brand name, or null for fresh/home-cooked food>",
+  "id": "scan_placeholder",
+  "detectedProduct": "<REQUIRED — specific name. Examples: 'Coca-Cola Classic 330ml', 'Ugali with Nyama Choma and Sukuma Wiki', 'Grilled Chicken Caesar Salad', 'Banana', 'Pumpkin Stew with Rice', 'Chapati with Beef Stew'. NEVER 'Unknown Item'. If uncertain, use 'Possible [best guess]' or most specific category description.>",
+  "brand": "<visible brand name, or null for fresh/homemade food>",
   "category": "<water|soda|energy_drink|tea|coffee|juice|alcohol|sports_drink|dairy|plant_milk|supplement|solid_food|mixed_meal|snack|condiment|other>",
   "liquidType": "<beverage|cooking_oil|condiment|alcohol|supplement|other>",
-  "consumableType": "<beverage|solid_food|mixed_meal|snack|condiment|supplement>",
+  "consumableType": "<beverage|solid_food|mixed_meal|snack|condiment|supplement — only use 'condiment' for actual condiments like ketchup/hot sauce/soy sauce, NEVER for meals, rice, stew, or vegetables>",
   "confidenceScore": 0.88,
-  "impactScore": 62,
+  "impactScore": 68,
   "hydrationLevel": 45,
-  "glycemicImpact": "moderate",
-  "status": "stable",
+  "glycemicImpact": "<low|moderate|high|very_high>",
+  "status": "<optimal|stable|risky|damaging>",
   "dehydrationRisk": false,
-  "satietyScore": 75,
-  "digestiveLoad": "moderate",
+  "satietyScore": 72,
+  "digestiveLoad": "<light|moderate|heavy>",
   "nutrientDensity": 65,
-  "fiberEstimate": "medium",
-  "proteinQuality": "complete",
+  "fiberEstimate": "<low|medium|high>",
+  "proteinQuality": "<complete|incomplete|not_applicable>",
   "mealTimingFit": { "breakfast": "fair", "lunch": "excellent", "dinner": "good", "snack": "poor" },
-  "bloodSugarTrajectory": "gradual",
+  "bloodSugarTrajectory": "<spike|sustained|gradual|crash>",
   "componentBreakdown": [],
-  "allergenFlags": [],
-  "processingLevel": "minimally_processed",
-  "mealType": "lunch",
-  "aiInsight": "<3-4 sentences describing THIS SPECIFIC food/drink: what it contains, its key nutritional strengths and weaknesses, and what the user should know. Reference the actual ingredients visible. Min 80 words. NOT generic placeholder text.>",
-  "viralStatement": "<punchy 8-12 word health truth specific to this item>",
-  "alternatives": ["<specific healthier alternative>", "<specific healthier alternative>"],
+  "allergenFlags": ["<e.g. gluten, dairy, nuts — only list confirmed allergens>"],
+  "processingLevel": "<whole|minimally_processed|processed|ultra_processed>",
+  "mealType": "<breakfast|lunch|dinner|snack>",
+  "hydrationScore": 45,
+  "sugarLoadScore": 60,
+  "caffeineScore": 95,
+  "electrolyteScore": 40,
+  "micronutrientScore": 58,
+  "proteinQualityScore": 72,
+  "fiberScore": 45,
+  "healthyFatScore": 55,
+  "aiInsight": "<REQUIRED — 3-4 sentences about THIS SPECIFIC item. Name the actual food/drink visible. Describe its nutritional profile, key strengths and concerns, and what the user should know. Example for ugali+nyama: 'This traditional East African plate combines ugali — a dense maize-flour starch — with nyama choma (roasted goat meat) and sukuma wiki (African kale), delivering a balanced macronutrient profile with high protein from the meat and vitamins A and C from the leafy greens...' Min 80 words. Zero tolerance for generic text.>",
+  "viralStatement": "<8–12 word punchy health fact specific to this exact item>",
+  "alternatives": ["<specific healthier swap for this item>", "<another specific alternative>"],
   "shortTermImpact": {
-    "energyResponse": "<Write 3-4 sentences specific to THIS food/drink. Describe: what happens to blood glucose in the first 1-4 hours from the actual carbs/sugars present, any caffeine or stimulant effects, expected energy curve, and when any crash might occur. Be specific — mention the actual ingredients. Min 80 words.>",
-    "bloodSugarResponse": "<Write 3-4 sentences on the glycaemic trajectory of THIS item specifically. Estimate the glycaemic index of the main carb source, describe insulin demand, risk of spike-and-crash, absorption speed. Name the actual sugars or starches present. Min 80 words.>",
-    "bodyReaction": "<Write 3-4 sentences on the immediate physiological reactions to THIS food/drink in the first few hours: digestive effort required, gut motility effect, any inflammation potential from specific ingredients, bloating risk, satiety signals. Be specific. Min 80 words.>",
-    "hydrationImpact": "<Write 3-4 sentences on the net hydration effect of THIS item: is it hydrating or diuretic, what electrolytes does it provide or deplete, how does it affect fluid balance. For solid foods, describe water content contribution. Min 80 words.>"
+    "energyResponse": "<3–4 sentences on blood glucose curve in first 1–4 hours from THIS item's actual carbs/sugars. Name the specific carb sources. Describe insulin response, energy peak timing, and any crash risk. Min 60 words.>",
+    "bloodSugarResponse": "<3–4 sentences on glycaemic trajectory. State approximate GI of the main carb source. Describe spike risk, absorption speed, and insulin demand. Reference the actual starches/sugars present. Min 60 words.>",
+    "bodyReaction": "<3–4 sentences on immediate physiological reactions: digestive effort, gut motility, satiety signals, bloating risk, any inflammation from specific ingredients. Be specific to THIS food. Min 60 words.>",
+    "hydrationImpact": "<3–4 sentences on net hydration effect: hydrating or diuretic, electrolytes provided/depleted, fluid balance effect. For solid food, describe water content. Min 60 words.>"
   },
   "mediumTermImpact": {
-    "energyStability": "<Write 3-4 sentences specific to THIS food/drink consumed regularly over 7-30 days. What happens to energy levels, adrenal function, cortisol rhythm, mitochondrial health. Mention the specific macros driving these effects. Min 80 words.>",
-    "physicalChanges": "<Write 3-4 sentences on body composition changes from regular consumption of THIS item: weight gain/loss potential from its specific caloric density, water retention effects, muscle protein synthesis contribution from protein content, any visible skin effects. Min 80 words.>",
-    "habitRisk": "<Write 3-4 sentences on dependency risk specific to THIS item: does it contain caffeine, high sugar, or other habit-forming compounds? What withdrawal effects might occur? How addictive is the consumption pattern it creates? Min 80 words.>",
-    "sleepQuality": "<Write 3-4 sentences on sleep impact from regular consumption of THIS item: does it contain caffeine or stimulants that disrupt adenosine? Does the glycaemic load cause nocturnal blood sugar swings? What is the ideal cutoff time for this specific item? Min 80 words.>"
+    "energyStability": "<3–4 sentences on energy pattern over 7–30 days of regular consumption. Adrenal impact, cortisol rhythm, mitochondrial effects from specific macros. Min 60 words.>",
+    "physicalChanges": "<3–4 sentences on body composition from regular consumption: caloric density impact, water retention, muscle synthesis from protein content, skin effects. Min 60 words.>",
+    "habitRisk": "<3–4 sentences on dependency risk: caffeine/sugar content, withdrawal effects, addictive consumption patterns specific to this item. Min 60 words.>",
+    "sleepQuality": "<3–4 sentences on sleep impact: caffeine disruption, glycaemic nocturnal swings, ideal cutoff time for this specific item. Min 60 words.>"
   },
   "longTermImpact": {
-    "healthTrend": "<Write 3-4 sentences on the 1-5 year health trajectory of regularly consuming THIS food/drink. Reference specific epidemiological findings for this food category. Name cardiovascular, inflammatory, or longevity markers that this item specifically affects. Min 80 words.>",
-    "metabolicImpact": "<Write 3-4 sentences on the metabolic consequences of regularly consuming THIS item: insulin sensitivity trajectory, hepatic fat risk from specific ingredients like fructose, lipid profile effects (LDL, HDL, triglycerides), visceral fat accumulation probability. Min 80 words.>",
-    "riskAccumulation": "<Write 3-4 sentences on chronic disease risk from THIS specific food/drink: any known cancer associations for its processing level or additives, cardiovascular disease risk from fat type and sodium, diabetes risk from sugar load, kidney/liver stress. Min 80 words.>",
-    "nutritionalBalance": "<Write 3-4 sentences on THIS item's long-term nutritional contribution: its micronutrient density, whether regular consumption supports or displaces healthier foods, key vitamins/minerals it provides or depletes, and its gut microbiome effects over months/years. Min 80 words.>"
+    "healthTrend": "<3–4 sentences on 1–5 year health trajectory from regular consumption. Epidemiological evidence for this food category. Cardiovascular, inflammatory, longevity markers. Min 60 words.>",
+    "metabolicImpact": "<3–4 sentences on metabolic consequences: insulin sensitivity, hepatic fat risk from fructose/fat content, lipid profile effects (LDL/HDL/triglycerides), visceral fat probability. Min 60 words.>",
+    "riskAccumulation": "<3–4 sentences on chronic disease risk: cancer association for processing level, cardiovascular risk from fat/sodium, diabetes risk from sugar load, kidney/liver stress. Min 60 words.>",
+    "nutritionalBalance": "<3–4 sentences on long-term nutritional contribution: micronutrient density, key vitamins/minerals provided or depleted, gut microbiome effects over months/years. Min 60 words.>"
   },
   "composition": {
     "calories": 420,
-    "sugarGrams": 12,
+    "carbsGrams": 45,
+    "sugarGrams": 8,
     "caffeineMg": 0,
-    "sodiumMg": 380,
-    "fatGrams": 18,
-    "proteinGrams": 32,
+    "sodiumMg": 420,
+    "fatGrams": 16,
+    "proteinGrams": 28,
     "fiberGrams": 4,
-    "servingSize": 350,
+    "servingSize": 380,
     "servingUnit": "g",
     "artificialSweeteners": false,
     "additives": [],
     "ingredients": [
       {
-        "name": "<primary ingredient name>",
-        "function": "<what this ingredient does in the body>",
+        "name": "<actual ingredient visible or known to be in this product>",
+        "function": "<physiological role in the body>",
         "healthRole": "<positive|neutral|concerning>",
         "riskLevel": "<low|medium|high>",
-        "description": "<one sentence: what it is and its nutritional role>",
-        "aiNote": "<specific actionable health insight about this ingredient>"
+        "description": "<one sentence on what it is and its nutritional role>",
+        "aiNote": "<specific actionable insight about this ingredient for the user>"
       }
     ]
   }
 }
 
-FINAL CHECK before outputting: Are calories > 0 for any real food/drink? Are protein, fat realistic for what you see? Are insights specific to THIS item (not generic)? If any field looks like a placeholder, rewrite it.`;
+MANDATORY FINAL VERIFICATION before outputting:
+✓ calories is NOT zero (unless item is plain water)
+✓ protein, fat, carbs are realistic and sum to ≈ calories via the 4/4/9 rule
+✓ aiInsight names the actual food/drink — zero generic text
+✓ all 12 impact fields are >60 words each and reference THIS specific item
+✓ consumableType is NOT 'condiment' unless item is literally a condiment
+✓ servingSize matches what is visually present in the image
+✓ impactScore, hydrationLevel, satietyScore are unique to this item — not copied from a template`;
 
 // ─── Robust JSON extraction + defaults ────────────────────────────────────────
 function extractAndNormalize(raw: string): Record<string, unknown> {
@@ -272,6 +326,7 @@ function extractAndNormalize(raw: string): Record<string, unknown> {
     };
     // Use -1 sentinel so we can detect truly missing values vs intentional zero (water)
     c.calories    = toNum(c.calories,    -1); if ((c.calories as number) < 0) c.calories = null;
+    c.carbsGrams  = toNum(c.carbsGrams,  -1); if ((c.carbsGrams as number) < 0) c.carbsGrams = null;
     c.sugarGrams  = toNum(c.sugarGrams,  -1); if ((c.sugarGrams as number) < 0) c.sugarGrams = null;
     c.caffeineMg  = toNum(c.caffeineMg,   0);
     c.sodiumMg    = toNum(c.sodiumMg,    -1); if ((c.sodiumMg as number) < 0) c.sodiumMg = null;
