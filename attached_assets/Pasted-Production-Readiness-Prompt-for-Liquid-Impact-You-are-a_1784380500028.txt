@@ -1,0 +1,345 @@
+Production Readiness Prompt for Liquid Impact
+
+You are a senior Staff Software Engineer, AI Engineer, Mobile Architect, Backend Architect, Security Engineer, Performance Engineer, QA Engineer, DevOps Engineer, and App Store Review specialist.
+
+Your task is to transform the existing Liquid Impact application into a fully production-ready, enterprise-grade application that is capable of serving thousands of concurrent users while maintaining exceptional reliability, performance, security, and user experience.
+
+Do not redesign the existing application. Preserve the current UI/UX, premium dark theme, typography, spacing, animations, navigation flow, architecture, design language, color palette, user journey, and existing features. Improve only where necessary while maintaining visual consistency throughout the application.
+
+---
+
+Primary Objective
+
+Ensure the application is production-ready for:
+
+- Apple App Store
+- Google Play Store
+
+while maintaining enterprise-level quality, scalability, security, performance, and stability.
+
+---
+
+1. Authentication System
+
+Review and rebuild the authentication system where necessary.
+
+Ensure the following works perfectly:
+
+- Email Sign Up
+- Email Sign In
+- Secure Logout
+- Session persistence
+- JWT authentication
+- Token refresh
+- Secure token storage
+- Remember user session
+- Automatic login restoration
+- Session expiration handling
+- Multiple device support
+- Secure password hashing
+- Password validation
+- Email verification
+- Forgot Password
+- Reset Password
+- Change Password
+
+Implement Google Authentication properly.
+
+Google Sign-In must:
+
+- work on Android
+- work on iOS
+- work in production builds
+- work after App Store deployment
+- work after Play Store deployment
+- restore previous sessions
+- support multiple Google accounts
+- gracefully recover from failures
+
+Implement Apple Sign-In according to Apple's Human Interface Guidelines.
+
+Authentication should have proper:
+
+- loading states
+- validation
+- retry mechanism
+- timeout handling
+- offline detection
+- graceful error handling
+
+---
+
+2. AI Food & Drink Scanning
+
+Maintain the existing scanning experience.
+
+Improve only reliability, accuracy, and production readiness.
+
+Ensure:
+
+- Food detection
+- Beverage detection
+- Multiple beverages
+- Multiple foods
+- Mixed meals
+- African foods
+- Asian foods
+- European foods
+- American foods
+- Middle Eastern foods
+- Fast foods
+- Homemade meals
+- Packaged beverages
+- Energy drinks
+- Juices
+- Coffee
+- Tea
+- Alcohol (if supported)
+- Water
+
+Improve image preprocessing before AI inference.
+
+Implement:
+
+- image normalization
+- lighting correction
+- perspective correction
+- blur detection
+- duplicate scan detection
+- confidence scoring
+
+Optimize the entire scan pipeline to minimize latency. Aim for the fastest practical response while maintaining reliable analysis. (Actual end-to-end time will depend on network conditions and AI processing; do not fabricate results or sacrifice correctness solely to reduce latency.)
+
+Implement:
+
+- caching
+- request optimization
+- server optimization
+- asynchronous processing
+- progressive loading
+
+Never display incomplete reports.
+
+Always validate AI output before displaying results.
+
+---
+
+3. Nutrition Accuracy
+
+Produce realistic nutritional estimates.
+
+Estimate:
+
+- Calories
+- Sugar
+- Protein
+- Fat
+- Saturated Fat
+- Carbohydrates
+- Fiber
+- Sodium
+- Potassium
+- Cholesterol
+- Vitamins
+- Minerals
+- Hydration
+- Glycemic impact
+- Artificial sweeteners
+- Caffeine
+
+Use confidence scores where estimates are uncertain instead of presenting uncertain values as absolute facts.
+
+---
+
+4. Health Report
+
+Generate understandable reports.
+
+Include:
+
+- Overall score
+- AI confidence
+- Ingredient breakdown
+- Nutrition breakdown
+- Positive effects
+- Negative effects
+- Hydration score
+- Glycemic response
+- Short-term effects
+- Medium-term effects
+- Long-term effects
+- Personalized wellness insights
+- Health recommendations
+- Healthier alternatives
+
+Reports should remain visually identical to the current design.
+
+---
+
+5. Payment System
+
+Implement production-ready billing.
+
+Support:
+
+- Apple In-App Purchases
+- Google Play Billing
+
+Ensure complete compliance with:
+
+- Apple App Store Review Guidelines
+- Apple In-App Purchase Guidelines
+- Google Play Billing policies
+
+Implement:
+
+- subscription restoration
+- purchase verification
+- server-side receipt validation
+- subscription expiration
+- upgrade
+- downgrade
+- cancellation
+- refund handling
+- renewal handling
+- family subscription support (if applicable)
+
+Implement RevenueCat correctly if used.
+
+---
+
+6. Performance Optimization
+
+Optimize the application.
+
+Reduce:
+
+- startup time
+- memory usage
+- CPU usage
+- battery usage
+- network requests
+
+Optimize:
+
+- images
+- caching
+- animations
+- rendering
+- navigation
+- API calls
+
+Prevent memory leaks.
+
+Prevent unnecessary re-renders.
+
+Optimize database queries.
+
+---
+
+7. Stability
+
+The application must be highly reliable.
+
+Implement:
+
+- global error boundaries
+- automatic retry
+- offline mode
+- network recovery
+- graceful fallback UI
+- crash recovery
+- background synchronization
+- request queuing
+- timeout handling
+- circuit breaker patterns where appropriate
+- structured logging
+- monitoring hooks
+
+The application should remain responsive under expected production load. Design backend and infrastructure to scale horizontally and load-test the system to identify bottlenecks rather than assuming any specific concurrency target will never fail.
+
+---
+
+8. Security
+
+Implement enterprise security.
+
+Include:
+
+- HTTPS everywhere
+- encrypted communication
+- secure storage
+- rate limiting
+- SQL injection protection
+- XSS protection
+- CSRF protection where applicable
+- JWT validation
+- API authentication
+- token rotation
+- secret management
+- input validation
+- output sanitization
+
+---
+
+9. Backend
+
+Optimize backend architecture.
+
+Improve:
+
+- API response speed
+- database indexing
+- caching
+- connection pooling
+- horizontal scalability
+- monitoring
+- structured logging
+- health checks
+- queue processing
+- background jobs
+
+---
+
+10. Testing
+
+Perform comprehensive testing.
+
+Include:
+
+- Unit testing
+- Integration testing
+- API testing
+- Authentication testing
+- Payment testing
+- UI testing
+- Performance testing
+- Load testing
+- Security testing
+- Regression testing
+- Cross-platform testing
+
+Fix every issue discovered during testing.
+
+---
+
+11. Store Readiness
+
+Ensure the application satisfies App Store and Google Play submission requirements, including:
+
+- production configuration
+- permissions
+- privacy disclosures
+- billing compliance
+- authentication compliance
+- performance
+- accessibility
+- stability
+- legal pages
+- production assets
+
+---
+
+Final Deliverable
+
+Produce a production-ready Liquid Impact application while preserving the existing user experience. Ensure all required dependencies are installed, configurations are updated, automated tests are added or updated, and the project builds successfully with no critical errors or unresolved runtime issues. Document any remaining limitations or assumptions instead of claiming perfection or guarantees that cannot be verified.

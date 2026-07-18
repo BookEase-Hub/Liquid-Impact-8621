@@ -13,6 +13,7 @@ import { KeyboardProvider } from "react-native-keyboard-controller";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 
 import { ErrorBoundary } from "@/components/ErrorBoundary";
+import { OfflineBanner } from "@/components/OfflineBanner";
 import { AppProvider, useApp } from "@/context/AppContext";
 import { useAuthStore } from "@/features/auth/store";
 
@@ -75,6 +76,18 @@ function InitialLayout() {
         name="settings"
         options={{ headerShown: false, animation: "slide_from_right" }}
       />
+      <Stack.Screen
+        name="forgot-password"
+        options={{ headerShown: false, animation: "slide_from_right" }}
+      />
+      <Stack.Screen
+        name="privacy"
+        options={{ headerShown: false, animation: "slide_from_right" }}
+      />
+      <Stack.Screen
+        name="terms"
+        options={{ headerShown: false, animation: "slide_from_right" }}
+      />
       <Stack.Screen name="+not-found" />
     </Stack>
   );
@@ -103,6 +116,7 @@ export default function RootLayout() {
           <GestureHandlerRootView style={{ flex: 1 }}>
             <KeyboardProvider>
               <InitialLayout />
+              <OfflineBanner />
             </KeyboardProvider>
           </GestureHandlerRootView>
         </AppProvider>
