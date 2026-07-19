@@ -216,8 +216,8 @@ function useScanPipeline() {
       if (input.imageUri) {
         const manipulated = await ImageManipulator.manipulateAsync(
           input.imageUri,
-          [{ resize: { width: 800 } }],
-          { compress: 0.82, format: ImageManipulator.SaveFormat.JPEG, base64: true }
+          [{ resize: { width: 640 } }],
+          { compress: 0.70, format: ImageManipulator.SaveFormat.JPEG, base64: true }
         );
         base64 = manipulated.base64 ?? undefined;
       }
@@ -226,7 +226,7 @@ function useScanPipeline() {
         throw new Error('Could not process image. Please try again.');
       }
 
-      // analyzeDrink already stamps a fresh ID + scannedAt (see services/api.ts)
+      // Phase 1: Fast scan — returns product + nutrition + scores in 2-3s
       const aiResult = await analyzeDrink(base64 ?? '', productHint, input.barcode);
 
       // Attach the original image URI so history can show the correct thumbnail
@@ -241,6 +241,25 @@ function useScanPipeline() {
       setResult(finalResult);
       setPhase('SUCCESS');
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+
+      // Phase 2: Background enhance — fires silently, updates impact fields when done
+      if (finalResult.id && finalResult.detectedProduct) {
+        enhanceScan({
+          detectedProduct: finalResult.detectedProduct,
+          category: finalResult.category,
+          consumableType: finalResult.consumableType,
+          composition: finalResult.composition as Record<string, unknown> | undefined,
+        }).then((impact) => {
+          if (impact?.shortTermImpact || impact?.mediumTermImpact || impact?.longTermImpact) {
+            enhanceScanInContext(
+              finalResult.id,
+              impact.shortTermImpact,
+              impact.mediumTermImpact,
+              impact.longTermImpact,
+            );
+          }
+        }).catch(() => {});
+      }
     } catch (err: any) {
       stopStages();
       setError(err.message || 'Analysis failed. Please try again.');

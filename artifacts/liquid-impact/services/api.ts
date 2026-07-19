@@ -89,6 +89,28 @@ export async function analyzeDrink(
   }
 }
 
+export async function enhanceScan(params: {
+  detectedProduct: string;
+  category?: string;
+  consumableType?: string;
+  composition?: Record<string, unknown>;
+}): Promise<{ shortTermImpact?: unknown; mediumTermImpact?: unknown; longTermImpact?: unknown } | null> {
+  try {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 45_000);
+    const response = await fetch(`${API_BASE}/scans/enhance`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(params),
+      signal: controller.signal,
+    }).finally(() => clearTimeout(timer));
+    if (!response.ok) return null;
+    return response.json();
+  } catch {
+    return null;
+  }
+}
+
 export async function uploadScan(scan: ScanResult, accessToken: string): Promise<void> {
   try {
     const controller = new AbortController();
