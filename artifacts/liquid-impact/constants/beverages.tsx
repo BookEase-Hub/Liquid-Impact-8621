@@ -1376,12 +1376,12 @@ const LiquidImpactScanScreen: React.FC<LiquidImpactScanScreenProps> = ({ route, 
   }, []);
 
   const nutritionMetrics = useMemo<NutritionMetric[]>(() => [
-    { label: 'Calories', value: result.composition.calories, unit: 'kcal', max: 200, color: NUTRITION_COLORS.calories, description: 'Energy content per serving', healthImpact: result.composition.calories > 100 ? 'negative' : 'neutral' },
-    { label: 'Sugar', value: result.composition.sugarGrams, unit: 'g', max: 30, color: NUTRITION_COLORS.sugar, description: 'Added and natural sugars', healthImpact: result.composition.sugarGrams > 10 ? 'negative' : 'neutral' },
-    { label: 'Fat', value: result.composition.fatGrams, unit: 'g', max: 15, color: NUTRITION_COLORS.fat, description: 'Total fat content', healthImpact: result.composition.fatGrams > 5 ? 'negative' : 'positive' },
-    { label: 'Protein', value: result.composition.proteinGrams, unit: 'g', max: 20, color: NUTRITION_COLORS.protein, description: 'Protein for muscle support', healthImpact: result.composition.proteinGrams > 3 ? 'positive' : 'neutral' },
-    { label: 'Sodium', value: result.composition.sodiumMg, unit: 'mg', max: 200, color: NUTRITION_COLORS.sodium, description: 'Electrolyte content', healthImpact: result.composition.sodiumMg > 100 ? 'negative' : 'neutral' },
-    { label: 'Caffeine', value: result.composition.caffeineMg, unit: 'mg', max: 100, color: NUTRITION_COLORS.caffeine, description: 'Stimulant content', healthImpact: result.composition.caffeineMg > 40 ? 'warning' : 'neutral' },
+    { label: 'Calories', value: result.composition.calories ?? 0, unit: 'kcal', max: 200, color: NUTRITION_COLORS.calories, description: 'Energy content per serving', healthImpact: (result.composition.calories ?? 0) > 100 ? 'negative' : 'neutral' },
+    { label: 'Sugar', value: result.composition.sugarGrams ?? 0, unit: 'g', max: 30, color: NUTRITION_COLORS.sugar, description: 'Added and natural sugars', healthImpact: (result.composition.sugarGrams ?? 0) > 10 ? 'negative' : 'neutral' },
+    { label: 'Fat', value: result.composition.fatGrams ?? 0, unit: 'g', max: 15, color: NUTRITION_COLORS.fat, description: 'Total fat content', healthImpact: (result.composition.fatGrams ?? 0) > 5 ? 'negative' : 'positive' },
+    { label: 'Protein', value: result.composition.proteinGrams ?? 0, unit: 'g', max: 20, color: NUTRITION_COLORS.protein, description: 'Protein for muscle support', healthImpact: (result.composition.proteinGrams ?? 0) > 3 ? 'positive' : 'neutral' },
+    { label: 'Sodium', value: result.composition.sodiumMg ?? 0, unit: 'mg', max: 200, color: NUTRITION_COLORS.sodium, description: 'Electrolyte content', healthImpact: (result.composition.sodiumMg ?? 0) > 100 ? 'negative' : 'neutral' },
+    { label: 'Caffeine', value: result.composition.caffeineMg ?? 0, unit: 'mg', max: 100, color: NUTRITION_COLORS.caffeine, description: 'Stimulant content', healthImpact: (result.composition.caffeineMg ?? 0) > 40 ? 'warning' : 'neutral' },
   ], [result.composition]);
 
   const wellnessIndicators = useMemo<WellnessIndicator[]>(() => [

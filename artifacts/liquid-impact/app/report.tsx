@@ -55,6 +55,10 @@ function NutritionBar({ label, value, max, unit, color }: { label: string; value
   );
 }
 
+function nutritionValue(value: number | null | undefined, unit = ""): string {
+  return value == null ? "Estimate unavailable" : `${value}${unit}`;
+}
+
 export default function ReportScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
@@ -107,9 +111,10 @@ export default function ReportScreen() {
 
   const tabColor = TAB_LABELS.find((t) => t.key === activeTab)?.color ?? colors.primary;
 
-  const isNonBeverage = scan.liquidType && !["beverage", "alcohol", "supplement"].includes(scan.liquidType);
   const isFood = scan.consumableType && ["solid_food", "mixed_meal", "snack"].includes(scan.consumableType);
   const isMixedMeal = scan.consumableType === "mixed_meal";
+  const isCondiment = scan.consumableType === "condiment" || scan.category === "condiment";
+  const isCookingOil = scan.category === "cooking_oil" || scan.liquidType === "cooking_oil";
 
   return (
     <View style={{ flex: 1, backgroundColor: colors.background }}>
@@ -158,7 +163,7 @@ export default function ReportScreen() {
                     {scan.category.replace(/_/g, " ")}
                   </Text>
                 </View>
-                {isNonBeverage && (
+                {!isFood && !isCondiment && isCookingOil && (
                   <View style={{ paddingHorizontal: 10, paddingVertical: 4, borderRadius: 10, backgroundColor: "#FF980014", borderWidth: 1, borderColor: "#FF980030" }}>
                     <Text style={{ color: "#FF9800", fontSize: 11, fontWeight: "700" }}>Non-beverage</Text>
                   </View>
@@ -173,34 +178,47 @@ export default function ReportScreen() {
         <MedicalDisclaimer />
 
         {/* Non-beverage notice */}
-        {isNonBeverage && (
+        {(isCondiment || isCookingOil) && (
           <View style={{ flexDirection: "row", gap: 10, padding: 14, borderRadius: 16, backgroundColor: "#FF980014", borderWidth: 1, borderColor: "#FF980030" }}>
             <Ionicons name="warning" size={18} color="#FF9800" />
             <Text style={{ flex: 1, color: "#FF9800", fontSize: 13, fontWeight: "600", lineHeight: 18 }}>
-              {scan.liquidType === "cooking_oil"
+              {isCookingOil
                 ? "This is a cooking oil — not designed for direct consumption as a drink. Analysis reflects its nutritional profile, not drinking suitability."
                 : "This is a condiment used in small amounts — scores reflect its impact profile, not typical beverage consumption."}
             </Text>
           </View>
         )}
 
-        {/* Quick stats — 6 metrics */}
+         {/* Quick stats — contextual metrics */}
         <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
-          {[
-            { icon: "flame", label: "Calories", value: scan.composition.calories != null ? `${scan.composition.calories}` : '—', color: colors.scoreMedium },
-            { icon: "nutrition", label: "Sugar", value: scan.composition.sugarGrams != null ? `${scan.composition.sugarGrams}g` : '—', color: colors.scoreLow },
-            { icon: "water", label: "Hydration", value: `${scan.hydrationLevel}%`, color: colors.primary },
-            { icon: "flash", label: "Caffeine", value: scan.composition.caffeineMg != null ? `${scan.composition.caffeineMg}mg` : '—', color: colors.secondary },
-            { icon: "cellular", label: "Sodium", value: `${scan.composition.sodiumMg}mg`, color: colors.scoreMedium },
-            { icon: "ellipse", label: "Fat", value: scan.composition.fatGrams != null ? `${scan.composition.fatGrams}g` : '—', color: "#FF6B9D" },
-          ].map((item) => (
-            <View key={item.label} style={{ width: "30%", backgroundColor: colors.backgroundSecondary, borderRadius: 14, padding: 10, alignItems: "center", gap: 4, borderWidth: 1, borderColor: colors.border }}>
-              <Ionicons name={item.icon as any} size={14} color={item.color} />
-              <Text style={{ color: colors.foreground, fontSize: 14, fontWeight: "800" }}>{item.value}</Text>
-              <Text style={{ color: colors.mutedForeground, fontSize: 9 }}>{item.label}</Text>
-            </View>
-          ))}
+           {(isFood
+             ? [
+                 { icon: "flame", label: "Calories", value: nutritionValue(scan.composition.calories, " kcal"), color: colors.scoreMedium },
+                 { icon: "arm-flex", label: "Protein", value: nutritionValue(scan.composition.proteinGrams, "g"), color: colors.scoreHigh },
+                 { icon: "leaf", label: "Fiber", value: nutritionValue(scan.composition.fiberGrams, "g"), color: colors.primary },
+                 { icon: "analytics", label: "Meal Balance", value: scan.componentBreakdown?.length ? "Balanced" : "Estimated", color: colors.secondary },
+               ]
+             : [
+                 { icon: "flame", label: "Calories", value: nutritionValue(scan.composition.calories, " kcal"), color: colors.scoreMedium },
+                 { icon: "water", label: "Hydration", value: `${scan.hydrationLevel}%`, color: colors.primary },
+                 { icon: "nutrition", label: "Sugar Load", value: nutritionValue(scan.composition.sugarGrams, "g"), color: colors.scoreLow },
+                 { icon: "flash", label: "Caffeine", value: nutritionValue(scan.composition.caffeineMg, "mg"), color: colors.secondary },
+               ]
+            ).map((item) => (
+             <View key={item.label} style={{ width: "30%", backgroundColor: colors.backgroundSecondary, borderRadius: 14, padding: 10, alignItems: "center", gap: 4, borderWidth: 1, borderColor: colors.border }}>
+               <Ionicons name={item.icon as any} size={14} color={item.color} />
+               <Text style={{ color: colors.foreground, fontSize: 14, fontWeight: "800" }}>{item.value}</Text>
+               <Text style={{ color: colors.mutedForeground, fontSize: 9 }}>{item.label}</Text>
+             </View>
+           ))}
         </View>
+         {scan.nutritionEstimateUnavailable && (
+           <View style={{ padding: 14, borderRadius: 14, backgroundColor: `${colors.scoreMedium}14`, borderWidth: 1, borderColor: `${colors.scoreMedium}30` }}>
+             <Text style={{ color: colors.scoreMedium, fontSize: 13, lineHeight: 19 }}>
+               Nutritional estimate unavailable due to insufficient visual confidence.
+             </Text>
+           </View>
+         )}
 
         {/* Body metrics */}
         <GlassCard>
@@ -479,7 +497,7 @@ export default function ReportScreen() {
           <NutritionBar label="Fat" value={scan.composition.fatGrams} max={30} unit="g" color="#FF6B9D" />
           <NutritionBar label="Protein" value={scan.composition.proteinGrams} max={30} unit="g" color={colors.scoreHigh} />
           <NutritionBar label="Sodium" value={scan.composition.sodiumMg} max={2300} unit="mg" color={colors.scoreMedium} />
-          <NutritionBar label="Caffeine" value={scan.composition.caffeineMg} max={400} unit="mg" color={colors.secondary} />
+           <NutritionBar label="Caffeine" value={scan.composition.caffeineMg} max={400} unit="mg" color={colors.secondary} />
 
           <View style={{ flexDirection: "row", justifyContent: "space-between", paddingTop: 8, borderTopWidth: 1, borderTopColor: colors.border, marginTop: 4 }}>
             <Text style={{ color: colors.mutedForeground, fontSize: 12 }}>

@@ -303,12 +303,12 @@ const LiquidImpactScanScreen: React.FC<LiquidImpactScanScreenProps> = ({ route, 
   const heroScale = useRef(new Animated.Value(0.95)).current;
 
   const nutritionMetrics = useMemo((): NutritionMetric[] => [
-    { label: 'Calories', value: result.composition.calories, unit: 'kcal', max: 200, color: NUTRITION_COLORS.calories, description: 'Energy content per serving', healthImpact: result.composition.calories > 100 ? 'negative' : 'neutral' },
-    { label: 'Sugar', value: result.composition.sugarGrams, unit: 'g', max: 30, color: NUTRITION_COLORS.sugar, description: 'Added and natural sugars', healthImpact: result.composition.sugarGrams > 10 ? 'negative' : 'neutral' },
-    { label: 'Fat', value: result.composition.fatGrams, unit: 'g', max: 15, color: NUTRITION_COLORS.fat, description: 'Total fat content', healthImpact: result.composition.fatGrams > 5 ? 'negative' : 'positive' },
-    { label: 'Protein', value: result.composition.proteinGrams, unit: 'g', max: 20, color: NUTRITION_COLORS.protein, description: 'Protein for muscle support', healthImpact: result.composition.proteinGrams > 3 ? 'positive' : 'neutral' },
-    { label: 'Sodium', value: result.composition.sodiumMg, unit: 'mg', max: 200, color: NUTRITION_COLORS.sodium, description: 'Electrolyte content', healthImpact: result.composition.sodiumMg > 100 ? 'negative' : 'neutral' },
-    { label: 'Caffeine', value: result.composition.caffeineMg, unit: 'mg', max: 100, color: NUTRITION_COLORS.caffeine, description: 'Stimulant content', healthImpact: result.composition.caffeineMg > 40 ? 'warning' : 'neutral' },
+     { label: 'Calories', value: result.composition.calories ?? 0, unit: 'kcal', max: 200, color: NUTRITION_COLORS.calories, description: 'Energy content per serving', healthImpact: (result.composition.calories ?? 0) > 100 ? 'negative' : 'neutral' },
+     { label: 'Sugar', value: result.composition.sugarGrams ?? 0, unit: 'g', max: 30, color: NUTRITION_COLORS.sugar, description: 'Added and natural sugars', healthImpact: (result.composition.sugarGrams ?? 0) > 10 ? 'negative' : 'neutral' },
+     { label: 'Fat', value: result.composition.fatGrams ?? 0, unit: 'g', max: 15, color: NUTRITION_COLORS.fat, description: 'Total fat content', healthImpact: (result.composition.fatGrams ?? 0) > 5 ? 'negative' : 'positive' },
+     { label: 'Protein', value: result.composition.proteinGrams ?? 0, unit: 'g', max: 20, color: NUTRITION_COLORS.protein, description: 'Protein for muscle support', healthImpact: (result.composition.proteinGrams ?? 0) > 3 ? 'positive' : 'neutral' },
+     { label: 'Sodium', value: result.composition.sodiumMg ?? 0, unit: 'mg', max: 200, color: NUTRITION_COLORS.sodium, description: 'Electrolyte content', healthImpact: (result.composition.sodiumMg ?? 0) > 100 ? 'negative' : 'neutral' },
+     { label: 'Caffeine', value: result.composition.caffeineMg ?? 0, unit: 'mg', max: 100, color: NUTRITION_COLORS.caffeine, description: 'Stimulant content', healthImpact: (result.composition.caffeineMg ?? 0) > 40 ? 'warning' : 'neutral' },
   ], [result]);
 
   const wellnessIndicators = useMemo((): WellnessIndicator[] => [
@@ -339,8 +339,8 @@ const LiquidImpactScanScreen: React.FC<LiquidImpactScanScreenProps> = ({ route, 
   ], [result]);
 
   const shortTermEffects = useMemo((): EffectEntry[] => [
-    { title: result.shortTermImpact.energyResponse, description: 'Immediate energy and alertness effect', icon: 'bolt-outline', severity: result.composition.caffeineMg > 20 ? 'positive' : 'info', probability: 'high', timeframe: '0-2 hours' },
-    { title: result.shortTermImpact.bloodSugarResponse, description: 'Glucose response pattern', icon: 'pulse-outline', severity: result.composition.sugarGrams > 10 ? 'warning' : 'info', probability: 'high', timeframe: '0-2 hours' },
+     { title: result.shortTermImpact.energyResponse, description: 'Immediate energy and alertness effect', icon: 'bolt-outline', severity: (result.composition.caffeineMg ?? 0) > 20 ? 'positive' : 'info', probability: 'high', timeframe: '0-2 hours' },
+     { title: result.shortTermImpact.bloodSugarResponse, description: 'Glucose response pattern', icon: 'pulse-outline', severity: (result.composition.sugarGrams ?? 0) > 10 ? 'warning' : 'info', probability: 'high', timeframe: '0-2 hours' },
     { title: result.shortTermImpact.bodyReaction, description: 'Physical sensation and comfort', icon: 'body-outline', severity: 'info', probability: 'medium', timeframe: '0-2 hours' },
     { title: result.shortTermImpact.hydrationImpact, description: 'Fluid balance effect', icon: 'water-outline', severity: result.hydrationLevel > 70 ? 'positive' : result.hydrationLevel < 30 ? 'negative' : 'info', probability: 'high', timeframe: '0-2 hours' },
   ], [result]);
@@ -348,13 +348,13 @@ const LiquidImpactScanScreen: React.FC<LiquidImpactScanScreenProps> = ({ route, 
   const mediumTermEffects = useMemo((): EffectEntry[] => [
     { title: result.mediumTermImpact.energyStability, description: 'Sustained energy pattern', icon: 'trending-up-outline', severity: 'info', probability: 'medium', timeframe: '2-24 hours' },
     { title: result.mediumTermImpact.physicalChanges, description: 'Body composition considerations', icon: 'body-outline', severity: 'info', probability: 'low', timeframe: '2-24 hours' },
-    { title: result.mediumTermImpact.habitRisk, description: 'Consumption pattern guidance', icon: 'repeat-outline', severity: result.composition.sugarGrams > 8 ? 'warning' : 'info', probability: 'medium', timeframe: '2-24 hours' },
-    { title: result.mediumTermImpact.sleepQuality, description: 'Sleep impact considerations', icon: 'moon-outline', severity: result.composition.caffeineMg > 25 ? 'warning' : 'info', probability: result.composition.caffeineMg > 25 ? 'high' : 'low', timeframe: '2-24 hours' },
+     { title: result.mediumTermImpact.habitRisk, description: 'Consumption pattern guidance', icon: 'repeat-outline', severity: (result.composition.sugarGrams ?? 0) > 8 ? 'warning' : 'info', probability: 'medium', timeframe: '2-24 hours' },
+     { title: result.mediumTermImpact.sleepQuality, description: 'Sleep impact considerations', icon: 'moon-outline', severity: (result.composition.caffeineMg ?? 0) > 25 ? 'warning' : 'info', probability: (result.composition.caffeineMg ?? 0) > 25 ? 'high' : 'low', timeframe: '2-24 hours' },
   ], [result]);
 
   const longTermEffects = useMemo((): EffectEntry[] => [
     { title: result.longTermImpact.healthTrend, description: 'Overall wellness trajectory', icon: 'heart-outline', severity: timeImpact.longTerm.value > 70 ? 'positive' : timeImpact.longTerm.value < 30 ? 'negative' : 'info', probability: 'medium', timeframe: '1+ weeks' },
-    { title: result.longTermImpact.metabolicImpact, description: 'Metabolism and weight considerations', icon: 'flame-outline', severity: result.composition.sugarGrams > 10 ? 'warning' : 'info', probability: 'medium', timeframe: '1+ weeks' },
+     { title: result.longTermImpact.metabolicImpact, description: 'Metabolism and weight considerations', icon: 'flame-outline', severity: (result.composition.sugarGrams ?? 0) > 10 ? 'warning' : 'info', probability: 'medium', timeframe: '1+ weeks' },
     { title: result.longTermImpact.riskAccumulation, description: 'Cumulative health effect', icon: 'shield-checkmark-outline', severity: timeImpact.longTerm.confidence > 0.8 ? 'info' : 'warning', probability: 'low', timeframe: '1+ weeks' },
     { title: result.longTermImpact.nutritionalBalance, description: 'Dietary integration guidance', icon: 'restaurant-outline', severity: 'info', probability: 'high', timeframe: '1+ weeks' },
   ], [result, timeImpact]);

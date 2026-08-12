@@ -385,9 +385,9 @@ export function DrinkCard({ scan, onPress }: DrinkCardProps) {
         justifyContent: "center", alignItems: "center",
         overflow: "hidden",
       }}>
-        {scan.imageUri ? (
+        {(scan.thumbnailUri ?? scan.imageUri) ? (
           <Image
-            source={{ uri: scan.imageUri }}
+            source={{ uri: scan.thumbnailUri ?? scan.imageUri }}
             style={{ width: 52, height: 52, borderRadius: 16 }}
             resizeMode="cover"
           />

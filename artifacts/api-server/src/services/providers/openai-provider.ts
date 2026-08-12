@@ -47,7 +47,6 @@ export async function callOpenAI(options: ProviderCallOptions): Promise<Provider
       ],
       temperature: 0.05,
       max_tokens: 1600,
-      response_format: { type: 'json_object' },
     }, {
       signal: abortController.signal,
     });
@@ -57,7 +56,11 @@ export async function callOpenAI(options: ProviderCallOptions): Promise<Provider
     const content = response.choices[0]?.message?.content;
     if (!content) throw new Error('Empty response from OpenAI');
 
-    const parsed = JSON.parse(content);
+    const cleaned = content.replace(/```json\s*/gi, '').replace(/```\s*/g, '').trim();
+    const start = cleaned.indexOf('{');
+    const end = cleaned.lastIndexOf('}');
+    if (start < 0 || end <= start) throw Object.assign(new Error('OpenAI returned non-JSON content'), { code: 'parse_error' });
+    const parsed = JSON.parse(cleaned.slice(start, end + 1));
 
     return {
       raw: parsed,

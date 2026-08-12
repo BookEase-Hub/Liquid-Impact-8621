@@ -17,7 +17,7 @@ export interface AIRequest {
   imageBase64: string;
   systemPrompt: string;
   userPrompt: string;
-  schema: z.ZodType<AnalysisResponse>;
+  schema: z.ZodType<AnalysisResponse, z.ZodTypeDef, any>;
   context?: Partial<RoutingContext>;
   requestId?: string;
   userId?: string;
@@ -246,7 +246,7 @@ async function executeProvider(
   req: AIRequest,
   requestId: string,
   attemptNumber: number
-): Promise<Omit<AIResult, 'escalated'>> {
+): Promise<AIResult> {
   const config = PROVIDER_CONFIGS[providerId];
   const start = Date.now();
 
@@ -293,6 +293,7 @@ async function executeProvider(
     provider: providerId,
     attemptNumber,
     latencyMs,
+    escalated: false,
   };
 }
 

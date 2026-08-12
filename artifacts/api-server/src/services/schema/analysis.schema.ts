@@ -3,7 +3,7 @@ import { z } from 'zod';
 
 export const analysisResponseSchema = z.object({
   // === Identification ===
-  id: z.string().regex(/^scan_[a-zA-Z0-9]{8,20}$/, "ID must be 'scan_' + 8-20 alphanumeric"),
+  id: z.string().regex(/^scan_[a-zA-Z0-9_]{8,30}$/, "ID must be 'scan_' + 8-30 alphanumeric characters"),
   detectedProduct: z.string().min(1).max(100),
   brand: z.string().max(50).nullable(),
   category: z.enum([
@@ -20,14 +20,15 @@ export const analysisResponseSchema = z.object({
 
   // === Composition (structured nutrition) ===
   composition: z.object({
-    calories: z.number().min(0),
-    sugarGrams: z.number().min(0),
-    caffeineMg: z.number().min(0),
-    sodiumMg: z.number().min(0).optional(),
-    fatGrams: z.number().min(0).optional(),
-    proteinGrams: z.number().min(0).optional(),
-    fiberGrams: z.number().min(0).optional(),
-    cholesterolMg: z.number().min(0).optional(),
+    calories: z.number().min(0).nullable(),
+    carbsGrams: z.number().min(0).nullable().optional(),
+    sugarGrams: z.number().min(0).nullable(),
+    caffeineMg: z.number().min(0).nullable(),
+    sodiumMg: z.number().min(0).nullable().optional(),
+    fatGrams: z.number().min(0).nullable().optional(),
+    proteinGrams: z.number().min(0).nullable().optional(),
+    fiberGrams: z.number().min(0).nullable().optional(),
+    cholesterolMg: z.number().min(0).nullable().optional(),
     additives: z.array(z.string()).default([]),
     artificialSweeteners: z.boolean().default(false),
     servingSize: z.number().min(1),
@@ -45,7 +46,7 @@ export const analysisResponseSchema = z.object({
 
   // === Impact scoring ===
   impactScore: z.number().int().min(0).max(100),
-  status: z.enum(['optimal', 'stable', 'risky', 'damaging']),
+  status: z.enum(['optimal', 'stable', 'risky', 'damaging', 'unknown']),
   hydrationLevel: z.number().min(0).max(100),
   glycemicImpact: z.enum(['low', 'medium', 'high', 'moderate', 'very_high']),
   dehydrationRisk: z.boolean(),
@@ -68,7 +69,19 @@ export const analysisResponseSchema = z.object({
     component: z.string(),
     percentage: z.number().min(0).max(100),
     impactScore: z.number().min(0).max(100),
+    confidence: z.number().min(0).max(1).optional(),
+    portionGrams: z.number().min(0).optional(),
+    evidence: z.enum(['visual', 'likely', 'unknown']).optional(),
   })).optional().describe("For mixed meals — component decomposition"),
+  identificationCandidates: z.array(z.object({
+    name: z.string(),
+    confidence: z.number().min(0).max(1),
+    evidence: z.enum(['visual', 'likely', 'unknown']),
+  })).optional(),
+  visualEvidence: z.array(z.string()).optional(),
+  confirmedIngredients: z.array(z.string()).optional(),
+  uncertainIngredients: z.array(z.string()).optional(),
+  portionConfidence: z.number().min(0).max(1).optional(),
   allergenFlags: z.array(z.string()).optional().describe("Common allergens: dairy, gluten, nuts, etc."),
   processingLevel: z.enum(['whole', 'minimally_processed', 'processed', 'ultra_processed']).optional(),
   servingContext: z.object({
@@ -106,6 +119,7 @@ export const analysisResponseSchema = z.object({
   aiInsight: z.string().max(500).describe("Key takeaway in 1-2 sentences"),
   aiSummary: z.string().max(600).optional().describe("Brief overall assessment"),
   uncertaintyNotes: z.array(z.string()).optional().describe("When model is unsure"),
+  nutritionEstimateUnavailable: z.boolean().optional(),
   disclaimer: z.string().optional().describe("Medical/legal disclaimer if needed"),
   alternatives: z.array(z.string()).optional(),
 
@@ -124,7 +138,7 @@ export const analysisResponseSchema = z.object({
 export type AnalysisResponse = z.infer<typeof analysisResponseSchema>;
 
 export function generateScanId(): string {
-  return `scan_${Math.random().toString(36).substring(2, 10)}`;
+  return `scan_${Date.now().toString(36)}_${Math.random().toString(36).substring(2, 10)}`;
 }
 
 export function validateBeverageClassification(response: Partial<AnalysisResponse>): {

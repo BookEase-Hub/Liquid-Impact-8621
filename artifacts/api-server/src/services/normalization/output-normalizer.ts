@@ -1,6 +1,8 @@
 // artifacts/api-server/src/services/normalization/output-normalizer.ts
 import { AnalysisResponse } from '../schema/analysis.schema';
+import { generateScanId } from '../schema/analysis.schema';
 import { AIProvider } from '../../config/providers.config';
+import { guardAnalysis } from '../intelligence/analysis-guard';
 
 export function normalizeProviderOutput(
   raw: any,
@@ -8,10 +10,9 @@ export function normalizeProviderOutput(
 ): Partial<AnalysisResponse> {
   let normalized: Partial<AnalysisResponse> = { ...raw };
 
-  // Ensure ID format
-  if (!normalized.id || !normalized.id.startsWith('scan_')) {
-    normalized.id = `scan_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 6)}`;
-  }
+  // Scan identity belongs to this analysis response, never to the model or
+  // reusable product cache. Always issue a new ID at the API boundary.
+  normalized.id = generateScanId();
 
   // Provider-specific adjustments
   switch (provider) {
@@ -46,7 +47,7 @@ export function normalizeProviderOutput(
     providerUsed: provider,
   };
 
-  return normalizeToneAndScores(normalized as AnalysisResponse);
+  return guardAnalysis(normalizeToneAndScores(normalized as AnalysisResponse)) as AnalysisResponse;
 }
 
 function normalizeGeminiOutput(raw: any): Partial<AnalysisResponse> {
@@ -104,7 +105,8 @@ function normalizeToneAndScores(response: AnalysisResponse): AnalysisResponse {
   // Ensure glycemic impact mapping is consistent
   if (response.composition?.sugarGrams !== undefined) {
     const sugar = response.composition.sugarGrams;
-    if (sugar > 20) response.glycemicImpact = 'very_high';
+    if (sugar == null) response.glycemicImpact = 'moderate';
+    else if (sugar > 20) response.glycemicImpact = 'very_high';
     else if (sugar > 10) response.glycemicImpact = 'high';
     else if (sugar > 5) response.glycemicImpact = 'moderate';
     else response.glycemicImpact = 'low';

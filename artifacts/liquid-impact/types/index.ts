@@ -95,7 +95,7 @@ export interface TimeBasedImpact {
 export interface Composition {
   calories: number | null;
   sugarGrams: number | null;
-  caffeineMg: number;
+  caffeineMg: number | null;
   sodiumMg: number | null;
   fatGrams: number | null;
   proteinGrams: number | null;
@@ -192,6 +192,14 @@ export interface ScanResult {
   proteinQualityScore?: number;
   fiberScore?: number;
   healthyFatScore?: number;
+  alcoholContent?: number | null;
+  acidity?: "low" | "moderate" | "high";
+  uncertaintyNotes?: string[];
+  nutritionEstimateUnavailable?: boolean;
+  originalImageUri?: string;
+  compressedImageUri?: string;
+  thumbnailUri?: string;
+  imageHash?: string;
 }
 
 export interface DailyMission {

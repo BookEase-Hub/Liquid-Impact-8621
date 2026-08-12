@@ -15,7 +15,7 @@ import type {
   SubscriptionTier,
   WeeklyScore,
 } from "@/types";
-import { uploadScan, fetchCloudScans } from "@/services/api";
+import { genScanId, uploadScan, fetchCloudScans } from "@/services/api";
 import { useAuthStore } from "@/features/auth/store";
 
 const STORAGE_KEY = "@liquid_impact_v2";
@@ -48,8 +48,7 @@ type Action =
   | { type: "MERGE_CLOUD_SCANS"; payload: ScanResult[] }
   | { type: "SET_ONBOARDED" }
   | { type: "SET_SUBSCRIPTION"; payload: SubscriptionTier }
-  | { type: "UPDATE_MISSIONS"; payload: DailyMission[] }
-  | { type: "ENHANCE_SCAN"; payload: { id: string; shortTermImpact: unknown; mediumTermImpact: unknown; longTermImpact: unknown } };
+  | { type: "UPDATE_MISSIONS"; payload: DailyMission[] };
 
 function getInitialState(): AppState {
   return {
@@ -62,6 +61,16 @@ function getInitialState(): AppState {
     missions: DEFAULT_MISSIONS,
     lastMissionReset: null,
   };
+}
+
+function normalizeStoredScans(scans: ScanResult[]): ScanResult[] {
+  const ids = new Set<string>();
+  return scans.map((scan) => {
+    let id = typeof scan.id === "string" && scan.id.length > 0 ? scan.id : genScanId();
+    if (ids.has(id)) id = genScanId();
+    ids.add(id);
+    return { ...scan, id };
+  });
 }
 
 function computeStreak(lastScanDate: string | null, currentStreak: number): number {
@@ -97,6 +106,7 @@ function reducer(state: AppState, action: Action): AppState {
     case "LOAD_STATE":
       return {
         ...action.payload,
+        scans: normalizeStoredScans(action.payload.scans ?? []),
         hasOnboarded: action.payload.hasOnboarded ?? false,
         missions: resetMissionsIfNeeded(action.payload),
       };
@@ -148,16 +158,6 @@ function reducer(state: AppState, action: Action): AppState {
     case "UPDATE_MISSIONS":
       return { ...state, missions: action.payload };
 
-    case "ENHANCE_SCAN": {
-      const { id, shortTermImpact, mediumTermImpact, longTermImpact } = action.payload;
-      return {
-        ...state,
-        scans: state.scans.map((s) =>
-          s.id === id ? { ...s, shortTermImpact, mediumTermImpact, longTermImpact } : s,
-        ),
-      };
-    }
-
     default:
       return state;
   }
@@ -166,7 +166,6 @@ function reducer(state: AppState, action: Action): AppState {
 interface AppContextValue {
   state: AppState;
   addScan: (scan: ScanResult) => void;
-  enhanceScan: (id: string, shortTermImpact: unknown, mediumTermImpact: unknown, longTermImpact: unknown) => void;
   completeOnboarding: () => void;
   setSubscription: (tier: SubscriptionTier) => void;
   canScan: boolean;
@@ -231,20 +230,18 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
   const addScan = useCallback(
     (scan: ScanResult) => {
-      dispatch({ type: "ADD_SCAN", payload: scan });
+      const existingIds = new Set(state.scans.map((item) => item.id));
+      const immutableScan =
+        !scan.id || existingIds.has(scan.id)
+          ? { ...scan, id: genScanId(), scannedAt: Date.now() }
+          : { ...scan };
+      dispatch({ type: "ADD_SCAN", payload: immutableScan });
       const token = useAuthStore.getState().accessToken;
       if (token) {
-        uploadScan(scan, token).catch(() => {});
+        uploadScan(immutableScan, token).catch(() => {});
       }
     },
-    [],
-  );
-
-  const enhanceScan = useCallback(
-    (id: string, shortTermImpact: unknown, mediumTermImpact: unknown, longTermImpact: unknown) => {
-      dispatch({ type: "ENHANCE_SCAN", payload: { id, shortTermImpact, mediumTermImpact, longTermImpact } });
-    },
-    [],
+    [state.scans],
   );
 
   const completeOnboarding = useCallback(() => {
@@ -343,7 +340,6 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       value={{
         state,
         addScan,
-        enhanceScan,
         completeOnboarding,
         setSubscription,
         canScan,

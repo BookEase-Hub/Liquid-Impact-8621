@@ -9,7 +9,8 @@ import { generateScanId } from "./schema/analysis.schema";
 import type { AnalysisResponse } from "./schema/analysis.schema";
 
 const OFX_BASE = "https://world.openfoodfacts.org";
-const FETCH_TIMEOUT_MS = 8000;
+// Product lookup is an optional accelerator, never allowed to stall vision.
+const FETCH_TIMEOUT_MS = 450;
 
 interface OFFNutriments {
   "energy-kcal_serving"?: number;
@@ -247,6 +248,7 @@ function offProductToAnalysis(product: OFFProduct): AnalysisResponse {
     brand: product.brands?.split(",")[0]?.trim() ?? null,
     category,
     liquidType,
+    consumableType: ["beverage", "alcohol"].includes(liquidType) ? "beverage" : "condiment",
     confidenceScore: 0.92,
     isBeverage: liquidType === "beverage",
     impactScore: scores.impactScore,

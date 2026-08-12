@@ -17,7 +17,7 @@ import { createMMKV } from 'react-native-mmkv';
 import Fuse from 'fuse.js';
 import DRINK_DATABASE from '@/constants/drink-database';
 import { useApp } from '@/context/AppContext';
-import { analyzeDrink } from '@/services/api';
+import { analyzeDrink, computeLocalImageHash } from '@/services/api';
 import { GlassCard, ScoreRing } from '@/components/ui';
 import type { ScanResult, ScanStatus } from '@/types';
 
@@ -212,6 +212,8 @@ function useScanPipeline() {
 
       let base64: string | undefined;
       let productHint: string | undefined = input.text;
+      let compressedImageUri: string | undefined;
+      let imageHash: string | undefined;
 
       if (input.imageUri) {
         const manipulated = await ImageManipulator.manipulateAsync(
@@ -220,6 +222,8 @@ function useScanPipeline() {
           { compress: 0.70, format: ImageManipulator.SaveFormat.JPEG, base64: true }
         );
         base64 = manipulated.base64 ?? undefined;
+        compressedImageUri = manipulated.uri;
+        imageHash = base64 ? computeLocalImageHash(base64) : undefined;
       }
 
       if (!base64 && !productHint) {
@@ -230,7 +234,14 @@ function useScanPipeline() {
       const aiResult = await analyzeDrink(base64 ?? '', productHint, input.barcode);
 
       // Attach the original image URI so history can show the correct thumbnail
-      const finalResult: ScanResult = { ...aiResult, imageUri: input.imageUri };
+      const finalResult: ScanResult = {
+        ...aiResult,
+        imageUri: input.imageUri,
+        originalImageUri: input.imageUri,
+        compressedImageUri,
+        thumbnailUri: compressedImageUri ?? input.imageUri,
+        imageHash,
+      };
 
       // Cache the AI result by barcode/text key for future fast lookups
       if (cacheKey) storage.set(`cache_${cacheKey}`, JSON.stringify(aiResult));
@@ -242,24 +253,6 @@ function useScanPipeline() {
       setPhase('SUCCESS');
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
 
-      // Phase 2: Background enhance — fires silently, updates impact fields when done
-      if (finalResult.id && finalResult.detectedProduct) {
-        enhanceScan({
-          detectedProduct: finalResult.detectedProduct,
-          category: finalResult.category,
-          consumableType: finalResult.consumableType,
-          composition: finalResult.composition as Record<string, unknown> | undefined,
-        }).then((impact) => {
-          if (impact?.shortTermImpact || impact?.mediumTermImpact || impact?.longTermImpact) {
-            enhanceScanInContext(
-              finalResult.id,
-              impact.shortTermImpact,
-              impact.mediumTermImpact,
-              impact.longTermImpact,
-            );
-          }
-        }).catch(() => {});
-      }
     } catch (err: any) {
       stopStages();
       setError(err.message || 'Analysis failed. Please try again.');
@@ -268,7 +261,7 @@ function useScanPipeline() {
     } finally {
       isRunning.current = false;
     }
-  }, [canScan, addScan, advanceStages, stopStages]);
+  }, [canScan, addScan, advanceStages, stopStages, state.subscription, scanLimitMessage, router]);
 
   const reset = useCallback(() => {
     stopStages();

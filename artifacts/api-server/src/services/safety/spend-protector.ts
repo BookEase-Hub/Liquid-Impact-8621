@@ -17,7 +17,7 @@ export async function checkSpendBudget(userId?: string): Promise<SpendCheckResul
   const remaining = budgetLimit - dailySpend;
 
   if (remaining < 0) {
-    if (env.EMERGENCY_SPEND_SHUTDOWN === 'true') {
+    if (env.EMERGENCY_SPEND_SHUTDOWN) {
       logger.error({ dailySpend, budgetLimit, userId }, 'Emergency spend shutdown triggered');
       return { allowed: false, remaining: 0, reason: 'emergency_shutdown' };
     }

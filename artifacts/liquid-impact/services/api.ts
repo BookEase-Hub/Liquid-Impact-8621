@@ -4,10 +4,21 @@ const API_BASE = process.env.EXPO_PUBLIC_DOMAIN
   ? `https://${process.env.EXPO_PUBLIC_DOMAIN}/api`
   : "/api";
 
-const SCAN_TIMEOUT_MS = 75_000;
+// Keep the camera interaction bounded. The server returns an honest
+// low-confidence result when its fast provider budget is missed.
+const SCAN_TIMEOUT_MS = 8_000;
 
 export function genScanId(): string {
   return `scan_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 10)}`;
+}
+
+export function computeLocalImageHash(value: string): string {
+  let hash = 2166136261;
+  for (let i = 0; i < value.length; i += 97) {
+    hash ^= value.charCodeAt(i);
+    hash = Math.imul(hash, 16777619);
+  }
+  return `img_${(hash >>> 0).toString(16)}`;
 }
 
 async function sleep(ms: number) {

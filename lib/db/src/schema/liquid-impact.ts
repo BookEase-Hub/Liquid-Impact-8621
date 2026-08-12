@@ -80,6 +80,15 @@ export const scansTable = pgTable("scans", {
   processingLevel: text("processing_level"),
   mealType: text("meal_type"),
 
+  // Scan-local provenance (paths/metadata only; image bytes stay in device/App Storage)
+  imageUri: text("image_uri"),
+  originalImageUri: text("original_image_uri"),
+  compressedImageUri: text("compressed_image_uri"),
+  thumbnailUri: text("thumbnail_uri"),
+  imageHash: text("image_hash"),
+  uncertaintyNotes: jsonb("uncertainty_notes").$type<string[]>(),
+  nutritionEstimateUnavailable: boolean("nutrition_estimate_unavailable"),
+
   scannedAt: timestamp("scanned_at").defaultNow().notNull(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });

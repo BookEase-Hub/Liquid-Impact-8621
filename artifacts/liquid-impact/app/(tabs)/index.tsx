@@ -68,7 +68,7 @@ export default function HomeScreen() {
     if (state.streak >= 3) {
       stories.push({ icon: "flame" as const, iconColor: colors.scoreMedium, title: `${state.streak}-Day Streak! 🔥`, message: "You're on a roll! Keep scanning to track your progress." });
     }
-    const highSugar = state.scans.slice(0, 3).some(s => s.composition.sugarGrams > 25);
+    const highSugar = state.scans.slice(0, 3).some(s => (s.composition.sugarGrams ?? 0) > 25);
     if (highSugar) {
       stories.push({ icon: "alert-circle" as const, iconColor: "#FF9800", title: "High Sugar Warning", message: "Some recent drinks spike your blood sugar within 20 minutes. Consider lower-sugar alternatives." });
     }

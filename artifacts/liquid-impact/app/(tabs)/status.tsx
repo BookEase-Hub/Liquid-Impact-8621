@@ -79,7 +79,7 @@ export default function StatusScreen() {
 
   const avgCaffeine =
     recent.length > 0
-      ? recent.reduce((s, r) => s + r.composition.caffeineMg, 0) / recent.length
+       ? recent.reduce((s, r) => s + (r.composition.caffeineMg ?? 0), 0) / recent.length
       : 0;
 
   const energyScore = Math.min(100, Math.max(0, avgScore));

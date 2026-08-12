@@ -53,7 +53,7 @@ export class RecommendationEngine {
     const recentScans = await this.getRecentScans(userId, 7);
 
     // 1. Product Alternatives (if high sugar drinks detected)
-    const highSugarDrinks = recentScans.filter(s => s.composition.sugarGrams > 15);
+    const highSugarDrinks = recentScans.filter(s => (s.composition.sugarGrams ?? 0) > 15);
     if (highSugarDrinks.length > 0) {
       recommendations.push(...this.generateAlternativeRecommendations(highSugarDrinks));
     }
