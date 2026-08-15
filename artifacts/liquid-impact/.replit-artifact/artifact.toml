@@ -1,27 +1,28 @@
 kind = "mobile"
-previewPath = "/"
-title = "Liquid Impact"
-version = "1.0.0"
-id = "artifacts/liquid-impact"
-router = "expo-domain"
+  previewPath = "/"
+  title = "Liquid Impact"
+  version = "1.0.0"
+  id = "artifacts/liquid-impact"
+  router = "expo-domain"
 
-[[integratedSkills]]
-name = "expo"
-version = "1.0.0"
+  [[integratedSkills]]
+  name = "expo"
+  version = "1.0.0"
 
-[[services]]
-ensurePreviewReachable = "/status"
-name = "expo"
-paths = [ "/" ]
-localPort = 26050
+  [[services]]
+  ensurePreviewReachable = "/status"
+  name = "expo"
+  paths = [ "/" ]
+  localPort = 26050
 
-[services.development]
-run = "pnpm --filter @workspace/liquid-impact run dev"
+  [services.development]
+  run = "pnpm --filter @workspace/liquid-impact run dev"
 
-[services.production]
-build = [ "pnpm", "--filter", "@workspace/liquid-impact", "run", "build" ]
-run = [ "pnpm", "--filter", "@workspace/liquid-impact", "run", "serve" ]
+  [services.production]
+  build = [ "pnpm", "--filter", "@workspace/liquid-impact", "run", "build" ]
+  run = [ "pnpm", "--filter", "@workspace/liquid-impact", "run", "serve" ]
 
-[services.env]
-PORT = "26050"
-BASE_PATH = "/"
+  [services.env]
+  PORT = "26050"
+  BASE_PATH = "/"
+  

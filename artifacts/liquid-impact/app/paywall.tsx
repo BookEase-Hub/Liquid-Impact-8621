@@ -206,7 +206,7 @@ export default function PaywallScreen() {
           </LinearGradient>
           <Text style={styles.headerEyebrow}>Unlock Full Power</Text>
           <Text style={styles.headerTitle}>
-            See exactly what your{'\n'}drinks do to your body
+            See exactly what your{'\n'}food & drinks do to your body
           </Text>
         </Animated.View>
 
@@ -308,11 +308,11 @@ export default function PaywallScreen() {
             Cancel anytime · Secure payments · 7-day free trial on paid plans
           </Text>
           <View style={styles.legalLinks}>
-            <TouchableOpacity onPress={() => Linking.openURL('https://liquidimpact.app/privacy')}>
+            <TouchableOpacity onPress={() => Linking.openURL('https://impact.app/privacy')}>
               <Text style={[styles.legalLink, { color: C.mutedForeground }]}>Privacy Policy</Text>
             </TouchableOpacity>
             <Text style={{ color: C.mutedForeground, fontSize: 11 }}> · </Text>
-            <TouchableOpacity onPress={() => Linking.openURL('https://liquidimpact.app/terms')}>
+            <TouchableOpacity onPress={() => Linking.openURL('https://impact.app/terms')}>
               <Text style={[styles.legalLink, { color: C.mutedForeground }]}>Terms of Use</Text>
             </TouchableOpacity>
           </View>

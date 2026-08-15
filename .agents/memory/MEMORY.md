@@ -1,0 +1,4 @@
+- [Food pivot decisions](food-pivot.md) — Impact pivoted from drinks-only to all food+drinks; key schema/routing decisions recorded.
+- [Scan JSON fix](scan-json-fix.md) — OpenAI 400 error fix: never use response_format:json_object; extract JSON from text with regex instead.
+- [Subscription limits](subscription-limits.md) — Free = 3 total lifetime scans (SUBSCRIPTION_LIMITS uses `total` not `daily`). Paid = monthly limits.
+- [Scan ID uniqueness fix](scan-id-fix.md) — Recent scan bug: always generate fresh ID client-side in api.ts + scan.tsx; MMKV cache hits and local DB hits also get fresh IDs.

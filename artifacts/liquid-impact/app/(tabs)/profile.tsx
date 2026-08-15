@@ -242,7 +242,7 @@ export default function ProfileScreen() {
         </GlassCard>
 
         <Text style={{ color: colors.mutedForeground, fontSize: 12, textAlign: "center" }}>
-          Liquid Impact v1.0.0 · Made with AI ✨
+          Impact v1.0.0 · Made with AI ✨
         </Text>
       </ScrollView>
     </View>

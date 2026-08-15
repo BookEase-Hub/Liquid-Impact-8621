@@ -1,0 +1,166 @@
+// artifacts/api-server/src/services/schema/analysis.schema.ts
+import { z } from 'zod';
+
+export const analysisResponseSchema = z.object({
+  // === Identification ===
+  id: z.string().regex(/^scan_[a-zA-Z0-9_]{8,30}$/, "ID must be 'scan_' + 8-30 alphanumeric characters"),
+  detectedProduct: z.string().min(1).max(100),
+  brand: z.string().max(50).nullable(),
+  category: z.enum([
+    'water', 'soda', 'energy_drink', 'tea', 'coffee', 'juice',
+    'alcohol', 'sports_drink', 'dairy', 'plant_milk', 'supplement',
+    'cooking_oil', 'vinegar', 'syrup', 'extract', 'unknown',
+    'spirits', 'beer', 'wine', 'milk', 'smoothie', 'sport', 'olive_oil', 'vegetable_oil', 'hot_sauce',
+    'solid_food', 'mixed_meal', 'snack', 'condiment', 'other'
+  ]),
+  liquidType: z.enum(['beverage', 'cooking_oil', 'condiment', 'alcohol', 'supplement', 'other']).default('beverage'),
+  consumableType: z.enum(['beverage', 'solid_food', 'mixed_meal', 'snack', 'condiment', 'supplement']).default('beverage'),
+  confidenceScore: z.number().min(0).max(1).describe("Model confidence 0.0-1.0"),
+  isBeverage: z.boolean().describe("True if intended for drinking, false for cooking/solid food").optional(),
+
+  // === Composition (structured nutrition) ===
+  composition: z.object({
+    calories: z.number().min(0).nullable(),
+    carbsGrams: z.number().min(0).nullable().optional(),
+    sugarGrams: z.number().min(0).nullable(),
+    caffeineMg: z.number().min(0).nullable(),
+    sodiumMg: z.number().min(0).nullable().optional(),
+    fatGrams: z.number().min(0).nullable().optional(),
+    proteinGrams: z.number().min(0).nullable().optional(),
+    fiberGrams: z.number().min(0).nullable().optional(),
+    cholesterolMg: z.number().min(0).nullable().optional(),
+    additives: z.array(z.string()).default([]),
+    artificialSweeteners: z.boolean().default(false),
+    servingSize: z.number().min(1),
+    servingUnit: z.enum(['ml', 'fl_oz', 'can', 'bottle', 'packet', 'tbsp', 'g', 'oz', 'cup', 'piece', 'plate', 'bowl']).default('ml'),
+    ingredients: z.array(z.object({
+      name: z.string(),
+      healthRole: z.enum(['positive', 'neutral', 'concerning', 'negative', 'quick-energy', 'alertness', 'zero-calorie', 'antioxidant', 'metabolic-support', 'energy-metabolism', 'liver-support', 'energy', 'immune-support', 'rehydration', 'bone-support', 'muscle-support', 'traditional', 'hydration', 'flavor', 'metabolism-support', 'energy-support', 'gut-health', 'satiety', 'fiber', 'protein']),
+      riskLevel: z.enum(['low', 'medium', 'high', 'moderate']),
+      function: z.string().optional(),
+      description: z.string().optional(),
+      aiNote: z.string().optional(),
+      allergen: z.boolean().default(false).optional(),
+    })),
+  }),
+
+  // === Impact scoring ===
+  impactScore: z.number().int().min(0).max(100),
+  status: z.enum(['optimal', 'stable', 'risky', 'damaging', 'unknown']),
+  hydrationLevel: z.number().min(0).max(100),
+  glycemicImpact: z.enum(['low', 'medium', 'high', 'moderate', 'very_high']),
+  dehydrationRisk: z.boolean(),
+  alcoholContent: z.number().min(0).optional(),
+
+  // === Food-specific scoring (new — optional for backward compat) ===
+  satietyScore: z.number().min(0).max(100).optional().describe("0-100 how filling is this food"),
+  digestiveLoad: z.enum(['light', 'moderate', 'heavy']).optional(),
+  nutrientDensity: z.number().min(0).max(100).optional().describe("0-100 vitamins/minerals per calorie"),
+  fiberEstimate: z.enum(['low', 'medium', 'high']).optional(),
+  proteinQuality: z.enum(['complete', 'incomplete', 'not_applicable']).optional(),
+  mealTimingFit: z.object({
+    breakfast: z.enum(['excellent', 'good', 'fair', 'poor']),
+    lunch: z.enum(['excellent', 'good', 'fair', 'poor']),
+    dinner: z.enum(['excellent', 'good', 'fair', 'poor']),
+    snack: z.enum(['excellent', 'good', 'fair', 'poor']),
+  }).optional(),
+  bloodSugarTrajectory: z.enum(['spike', 'sustained', 'gradual', 'crash']).optional(),
+  componentBreakdown: z.array(z.object({
+    component: z.string(),
+    percentage: z.number().min(0).max(100),
+    impactScore: z.number().min(0).max(100),
+    confidence: z.number().min(0).max(1).optional(),
+    portionGrams: z.number().min(0).optional(),
+    evidence: z.enum(['visual', 'likely', 'unknown']).optional(),
+  })).optional().describe("For mixed meals — component decomposition"),
+  identificationCandidates: z.array(z.object({
+    name: z.string(),
+    confidence: z.number().min(0).max(1),
+    evidence: z.enum(['visual', 'likely', 'unknown']),
+  })).optional(),
+  visualEvidence: z.array(z.string()).optional(),
+  confirmedIngredients: z.array(z.string()).optional(),
+  uncertainIngredients: z.array(z.string()).optional(),
+  portionConfidence: z.number().min(0).max(1).optional(),
+  allergenFlags: z.array(z.string()).optional().describe("Common allergens: dairy, gluten, nuts, etc."),
+  processingLevel: z.enum(['whole', 'minimally_processed', 'processed', 'ultra_processed']).optional(),
+  servingContext: z.object({
+    typicalServing: z.string().optional(),
+    caloricDensity: z.enum(['low', 'medium', 'high']).optional(),
+  }).optional(),
+
+  // === Time-based impacts (your unique value prop) ===
+  shortTermImpact: z.object({
+    energyResponse: z.string().max(300),
+    bloodSugarResponse: z.string().max(300),
+    bodyReaction: z.string().max(300),
+    hydrationImpact: z.string().max(300),
+  }),
+
+  mediumTermImpact: z.object({
+    energyStability: z.string().max(300),
+    physicalChanges: z.string().max(300),
+    habitRisk: z.string().max(300),
+    sleepQuality: z.string().max(300),
+  }),
+
+  longTermImpact: z.object({
+    healthTrend: z.string().max(300),
+    metabolicImpact: z.string().max(300),
+    riskAccumulation: z.string().max(300),
+    nutritionalBalance: z.string().max(300),
+  }),
+
+  // === Viral & engagement content ===
+  viralStatement: z.string().max(200).describe("Shareable one-liner for social"),
+  tiktokHook: z.string().max(100).optional().describe("Short hook for TikTok/Reels"),
+
+  // === Trust & transparency ===
+  aiInsight: z.string().max(500).describe("Key takeaway in 1-2 sentences"),
+  aiSummary: z.string().max(600).optional().describe("Brief overall assessment"),
+  uncertaintyNotes: z.array(z.string()).optional().describe("When model is unsure"),
+  nutritionEstimateUnavailable: z.boolean().optional(),
+  disclaimer: z.string().optional().describe("Medical/legal disclaimer if needed"),
+  alternatives: z.array(z.string()).optional(),
+
+  // === Metadata for debugging/telemetry ===
+  metadata: z.object({
+    processingTimeMs: z.number().optional(),
+    providerUsed: z.enum(['gemini', 'openai', 'fallback']).optional(),
+    modelVersion: z.string().optional(),
+    promptTokens: z.number().optional(),
+    completionTokens: z.number().optional(),
+    estimatedCost: z.number().optional(),
+    escalationTriggered: z.boolean().optional(),
+  }).optional(),
+});
+
+export type AnalysisResponse = z.infer<typeof analysisResponseSchema>;
+
+export function generateScanId(): string {
+  return `scan_${Date.now().toString(36)}_${Math.random().toString(36).substring(2, 10)}`;
+}
+
+export function validateBeverageClassification(response: Partial<AnalysisResponse>): {
+  valid: boolean;
+  warning?: string;
+} {
+  if (!response.category) return { valid: false, warning: 'Missing category' };
+
+  const cookingLiquids = ['cooking_oil', 'olive_oil', 'vegetable_oil', 'vinegar', 'syrup', 'extract', 'hot_sauce'] as const;
+  const isCooking = cookingLiquids.includes(response.category as any);
+
+  if (isCooking && response.liquidType === 'beverage') {
+    return {
+      valid: false,
+      warning: 'Cooking liquid should not have liquidType: beverage',
+    };
+  }
+
+  return { valid: true };
+}
+
+export function isFood(response: Partial<AnalysisResponse>): boolean {
+  const foodTypes: Array<AnalysisResponse['consumableType']> = ['solid_food', 'mixed_meal', 'snack'];
+  return foodTypes.includes(response.consumableType as any);
+}

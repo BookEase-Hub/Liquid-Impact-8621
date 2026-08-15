@@ -4,7 +4,7 @@
   "private": true,
   "main": "expo-router/entry",
   "scripts": {
-    "dev": "EXPO_PACKAGER_PROXY_URL=https://$REPLIT_EXPO_DEV_DOMAIN EXPO_PUBLIC_DOMAIN=$REPLIT_DEV_DOMAIN EXPO_PUBLIC_REPL_ID=$REPL_ID REACT_NATIVE_PACKAGER_HOSTNAME=$REPLIT_DEV_DOMAIN pnpm exec expo start --localhost --port $PORT",
+    "dev": "EXPO_PACKAGER_PROXY_URL=https://$REPLIT_EXPO_DEV_DOMAIN EXPO_PUBLIC_DOMAIN=$REPLIT_DEV_DOMAIN EXPO_PUBLIC_REPL_ID=$REPL_ID REACT_NATIVE_PACKAGER_HOSTNAME=$REPLIT_DEV_DOMAIN pnpm exec expo start --localhost --port $PORT --clear",
     "build": "node scripts/build.js",
     "serve": "node server/serve.js",
     "typecheck": "tsc -p tsconfig.json --noEmit"
@@ -57,13 +57,22 @@
   },
   "dependencies": {
     "@hookform/resolvers": "^3.10.0",
+    "@react-native-community/netinfo": "^11.4.1",
+    "@react-native-ml-kit/text-recognition": "^2.0.0",
     "expo-apple-authentication": "~8.0.8",
     "expo-auth-session": "~7.0.11",
+    "expo-camera": "~16.0.18",
     "expo-crypto": "~15.0.9",
-    "expo-image-manipulator": "^55.0.16",
+    "expo-device": "^56.0.4",
+    "expo-file-system": "^56.0.6",
+    "expo-image-manipulator": "^14.0.8",
+    "expo-notifications": "^56.0.12",
     "expo-secure-store": "~15.0.8",
     "expo-store-review": "^9.0.9",
+    "fuse.js": "^7.3.0",
     "react-hook-form": "^7.71.2",
+    "react-native-mmkv": "^4.3.1",
+    "react-native-nitro-modules": "^0.35.7",
     "react-native-purchases": "^10.1.0",
     "zustand": "^5.0.13"
   }

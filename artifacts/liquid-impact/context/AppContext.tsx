@@ -15,7 +15,7 @@ import type {
   SubscriptionTier,
   WeeklyScore,
 } from "@/types";
-import { uploadScan, fetchCloudScans } from "@/services/api";
+import { genScanId, uploadScan, fetchCloudScans } from "@/services/api";
 import { useAuthStore } from "@/features/auth/store";
 
 const STORAGE_KEY = "@liquid_impact_v2";
@@ -23,20 +23,23 @@ const TODAY = () => new Date().toDateString();
 
 export const SUBSCRIPTION_LIMITS: Record<
   SubscriptionTier,
-  { daily: number | null; monthly: number | null; label: string; color: string }
+  { total: number | null; monthly: number | null; label: string; color: string }
 > = {
-  free: { daily: 3, monthly: null, label: "Free", color: "#6B6B80" },
-  starter: { daily: null, monthly: 100, label: "Starter", color: "#00B4D8" },
-  pro: { daily: null, monthly: null, label: "Pro", color: "#7B2CBF" },
-  elite: { daily: null, monthly: null, label: "Elite", color: "#FFD700" },
-  family: { daily: null, monthly: null, label: "Family", color: "#FF6B9D" },
+  free: { total: 3, monthly: null, label: "Free", color: "#6B6B80" },
+  starter: { total: null, monthly: 100, label: "Starter", color: "#00B4D8" },
+  pro: { total: null, monthly: null, label: "Pro", color: "#7B2CBF" },
+  elite: { total: null, monthly: null, label: "Elite", color: "#FFD700" },
+  family: { total: null, monthly: null, label: "Family", color: "#FF6B9D" },
 };
 
 const DEFAULT_MISSIONS: DailyMission[] = [
-  { id: "mission_scan3", title: "Scan 3 Drinks", description: "Analyze 3 different drinks today", progress: 0, target: 3, completed: false, icon: "camera", xp: 50 },
+  { id: "mission_scan3", title: "Scan 3 Items", description: "Analyze 3 different foods or drinks today", progress: 0, target: 3, completed: false, icon: "camera", xp: 50 },
   { id: "mission_water", title: "Stay Hydrated", description: "Scan a drink with 70%+ hydration score", progress: 0, target: 1, completed: false, icon: "water", xp: 30 },
-  { id: "mission_healthy", title: "Healthy Choice", description: "Scan a drink scoring 80 or above", progress: 0, target: 1, completed: false, icon: "leaf", xp: 40 },
-  { id: "mission_streak", title: "Keep the Streak", description: "Scan at least one drink today", progress: 0, target: 1, completed: false, icon: "flame", xp: 20 },
+  { id: "mission_healthy", title: "Healthy Choice", description: "Scan a food or drink scoring 80 or above", progress: 0, target: 1, completed: false, icon: "leaf", xp: 40 },
+  { id: "mission_streak", title: "Keep the Streak", description: "Scan at least one item today", progress: 0, target: 1, completed: false, icon: "flame", xp: 20 },
+  { id: "mission_protein", title: "Protein Power", description: "Scan a meal with 20g+ protein", progress: 0, target: 1, completed: false, icon: "barbell", xp: 35 },
+  { id: "mission_whole", title: "Whole Food Win", description: "Scan a whole or minimally processed food", progress: 0, target: 1, completed: false, icon: "nutrition", xp: 45 },
+  { id: "mission_fiber", title: "Fiber Boost", description: "Scan a high-fiber food", progress: 0, target: 1, completed: false, icon: "leaf-outline", xp: 30 },
 ];
 
 type Action =
@@ -60,6 +63,16 @@ function getInitialState(): AppState {
   };
 }
 
+function normalizeStoredScans(scans: ScanResult[]): ScanResult[] {
+  const ids = new Set<string>();
+  return scans.map((scan) => {
+    let id = typeof scan.id === "string" && scan.id.length > 0 ? scan.id : genScanId();
+    if (ids.has(id)) id = genScanId();
+    ids.add(id);
+    return { ...scan, id };
+  });
+}
+
 function computeStreak(lastScanDate: string | null, currentStreak: number): number {
   if (!lastScanDate) return 0;
   const diff = Math.floor((Date.now() - new Date(lastScanDate).getTime()) / (1000 * 60 * 60 * 24));
@@ -69,7 +82,10 @@ function computeStreak(lastScanDate: string | null, currentStreak: number): numb
 
 function resetMissionsIfNeeded(state: AppState): DailyMission[] {
   if (state.lastMissionReset !== TODAY()) return DEFAULT_MISSIONS;
-  return state.missions;
+  // Ensure any new missions added in DEFAULT_MISSIONS are present (migration)
+  const existingIds = new Set(state.missions.map(m => m.id));
+  const missingMissions = DEFAULT_MISSIONS.filter(m => !existingIds.has(m.id));
+  return [...state.missions, ...missingMissions];
 }
 
 function mergeScanArrays(local: ScanResult[], cloud: ScanResult[]): ScanResult[] {
@@ -90,6 +106,7 @@ function reducer(state: AppState, action: Action): AppState {
     case "LOAD_STATE":
       return {
         ...action.payload,
+        scans: normalizeStoredScans(action.payload.scans ?? []),
         hasOnboarded: action.payload.hasOnboarded ?? false,
         missions: resetMissionsIfNeeded(action.payload),
       };
@@ -102,6 +119,7 @@ function reducer(state: AppState, action: Action): AppState {
         const wasYesterday = state.lastScanDate === new Date(Date.now() - 86400000).toDateString();
         newStreak = wasYesterday ? state.streak + 1 : 1;
       }
+      const isFood = scan.consumableType && ['solid_food', 'mixed_meal', 'snack'].includes(scan.consumableType);
       const updatedMissions = state.missions.map((m) => {
         if (m.completed) return m;
         let np = m.progress;
@@ -109,6 +127,9 @@ function reducer(state: AppState, action: Action): AppState {
         if (m.id === "mission_streak") np = 1;
         if (m.id === "mission_water" && scan.hydrationLevel >= 70) np += 1;
         if (m.id === "mission_healthy" && scan.impactScore >= 80) np += 1;
+        if (m.id === "mission_protein" && isFood && (scan.composition?.proteinGrams ?? 0) >= 20) np += 1;
+        if (m.id === "mission_whole" && isFood && (scan.processingLevel === 'whole' || scan.processingLevel === 'minimally_processed')) np += 1;
+        if (m.id === "mission_fiber" && isFood && scan.fiberEstimate === 'high') np += 1;
         return { ...m, progress: Math.min(np, m.target), completed: np >= m.target };
       });
       return {
@@ -164,7 +185,6 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [state, dispatch] = useReducer(reducer, getInitialState());
   const syncedRef = useRef(false);
 
-  // ── Load from AsyncStorage on mount ────────────────────────────────────────
   useEffect(() => {
     AsyncStorage.getItem(STORAGE_KEY).then((raw) => {
       if (raw) {
@@ -181,13 +201,11 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     });
   }, []);
 
-  // ── Persist to AsyncStorage on every state change ──────────────────────────
   useEffect(() => {
     if (state.hasOnboarded === null) return;
     AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(state));
   }, [state]);
 
-  // ── Cloud sync: pull on first load if authenticated ────────────────────────
   const syncFromCloud = useCallback(async () => {
     const accessToken = useAuthStore.getState().accessToken;
     if (!accessToken) return;
@@ -201,7 +219,6 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     }
   }, []);
 
-  // ── Auto-sync from cloud once per session when auth is ready ───────────────
   useEffect(() => {
     if (state.hasOnboarded === null) return;
     if (syncedRef.current) return;
@@ -213,14 +230,18 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
   const addScan = useCallback(
     (scan: ScanResult) => {
-      dispatch({ type: "ADD_SCAN", payload: scan });
-      // Fire-and-forget cloud upload
+      const existingIds = new Set(state.scans.map((item) => item.id));
+      const immutableScan =
+        !scan.id || existingIds.has(scan.id)
+          ? { ...scan, id: genScanId(), scannedAt: Date.now() }
+          : { ...scan };
+      dispatch({ type: "ADD_SCAN", payload: immutableScan });
       const token = useAuthStore.getState().accessToken;
       if (token) {
-        uploadScan(scan, token).catch(() => {});
+        uploadScan(immutableScan, token).catch(() => {});
       }
     },
-    [],
+    [state.scans],
   );
 
   const completeOnboarding = useCallback(() => {
@@ -242,16 +263,29 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   }).length;
 
   const limits = SUBSCRIPTION_LIMITS[state.subscription];
-  const canScan =
-    (limits.daily === null || todayScanCount < limits.daily) &&
-    (limits.monthly === null || monthScanCount < limits.monthly);
 
-  const scanLimitMessage =
-    !canScan && limits.daily !== null
-      ? `${todayScanCount}/${limits.daily} daily scans used`
-      : !canScan && limits.monthly !== null
-      ? `${monthScanCount}/${limits.monthly} monthly scans used`
-      : "";
+  // Free tier: 3 total lifetime scans. Paid tiers: monthly limits.
+  const canScan = (() => {
+    if (state.subscription === "free") {
+      return state.scans.length < (limits.total ?? 3);
+    }
+    if (limits.monthly !== null) return monthScanCount < limits.monthly;
+    return true; // Pro / Elite / Family — unlimited
+  })();
+
+  const scanLimitMessage = (() => {
+    if (state.subscription === "free") {
+      const remaining = (limits.total ?? 3) - state.scans.length;
+      if (remaining <= 0) return "You've used all 3 free scans. Upgrade to continue.";
+      return `${remaining} free scan${remaining !== 1 ? "s" : ""} remaining`;
+    }
+    if (limits.monthly !== null) {
+      const remaining = limits.monthly - monthScanCount;
+      if (remaining <= 0) return `You've used all ${limits.monthly} scans this month. Upgrade for more.`;
+      return `${remaining} scan${remaining !== 1 ? "s" : ""} remaining this month`;
+    }
+    return "Unlimited scans";
+  })();
 
   const avgScore =
     state.scans.length > 0
@@ -278,17 +312,20 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const dailyStatus: DailyStatus = (() => {
     const recent = state.scans.slice(0, 5);
     if (recent.length === 0) {
-      return { dehydrationRisk: false, recommendation: "Scan a drink to see your wellness status", hydration: 0, energy: 0, recovery: 0, focus: 0 };
+      return { dehydrationRisk: false, recommendation: "Scan food or a drink to see your wellness status", hydration: 0, energy: 0, recovery: 0, focus: 0 };
     }
-    const avgHyd = Math.round(recent.reduce((s, r) => s + r.hydrationLevel, 0) / recent.length);
+    const beverageScans = recent.filter(s => !s.consumableType || s.consumableType === 'beverage' || s.consumableType === 'supplement');
+    const avgHyd = beverageScans.length > 0
+      ? Math.round(beverageScans.reduce((s, r) => s + r.hydrationLevel, 0) / beverageScans.length)
+      : Math.round(recent.reduce((s, r) => s + r.hydrationLevel, 0) / recent.length);
     const avgImpact = Math.round(recent.reduce((s, r) => s + r.impactScore, 0) / recent.length);
-    const avgCaff = recent.reduce((s, r) => s + r.composition.caffeineMg, 0) / recent.length;
+    const avgCaff = recent.reduce((s, r) => s + (r.composition?.caffeineMg ?? 0), 0) / recent.length;
     const dehydrationRisk = recent.some((s) => s.dehydrationRisk) || avgHyd < 40;
     return {
       dehydrationRisk,
       recommendation: dehydrationRisk
-        ? "⚠️ Your recent drinks may affect hydration. Consider drinking more water."
-        : "✅ Your hydration indicators look good. Keep it up!",
+        ? "⚠️ Your recent choices may affect hydration. Consider drinking more water."
+        : "✅ Your wellness indicators look good. Keep it up!",
       hydration: avgHyd,
       energy: Math.min(100, avgImpact),
       recovery: Math.min(100, Math.max(0, 100 - (avgCaff / 200) * 100)),

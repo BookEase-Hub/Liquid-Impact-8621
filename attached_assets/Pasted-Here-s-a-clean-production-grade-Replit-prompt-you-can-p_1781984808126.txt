@@ -1,0 +1,419 @@
+Here’s a clean, production-grade Replit prompt you can paste directly into Replit AI to implement exactly what you want for Liquid Impact with Gemini + 500 RPM-safe architecture + Open Food Facts + caching + reusable intelligence system.
+
+
+---
+
+🚀 REPLIT AI BUILD PROMPT (LIQUID IMPACT – SCALABLE GEMINI ARCHITECTURE)
+
+You are a senior backend + full-stack engineer. Refactor and upgrade my existing Node.js (Express) + PostgreSQL + Prisma application called Liquid Impact into a scalable AI-powered drink scanning system using Gemini API, caching, and a reusable product intelligence database.
+
+
+---
+
+🎯 CORE GOAL
+
+Build a system where:
+
+Not every request triggers Gemini
+
+AI is ONLY used when necessary
+
+Results are reused aggressively
+
+Product database grows automatically
+
+System can safely handle ~500 RPM
+
+Cost does NOT scale linearly with users
+
+
+
+---
+
+🚨 PROBLEM TO SOLVE
+
+Current architecture is broken because:
+
+Every scan calls Gemini again
+
+No caching layer exists
+
+No product intelligence database exists
+
+No barcode database integration exists
+
+Cost scales linearly with users
+
+
+
+---
+
+🧠 REQUIRED ARCHITECTURE (IMPORTANT)
+
+Implement a 3-layer intelligence system:
+
+
+---
+
+🥇 LAYER 1 — CACHE (FASTEST, ZERO COST)
+
+Before calling Gemini:
+
+Check in this order:
+
+1. Redis cache
+
+Key: image_hash
+
+If exists → return result immediately
+
+
+2. PostgreSQL product table
+
+Search:
+
+barcode
+
+product name
+
+normalized product fingerprint
+
+
+If found → return instantly (NO AI CALL)
+
+
+---
+
+🥈 LAYER 2 — OPEN FOOD FACTS INTEGRATION
+
+Integrate:
+
+Open Food Facts database API:
+
+https://world.openfoodfacts.org/api/v2/product/{barcode}.json
+
+When barcode scan happens:
+
+IF product exists:
+
+Extract:
+
+product name
+
+brand
+
+nutrition facts
+
+ingredients
+
+
+Store in PostgreSQL products table
+
+Cache result in Redis
+
+Return immediately (NO AI CALL)
+
+
+IF NOT FOUND:
+
+Proceed to Layer 3
+
+
+---
+
+🥉 LAYER 3 — GEMINI AI (ONLY WHEN NEEDED)
+
+Only call Gemini when:
+
+No barcode match
+
+No cache match
+
+No database match
+
+
+Use:
+
+gemini-2.5-flash for default scans
+
+fallback to gemini-2.5-pro only if confidence is low
+
+
+Gemini must:
+
+Identify drink
+
+Extract nutrition info
+
+Generate health impact score (0–100)
+
+Categorize drink:
+
+Optimal
+
+Stable
+
+Risky
+
+Damaging
+
+
+
+
+---
+
+⚙️ REQUIRED SYSTEM COMPONENTS
+
+1. Redis Caching Layer
+
+Implement Redis for:
+
+image hash caching
+
+barcode lookup caching
+
+Gemini response caching
+
+
+Key format:
+
+scan:{hash}
+barcode:{code}
+product:{name}
+
+
+---
+
+2. Product Intelligence Database (POSTGRESQL + PRISMA)
+
+Create products table:
+
+Fields:
+
+id
+
+name
+
+brand
+
+barcode
+
+ingredients
+
+nutrition_json
+
+health_score
+
+category
+
+source (openfoodfacts | gemini)
+
+image_hash
+
+created_at
+
+updated_at
+
+
+
+---
+
+3. IMAGE DEDUPLICATION SYSTEM
+
+Before sending to Gemini:
+
+Generate image hash (pHash or SHA256)
+
+Check Redis:
+
+If exists → return cached result
+
+
+Else continue pipeline
+
+
+
+---
+
+4. BARCODE-FIRST LOGIC (IMPORTANT)
+
+If barcode exists:
+
+1. Check PostgreSQL
+
+
+2. Check Open Food Facts API
+
+
+3. Cache result permanently
+
+
+4. NEVER call Gemini unless missing
+
+
+
+
+---
+
+5. GEMINI API INTEGRATION
+
+Use Google Gemini:
+
+Primary: gemini-2.5-flash
+
+Fallback: gemini-2.5-pro
+
+
+Optimize prompts for:
+
+JSON structured output only
+
+strict schema enforcement
+
+no hallucination
+
+uncertainty labeling
+
+
+
+---
+
+6. REUSABLE INTELLIGENCE SYSTEM
+
+Every successful AI result MUST:
+
+be saved in PostgreSQL
+
+be cached in Redis
+
+be reused for future scans
+
+
+This is mandatory.
+
+
+---
+
+7. API FLOW (CRITICAL)
+
+Rewrite /api/scans/analyze to follow:
+
+STEP FLOW:
+
+1. Receive scan (image or barcode)
+
+
+2. Generate hash
+
+
+3. Check Redis cache
+
+
+4. If miss → check PostgreSQL
+
+
+5. If barcode → query Open Food Facts
+
+
+6. If found anywhere → return immediately
+
+
+7. If not found → call Gemini
+
+
+8. Save result to DB
+
+
+9. Cache result in Redis
+
+
+10. Return response
+
+
+
+
+---
+
+🚀 PERFORMANCE TARGET
+
+System must handle:
+
+500 RPM safely
+
+Burst traffic without crashing
+
+<200ms response for cached results
+
+AI calls only for NEW products
+
+
+
+---
+
+💰 COST CONTROL RULES
+
+NEVER call Gemini twice for same product
+
+NEVER process same image twice
+
+ALWAYS cache AI outputs
+
+Prefer Open Food Facts over AI
+
+Prefer database over AI
+
+
+
+---
+
+🧪 OPTIONAL ENHANCEMENTS
+
+If possible, also add:
+
+BullMQ background processing for AI calls
+
+WebSocket updates for scan completion
+
+Rate limiting with Redis
+
+Basic analytics dashboard (most scanned products)
+
+
+
+---
+
+🧠 FINAL SYSTEM GOAL
+
+Transform Liquid Impact from:
+
+> ❌ AI-heavy app (expensive, unscalable)
+
+
+
+to:
+
+> ✅ Data-driven intelligence system (cached, reusable, scalable)
+
+
+
+
+---
+
+📌 IMPORTANT
+
+Do NOT build a system where every request triggers AI.
+
+Instead build:
+
+> “AI learns once → system reuses forever”
+
+
+
+
+---
+
+If you want next step, I can also:
+
+👉 redesign your **database schema for maximum caching efficiency**
+👉 or draw your **exact system architecture diagram (production-level)**
+👉 or calculate your **real cost at 1,000 / 10,000 / 100,000 users**

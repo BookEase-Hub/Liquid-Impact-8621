@@ -4,30 +4,95 @@ const API_BASE = process.env.EXPO_PUBLIC_DOMAIN
   ? `https://${process.env.EXPO_PUBLIC_DOMAIN}/api`
   : "/api";
 
-const SCAN_TIMEOUT_MS = 45_000; // 45s hard timeout — GPT-4o Vision can be slow
+// Keep the camera interaction bounded. The server returns an honest
+// low-confidence result when its fast provider budget is missed.
+const SCAN_TIMEOUT_MS = 8_000;
 
-export async function analyzeDrink(imageBase64: string): Promise<ScanResult> {
+export function genScanId(): string {
+  return `scan_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 10)}`;
+}
+
+export function computeLocalImageHash(value: string): string {
+  let hash = 2166136261;
+  for (let i = 0; i < value.length; i += 97) {
+    hash ^= value.charCodeAt(i);
+    hash = Math.imul(hash, 16777619);
+  }
+  return `img_${(hash >>> 0).toString(16)}`;
+}
+
+async function sleep(ms: number) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+async function withRetry<T>(
+  fn: () => Promise<T>,
+  maxAttempts: number,
+  baseDelayMs: number,
+): Promise<T> {
+  let lastError: unknown;
+  for (let attempt = 0; attempt < maxAttempts; attempt++) {
+    try {
+      return await fn();
+    } catch (e) {
+      lastError = e;
+      const isAbort = e instanceof Error && e.name === "AbortError";
+      const isRetryable =
+        e instanceof Error &&
+        (e.message.includes("Network request failed") ||
+          e.message.includes("Failed to fetch") ||
+          e.message.includes("fetch failed"));
+      if (isAbort || !isRetryable || attempt === maxAttempts - 1) throw e;
+      const delay = baseDelayMs * Math.pow(2, attempt);
+      await sleep(delay);
+    }
+  }
+  throw lastError;
+}
+
+export async function analyzeDrink(
+  imageBase64: string,
+  productHint?: string,
+  barcode?: string,
+): Promise<ScanResult> {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), SCAN_TIMEOUT_MS);
 
   try {
-    const response = await fetch(`${API_BASE}/scans/analyze`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ imageBase64 }),
-      signal: controller.signal,
-    });
+    const data = await withRetry(
+      async () => {
+        const response = await fetch(`${API_BASE}/scans/analyze`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            imageBase64,
+            ...(productHint ? { productHint } : {}),
+            ...(barcode ? { barcode } : {}),
+          }),
+          signal: controller.signal,
+        });
 
-    if (!response.ok) {
-      const err = await response.json().catch(() => ({ error: "Unknown error" }));
-      throw new Error(err.error ?? "Failed to analyze drink");
-    }
+        if (!response.ok) {
+          const err = await response.json().catch(() => ({ error: "Unknown error" }));
+          throw new Error(err.error ?? "Failed to analyze item");
+        }
 
-    const data = await response.json();
-    return { ...data, scannedAt: Date.now() } as ScanResult;
+        return response.json();
+      },
+      2,
+      1500,
+    );
+
+    return {
+      ...data,
+      id: genScanId(),
+      scannedAt: Date.now(),
+    } as ScanResult;
   } catch (e) {
     if (e instanceof Error && e.name === "AbortError") {
-      throw new Error("Analysis timed out — please try again with a clearer photo.");
+      throw new Error(
+        "Analysis is taking longer than expected. Please try again — or use Search mode to type the item name.",
+      );
     }
     throw e;
   } finally {
@@ -35,10 +100,29 @@ export async function analyzeDrink(imageBase64: string): Promise<ScanResult> {
   }
 }
 
-export async function uploadScan(
-  scan: ScanResult,
-  accessToken: string,
-): Promise<void> {
+export async function enhanceScan(params: {
+  detectedProduct: string;
+  category?: string;
+  consumableType?: string;
+  composition?: Record<string, unknown>;
+}): Promise<{ shortTermImpact?: unknown; mediumTermImpact?: unknown; longTermImpact?: unknown } | null> {
+  try {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 45_000);
+    const response = await fetch(`${API_BASE}/scans/enhance`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(params),
+      signal: controller.signal,
+    }).finally(() => clearTimeout(timer));
+    if (!response.ok) return null;
+    return response.json();
+  } catch {
+    return null;
+  }
+}
+
+export async function uploadScan(scan: ScanResult, accessToken: string): Promise<void> {
   try {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), 10_000);
@@ -56,9 +140,7 @@ export async function uploadScan(
   }
 }
 
-export async function fetchCloudScans(
-  accessToken: string,
-): Promise<ScanResult[]> {
+export async function fetchCloudScans(accessToken: string): Promise<ScanResult[]> {
   try {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), 10_000);

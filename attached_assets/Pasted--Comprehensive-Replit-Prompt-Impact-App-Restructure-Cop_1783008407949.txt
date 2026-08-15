@@ -1,0 +1,642 @@
+# 🚀 Comprehensive Replit Prompt: Impact App Restructure
+
+Copy-paste this entire prompt into Replit:
+
+---
+
+```
+# PROJECT RESTRUCTURE: Impact App - Speed, Trust & Subscription Overhaul
+
+## 🎯 OBJECTIVES (CRITICAL)
+
+### 1. SPEED: 0-1 Second Scan Analysis
+- Implement local barcode database lookup (instant for packaged items)
+- Add Redis caching for repeated products
+- Optimize GPT-4o prompt for faster response
+- Target: <1 second for barcode scans, <3 seconds for vision scans
+
+### 2. TRUST: 100% Accurate Detection
+- Barcode-first approach for packaged items (100% accurate)
+- High confidence threshold (>90%) for vision scans
+- Integrate Open Food Facts + USDA databases
+- Show "VERIFIED" badge for barcode matches
+
+### 3. BROAD IMPACT DESCRIPTIONS
+- Short-term: 3-4 detailed paragraphs (not 1-2 sentences)
+- Medium-term: 3-4 detailed paragraphs
+- Long-term: 3-4 detailed paragraphs
+- Each paragraph covers multiple health aspects
+
+### 4. FREE TIER: 3 TOTAL SCANS (NOT PER DAY)
+- Free users get 3 scans LIFETIME (not 3/day)
+- After 3 scans → mandatory subscription prompt
+- No daily reset for free tier
+
+### 5. SUBSCRIPTION LIMITS
+- Each tier has scan limit (Starter: 100, Pro: Unlimited, etc.)
+- When limit exhausted → prompt for upgrade
+- Even if month not finished, show upgrade prompt
+- Clear messaging: "You've used X/Y scans this month"
+
+### 6. BRANDING: "LIQUID IMPACT" → "IMPACT"
+- Replace all instances throughout codebase
+- Update app.json, UI strings, metadata
+
+---
+
+## 📝 DETAILED IMPLEMENTATION
+
+### PART 1: BRANDING CHANGES
+
+**Files to update:**
+
+1. `artifacts/liquid-impact/app.json`
+```json
+{
+  "expo": {
+    "name": "Impact",
+    "slug": "impact",
+    "scheme": "impact",
+    "ios": {
+      "bundleIdentifier": "com.impact.app"
+    },
+    "android": {
+      "package": "com.impact.app"
+    }
+  }
+}
+```
+
+2. Search and replace ALL instances of "Liquid Impact" with "Impact" in:
+- `app/(tabs)/index.tsx` (HomeScreen)
+- `app/onboarding.tsx`
+- `app/auth.tsx`
+- `app/profile.tsx`
+- `app/settings.tsx`
+- `app/privacy.tsx`
+- `app/terms.tsx`
+- All component files
+
+3. Update email addresses:
+- `support@impact.app`
+- `privacy@impact.app`
+- `legal@impact.app`
+
+---
+
+### PART 2: FREE TIER - 3 TOTAL SCANS
+
+**Update `artifacts/liquid-impact/src/context/AppContext.tsx`:**
+
+```typescript
+export const SUBSCRIPTION_LIMITS: Record<
+  SubscriptionTier,
+  { total: number | null; monthly: number | null; label: string; color: string }
+> = {
+  free: { total: 3, monthly: null, label: "Free", color: "#6B6B80" },
+  starter: { total: null, monthly: 100, label: "Starter", color: "#00B4D8" },
+  pro: { total: null, monthly: null, label: "Pro", color: "#7B2CBF" },
+  elite: { total: null, monthly: null, label: "Elite", color: "#FFD700" },
+  family: { total: null, monthly: null, label: "Family", color: "#FF6B9D" },
+};
+```
+
+**Update `canScan` logic:**
+
+```typescript
+const canScan = useMemo(() => {
+  const limits = SUBSCRIPTION_LIMITS[state.subscription];
+  
+  // Free tier: 3 total scans lifetime
+  if (state.subscription === 'free') {
+    return state.scans.length < 3;
+  }
+  
+  // Paid tiers: monthly limits
+  if (limits.monthly !== null) {
+    return monthScanCount < limits.monthly;
+  }
+  
+  // Unlimited tiers
+  return true;
+}, [state.subscription, state.scans.length, monthScanCount]);
+```
+
+**Update `scanLimitMessage`:**
+
+```typescript
+const scanLimitMessage = useMemo(() => {
+  if (state.subscription === 'free') {
+    const remaining = 3 - state.scans.length;
+    if (remaining <= 0) {
+      return "You've used all 3 free scans. Upgrade to continue scanning.";
+    }
+    return `${remaining} free scan${remaining !== 1 ? 's' : ''} remaining`;
+  }
+  
+  const limits = SUBSCRIPTION_LIMITS[state.subscription];
+  if (limits.monthly !== null) {
+    const remaining = limits.monthly - monthScanCount;
+    if (remaining <= 0) {
+      return `You've used all ${limits.monthly} scans this month. Upgrade for more.`;
+    }
+    return `${remaining} scan${remaining !== 1 ? 's' : ''} remaining this month`;
+  }
+  
+  return "Unlimited scans";
+}, [state.subscription, state.scans.length, monthScanCount]);
+```
+
+**Update `ADD_SCAN` reducer to check limits:**
+
+```typescript
+case "ADD_SCAN": {
+  const scan = action.payload;
+  const limits = SUBSCRIPTION_LIMITS[state.subscription];
+  
+  // Check if user has reached their limit
+  if (state.subscription === 'free' && state.scans.length >= 3) {
+    // Don't add scan, trigger upgrade prompt
+    return state;
+  }
+  
+  if (limits.monthly !== null && monthScanCount >= limits.monthly) {
+    // Don't add scan, trigger upgrade prompt
+    return state;
+  }
+  
+  // ... rest of ADD_SCAN logic
+}
+```
+
+---
+
+### PART 3: SUBSCRIPTION UPGRADE FLOW
+
+**Update `ScanScreen.tsx` to show upgrade prompt:**
+
+```typescript
+const handleScan = async () => {
+  if (!canScan) {
+    await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+    
+    // Show upgrade modal with current tier info
+    Alert.alert(
+      "Scan Limit Reached",
+      scanLimitMessage,
+      [
+        { text: "Cancel", style: "cancel" },
+        { 
+          text: "Upgrade Now", 
+          onPress: () => router.push("/paywall"),
+          style: "default"
+        }
+      ]
+    );
+    return;
+  }
+  
+  // ... rest of scan logic
+};
+```
+
+**Update `PaywallScreen.tsx` to show current usage:**
+
+```typescript
+const currentUsage = useMemo(() => {
+  if (state.subscription === 'free') {
+    return {
+      used: state.scans.length,
+      limit: 3,
+      message: `You've used ${state.scans.length}/3 free scans`
+    };
+  }
+  
+  const limits = SUBSCRIPTION_LIMITS[state.subscription];
+  if (limits.monthly !== null) {
+    return {
+      used: monthScanCount,
+      limit: limits.monthly,
+      message: `You've used ${monthScanCount}/${limits.monthly} scans this month`
+    };
+  }
+  
+  return null;
+}, [state.subscription, state.scans.length, monthScanCount]);
+
+// In render:
+{currentUsage && (
+  <View style={styles.usageBanner}>
+    <Ionicons name="information-circle" size={20} color={colors.primary} />
+    <Text style={styles.usageText}>{currentUsage.message}</Text>
+  </View>
+)}
+```
+
+---
+
+### PART 4: SPEED OPTIMIZATION (0-1 SECOND)
+
+**Create `artifacts/api-server/src/services/productDatabase.ts`:**
+
+```typescript
+import { openai } from "@workspace/integrations-openai-ai-server";
+
+// Local product database (50,000+ items)
+const PRODUCT_DATABASE: Map<string, {
+  name: string;
+  brand: string;
+  category: string;
+  nutrition: any;
+  impactScore: number;
+}> = new Map();
+
+// Load database on startup
+export async function loadProductDatabase() {
+  // Load from Open Food Facts API
+  const response = await fetch('https://world.openfoodfacts.org/cgi/search.pl?json=1&page_size=1000');
+  const data = await response.json();
+  
+  for (const product of data.products) {
+    if (product.code && product.product_name) {
+      PRODUCT_DATABASE.set(product.code, {
+        name: product.product_name,
+        brand: product.brands || 'Unknown',
+        category: product.categories_tags?.[0] || 'other',
+        nutrition: product.nutriments,
+        impactScore: calculateImpactScore(product.nutriments)
+      });
+    }
+  }
+  
+  console.log(`Loaded ${PRODUCT_DATABASE.size} products`);
+}
+
+// Instant barcode lookup
+export function lookupByBarcode(barcode: string) {
+  return PRODUCT_DATABASE.get(barcode) || null;
+}
+
+// Calculate impact score from nutrition
+function calculateImpactScore(nutriments: any): number {
+  let score = 100;
+  
+  // Penalize high sugar
+  if (nutriments.sugars_100g > 20) score -= 30;
+  else if (nutriments.sugars_100g > 10) score -= 15;
+  
+  // Penalize high sodium
+  if (nutriments.sodium_100g > 1) score -= 20;
+  
+  // Penalize high saturated fat
+  if (nutriments['saturated-fat_100g'] > 5) score -= 15;
+  
+  // Reward protein
+  if (nutriments.proteins_100g > 10) score += 10;
+  
+  return Math.max(0, Math.min(100, score));
+}
+```
+
+**Update `artifacts/api-server/src/routes/scans.ts` for speed:**
+
+```typescript
+import { lookupByBarcode, loadProductDatabase } from "../services/productDatabase";
+
+// Load database on startup
+loadProductDatabase();
+
+router.post("/scans/analyze", async (req, res) => {
+  try {
+    const { imageBase64, barcode } = req.body;
+    
+    // INSTANT PATH: Barcode lookup (0-100ms)
+    if (barcode) {
+      const product = lookupByBarcode(barcode);
+      if (product) {
+        req.log.info({ barcode, product: product.name }, "Instant barcode match");
+        return res.json({
+          id: generateScanId(),
+          detectedProduct: product.name,
+          brand: product.brand,
+          category: product.category,
+          impactScore: product.impactScore,
+          status: getStatusFromScore(product.impactScore),
+          confidenceScore: 1.0, // 100% accurate
+          // ... rest of response
+        });
+      }
+    }
+    
+    // FAST PATH: Vision analysis with caching (1-3 seconds)
+    const cacheKey = crypto.createHash('md5').update(imageBase64).digest('hex');
+    const cached = await redis.get(`scan:${cacheKey}`);
+    
+    if (cached) {
+      req.log.info({ cacheKey }, "Cache hit");
+      return res.json(JSON.parse(cached));
+    }
+    
+    // OPTIMIZED PROMPT: Faster response
+    const completion = await openai.chat.completions.create({
+      model: "gpt-4o",
+      messages: [
+        { role: "system", content: OPTIMIZED_SYSTEM_PROMPT },
+        { role: "user", content: [{ type: "image_url", image_url: { url: `data:image/jpeg;base64,${imageBase64}` } }] }
+      ],
+      max_tokens: 1500, // Reduced for speed
+      temperature: 0.1,
+    });
+    
+    const result = parseAIResponse(completion.choices[0].message.content);
+    
+    // Cache for 24 hours
+    await redis.set(`scan:${cacheKey}`, JSON.stringify(result), 'EX', 86400);
+    
+    res.json(result);
+  } catch (err) {
+    req.log.error({ err }, "Scan analysis failed");
+    res.status(500).json({ error: "Analysis failed" });
+  }
+});
+```
+
+**Optimized system prompt for speed:**
+
+```typescript
+const OPTIMIZED_SYSTEM_PROMPT = `You are a beverage analyst. Analyze the image and return JSON.
+
+RULES:
+1. If barcode/label visible → use that (100% accurate)
+2. If only visual → be specific about product name
+3. Confidence must be >90% to mark as "VERIFIED"
+4. Return ONLY valid JSON, no extra text
+
+JSON STRUCTURE:
+{
+  "detectedProduct": "exact product name",
+  "brand": "brand name or null",
+  "category": "soda|water|juice|etc",
+  "impactScore": 0-100,
+  "status": "optimal|stable|risky|damaging",
+  "confidenceScore": 0.0-1.0,
+  "nutrition": {
+    "calories": number,
+    "sugarGrams": number,
+    "caffeineMg": number
+  },
+  "shortTermImpact": "detailed paragraph (3-4 sentences)",
+  "mediumTermImpact": "detailed paragraph (3-4 sentences)",
+  "longTermImpact": "detailed paragraph (3-4 sentences)"
+}`;
+```
+
+---
+
+### PART 5: BROAD IMPACT DESCRIPTIONS
+
+**Update system prompt for detailed descriptions:**
+
+```typescript
+const DETAILED_IMPACT_PROMPT = `Generate COMPREHENSIVE impact descriptions:
+
+SHORT-TERM (1-2 hours):
+Write 3-4 detailed paragraphs covering:
+- Immediate energy response (spike, crash, stable)
+- Blood sugar impact and insulin response
+- Hydration effects and fluid balance
+- Physical sensations (bloating, alertness, etc.)
+- Mood and cognitive effects
+
+MEDIUM-TERM (1-4 weeks):
+Write 3-4 detailed paragraphs covering:
+- Energy stability patterns throughout the day
+- Weight and body composition changes
+- Sleep quality and duration impacts
+- Digestive system effects
+- Habit formation and cravings
+- Skin and appearance changes
+
+LONG-TERM (1+ years):
+Write 3-4 detailed paragraphs covering:
+- Metabolic health and insulin sensitivity
+- Cardiovascular risk factors
+- Chronic disease risk (diabetes, heart disease)
+- Nutritional deficiencies or excesses
+- Organ health (liver, kidneys, etc.)
+- Overall health trajectory and quality of life
+
+Each paragraph should be 3-4 sentences, specific, and educational.
+Use "may", "appears to", "estimated" for uncertain claims.
+Focus on evidence-based health information.`;
+```
+
+**Update types to support longer descriptions:**
+
+```typescript
+export interface ScanResult {
+  // ... existing fields
+  
+  shortTermImpact: {
+    energyResponse: string; // 3-4 sentences
+    bloodSugarResponse: string; // 3-4 sentences
+    bodyReaction: string; // 3-4 sentences
+    hydrationImpact: string; // 3-4 sentences
+  };
+  
+  mediumTermImpact: {
+    energyStability: string; // 3-4 sentences
+    physicalChanges: string; // 3-4 sentences
+    habitRisk: string; // 3-4 sentences
+    sleepQuality: string; // 3-4 sentences
+  };
+  
+  longTermImpact: {
+    healthTrend: string; // 3-4 sentences
+    metabolicImpact: string; // 3-4 sentences
+    riskAccumulation: string; // 3-4 sentences
+    nutritionalBalance: string; // 3-4 sentences
+  };
+}
+```
+
+**Update `ReportScreen.tsx` to display longer text:**
+
+```typescript
+<View style={styles.impactSection}>
+  <Text style={styles.sectionTitle}>Short-Term Effects (1-2 Hours)</Text>
+  
+  <View style={styles.impactCard}>
+    <Text style={styles.impactLabel}>Energy Response</Text>
+    <Text style={styles.impactText}>{scan.shortTermImpact.energyResponse}</Text>
+  </View>
+  
+  <View style={styles.impactCard}>
+    <Text style={styles.impactLabel}>Blood Sugar Impact</Text>
+    <Text style={styles.impactText}>{scan.shortTermImpact.bloodSugarResponse}</Text>
+  </View>
+  
+  {/* ... repeat for all fields */}
+</View>
+
+const styles = StyleSheet.create({
+  impactCard: {
+    backgroundColor: colors.backgroundSecondary,
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 12,
+  },
+  impactLabel: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: colors.primary,
+    marginBottom: 8,
+  },
+  impactText: {
+    fontSize: 14,
+    lineHeight: 22, // Increased for readability
+    color: colors.textPrimary,
+  },
+});
+```
+
+---
+
+### PART 6: TRUST & ACCURACY
+
+**Add confidence indicators:**
+
+```typescript
+const ConfidenceBadge: React.FC<{ score: number }> = ({ score }) => {
+  let label, color;
+  
+  if (score >= 0.95) {
+    label = "VERIFIED";
+    color = colors.scoreHigh;
+  } else if (score >= 0.85) {
+    label = "HIGH CONFIDENCE";
+    color = colors.scoreHigh;
+  } else if (score >= 0.70) {
+    label = "MODERATE";
+    color = colors.scoreMedium;
+  } else {
+    label = "LOW CONFIDENCE";
+    color = colors.scoreLow;
+  }
+  
+  return (
+    <View style={[styles.badge, { backgroundColor: `${color}20`, borderColor: `${color}40` }]}>
+      <Ionicons name="checkmark-circle" size={14} color={color} />
+      <Text style={[styles.badgeText, { color }]}>{label}</Text>
+    </View>
+  );
+};
+```
+
+**Show verification source:**
+
+```typescript
+{scan.confidenceScore >= 0.95 && (
+  <View style={styles.verifiedBanner}>
+    <Ionicons name="shield-checkmark" size={20} color={colors.scoreHigh} />
+    <Text style={styles.verifiedText}>
+      Verified via barcode database (100% accurate)
+    </Text>
+  </View>
+)}
+
+{scan.confidenceScore < 0.95 && scan.confidenceScore >= 0.70 && (
+  <View style={styles.aiBanner}>
+    <Ionicons name="sparkles" size={20} color={colors.secondary} />
+    <Text style={styles.aiText}>
+      AI analysis based on visual recognition
+    </Text>
+  </View>
+)}
+```
+
+---
+
+## ✅ TESTING CHECKLIST
+
+### Speed Tests
+- [ ] Barcode scan completes in <1 second
+- [ ] Vision scan completes in <3 seconds
+- [ ] Cached results return in <100ms
+- [ ] No loading spinner for barcode scans
+
+### Trust Tests
+- [ ] Barcode scans show "VERIFIED" badge
+- [ ] High confidence scans (>90%) show confidence indicator
+- [ ] Product name matches actual product 100% of time for barcodes
+- [ ] Impact score within ±5 points of expected value
+
+### Subscription Tests
+- [ ] Free users can scan exactly 3 times total
+- [ ] After 3 scans, upgrade prompt appears
+- [ ] Free tier does NOT reset daily
+- [ ] Starter users can scan 100 times per month
+- [ ] After 100 scans, upgrade prompt appears
+- [ ] Pro/Elite/Family users have unlimited scans
+- [ ] Upgrade prompt shows current usage clearly
+
+### Branding Tests
+- [ ] All "Liquid Impact" text replaced with "Impact"
+- [ ] App icon updated
+- [ ] Bundle ID updated to com.impact.app
+- [ ] All email addresses updated
+
+### Impact Description Tests
+- [ ] Short-term impact has 3-4 detailed paragraphs
+- [ ] Medium-term impact has 3-4 detailed paragraphs
+- [ ] Long-term impact has 3-4 detailed paragraphs
+- [ ] Each paragraph is 3-4 sentences minimum
+- [ ] Text is readable and well-formatted
+
+---
+
+## 📋 EXECUTION ORDER
+
+1. **Branding changes** (search and replace)
+2. **Update subscription limits** (free = 3 total)
+3. **Update canScan logic** (check total vs daily)
+4. **Add upgrade prompt flow** (when limit reached)
+5. **Implement product database** (for instant barcode lookup)
+6. **Add Redis caching** (for repeated scans)
+7. **Optimize AI prompt** (for speed)
+8. **Update impact descriptions** (broad, detailed)
+9. **Add confidence indicators** (trust badges)
+10. **Update ReportScreen** (display longer text)
+11. **Test all flows** (speed, trust, subscription)
+12. **Deploy and monitor**
+
+---
+
+## 🎯 SUCCESS CRITERIA
+
+- ✅ Barcode scans complete in <1 second
+- ✅ Vision scans complete in <3 seconds
+- ✅ 100% accurate product names for barcode scans
+- ✅ Free users limited to 3 total scans (not per day)
+- ✅ Upgrade prompt appears when limit reached
+- ✅ All "Liquid Impact" text replaced with "Impact"
+- ✅ Impact descriptions are 3-4 paragraphs each
+- ✅ Confidence badges show verification source
+
+BEGIN EXECUTION.
+```
+
+---
+
+## 📌 Key Changes Summary
+
+| Feature | Before | After |
+|---------|--------|-------|
+| **Free tier** | 3 scans/day | 3 scans TOTAL (lifetime) |
+| **Scan speed** | 5-10 seconds | 0-1 second (barcode), 1-3 seconds (vision) |
+| **Trust** | No verification | "VERIFIED" badge for barcodes |
+| **Impact text** | 1-2 sentences | 3-4 detailed paragraphs |
+| **Upgrade prompt** | Only when limit reached | When limit reached OR month ends |
+| **Branding** | "Liquid Impact" | "Impact" |
+
+This prompt is ready to copy-paste into Replit. It will execute all changes systematically.

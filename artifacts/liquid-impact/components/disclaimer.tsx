@@ -4,7 +4,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { useColors } from "@/hooks/useColors";
 
 const MEDICAL_TEXT =
-  "Liquid Impact is for informational and general wellness purposes only. It does not provide medical advice, diagnosis, or treatment. Consult a qualified healthcare professional before making any significant dietary or lifestyle changes.";
+  "Impact is for informational and general wellness purposes only. It does not provide medical advice, diagnosis, or treatment. Consult a qualified healthcare professional before making any significant dietary or lifestyle changes.";
 
 const AI_ESTIMATE_TEXT =
   "AI-generated estimate based on image analysis and general ingredient data. Results are approximate and for educational purposes only.";

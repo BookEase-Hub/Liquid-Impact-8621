@@ -1,0 +1,84 @@
+Generate a prompt based on description highlighted below You haven't copy pasted my all codebase the changes clearly state+599 so means on 599 codebase generated yet now it's worse than it was and you haven't generated anything good as per my expectations copy and paste the entire codebase both frontend 1500 codebase and 1500 codebase of backend as stated in my codebase highlighted earlier I didn't generate just to be ignored there's a purpose why I generated such codebase Still issue upon scanning drink I scanned food and brought this Analysis Failed
+Analysis timed out. Try a clearer photo or use Search mode.
+Yet long time it was working good with analysis and full report, change the button of scanning drink to either scan item or scan food or drink 
+You are an expert full-stack React Native (Expo) + Node.js/Express/Prisma engineer.
+
+**Project Name**: Impact (health scanner app for drinks, food, and packaged items).
+
+**CRITICAL REQUIREMENTS** (must be enforced in every change):
+
+### 1. Speed
+- Barcode scans: <1 second (Redis cache hit <100ms)
+- Vision/GPT-4o scans: <3 seconds
+- Always prefer barcode → Redis → DB flow
+
+### 2. Trust & Accuracy
+- Barcode = 100% verified + "VERIFIED" badge
+- Vision scans: >90% confidence required, else "Review Needed"
+- Always display data source (barcode / vision / database)
+
+### 3. Impact Analysis (MANDATORY)
+- Every successful scan must return:
+  - **Short-term** (1-4h): 3–4 detailed paragraphs, **minimum 300 words**
+  - **Medium-term** (7–30 days): 3–4 detailed paragraphs, **minimum 300 words**
+  - **Long-term** (1+ years): 3–4 detailed paragraphs, **minimum 300 words**
+- Cover energy, blood sugar, hydration, digestion, sleep, mood, metabolic health, disease risk, etc.
+- Use scientific tone but accessible language.
+
+### 4. Subscription & Limits (Hard Enforcement)
+- Free: **3 lifetime scans** (no resets ever)
+- Starter: 100/mo, Pro: 500/mo, Elite: 2000/mo, Family: unlimited
+- Block scans immediately when limit reached + show upgrade modal
+
+### 5. Branding
+- App name: **Impact** (remove any "Liquid Impact")
+- Primary color: #06b6d4 (cyan/teal)
+- Bundle: com.impact.app
+
+---
+
+**FULL CODEBASE (Use this as the exact current state — 5900+ lines total)**
+
+**Frontend (\~1500+ lines)**:
+- All files from the original spec: app.json, package.json, types/index.ts, services/api.ts, store/useAppStore.ts, app/(tabs)/_layout.tsx, index.tsx, scan.tsx, subscription.tsx, etc.
+
+**Backend (\~1500+ lines)**:
+- prisma/schema.prisma (full models for User, Scan, Product, etc.)
+- services/redis.ts, barcodeLookup.ts, aiAnalysis.ts
+- routes/scans.ts (barcode + image), index.ts, etc.
+
+**Exact Codebase Reference**:
+The complete codebase was provided in the attached file "/home/workdir/attachments/Pasted Text-d864dac3-c532-4c5a-b748-83ba3dcf517e.txt". Use its full content as the baseline. Do not ignore or shorten any part of it.
+
+---
+
+**CURRENT ISSUES TO FIX IMMEDIATELY**:
+
+1. **Scan Button Text**: Change from "scanning drink" / "Scan Product" to more general:
+   - Main button: **"Scan Item"** or **"Scan Food or Drink"**
+   - Update all references in UI (Home, Scan screen, etc.)
+
+2. **Analysis Timeout / Failed Error**:
+   - The error "Analysis Failed. Analysis timed out. Try a clearer photo..." appears too often.
+   - Previously it worked well with full reports.
+   - **Fix**: Optimize GPT-4o prompt in `aiAnalysis.ts` (make it more efficient, lower max_tokens if needed, better error fallback).
+   - Improve image preprocessing / compression before sending to backend.
+   - Add better retry logic and clearer user instructions.
+   - Ensure fallback analysis (the one already in the service) is triggered gracefully.
+
+3. **Vision Scan Implementation**:
+   - The `/scans/image` endpoint currently returns 501 Not Implemented in the provided code.
+   - Implement full GPT-4o vision support with proper form-data handling, product extraction, then AI analysis.
+
+**Your Role**: Continue development from this exact codebase. When I give a task, respond with:
+- File paths changed
+- Full updated code for those files
+- Explanation of fixes
+- Any new dependencies or migration commands
+
+**Start by confirming** you have the full codebase loaded and then provide fixes for:
+1. Updated scan button text ("Scan Item" / "Scan Food or Drink")
+2. Improved vision analysis robustness to prevent timeouts
+3. Full implementation of image scan endpoint
+
+Be precise, production-ready, and respect every line of the original 5900-line codebase.

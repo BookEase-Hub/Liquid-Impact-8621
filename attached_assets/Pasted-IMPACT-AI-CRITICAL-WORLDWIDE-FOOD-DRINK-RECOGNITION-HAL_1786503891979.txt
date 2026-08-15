@@ -1,0 +1,552 @@
+IMPACT AI — CRITICAL WORLDWIDE FOOD & DRINK RECOGNITION / HALLUCINATION FIX
+
+Act as a senior Computer Vision Engineer, AI Engineer, Nutrition Data Engineer, and production reliability engineer.
+
+Do not redesign the UI, remove features, or undo the stability, Recent Scan, UUID, caching, cloud-sync, and data-integrity fixes already implemented.
+
+The current priority is the severe food/drink identification and nutrition hallucination problem.
+
+CURRENT PROBLEM
+
+Impact is frequently identifying foods incorrectly and then generating an entire nutrition report from the wrong identification.
+
+Examples:
+
+Cooked cowpeas → incorrectly identified as sukuma wiki.
+
+Cooked eggs with onion and tomato → incorrectly identified as sukuma wiki/vegetables.
+
+Eggs → sometimes reported with 0g protein.
+
+Foods are classified as vegetables and then receive vegetable nutrition.
+
+Visually similar foods are being treated as the same food.
+
+
+This is unacceptable for a nutrition application.
+
+1. FIX THE UNDERLYING RECOGNITION PIPELINE
+
+Do NOT solve this only by changing the AI prompt.
+
+Inspect and improve the actual pipeline:
+
+Image → Visual analysis → Candidate identification → Component detection → Context reasoning → Confidence → Nutrition data → Consistency validation → Final result
+
+The AI must not immediately jump from visual similarity to a confident food identity.
+
+For example:
+
+Cooked cowpeas
+
+must not become:
+
+"Sukuma wiki"
+
+simply because both may appear green/dark after cooking.
+
+The system should consider multiple plausible candidates and evaluate the visual evidence before selecting one.
+
+2. WORLDWIDE FOOD & DRINK RECOGNITION
+
+Impact must be designed to recognize foods and beverages from around the world, not only African or East African cuisine.
+
+Support, as broadly as practical:
+
+African cuisines
+
+East African cuisines
+
+West African cuisines
+
+North African cuisines
+
+Southern African cuisines
+
+Asian cuisines
+
+South Asian cuisines
+
+Southeast Asian cuisines
+
+East Asian cuisines
+
+Middle Eastern cuisines
+
+European cuisines
+
+Mediterranean cuisines
+
+North American cuisines
+
+Latin American cuisines
+
+Caribbean cuisines
+
+Central American cuisines
+
+South American cuisines
+
+Pacific/Oceanian cuisines
+
+Indigenous and traditional cuisines
+
+Local/regional dishes
+
+Homemade foods
+
+Street foods
+
+Restaurant meals
+
+Packaged foods
+
+Commercial beverages
+
+Traditional beverages
+
+
+Do not assume that unfamiliar food is equivalent to a familiar food.
+
+The system must reason about regional context, preparation style, ingredients, appearance, and serving method.
+
+3. IDENTIFY MIXED MEALS COMPONENT-BY-COMPONENT
+
+When multiple foods are visible, do not force the entire image into one category.
+
+Example:
+
+Egg + onion + tomato
+
+should identify possible components individually:
+
+Egg
+
+Onion
+
+Tomato
+
+
+Example:
+
+Rice + chicken + vegetables
+
+should identify:
+
+Rice
+
+Chicken
+
+Vegetables
+
+
+Example:
+
+Beans + rice + sauce
+
+should identify each visible component where possible.
+
+Nutrition should then be calculated from the detected components and estimated portions.
+
+4. FOOD IDENTIFICATION MUST COME BEFORE NUTRITION
+
+Do not allow the AI to generate nutrition independently from the food identity.
+
+Use:
+
+Identify → validate → estimate portion → obtain/estimate nutrition → validate again
+
+not:
+
+Guess food → invent nutrition
+
+Nutrition must correspond to the identified food.
+
+5. NUTRITION CONSISTENCY CHECK
+
+Before returning a result, perform a strong consistency validation.
+
+Examples:
+
+Egg
+
+Must be nutritionally consistent with an egg.
+
+It should not return:
+
+Protein: 0g
+
+unless there is a genuine serving/data reason.
+
+Cowpeas / beans
+
+Should have nutritionally plausible:
+
+protein
+
+carbohydrates
+
+fiber
+
+
+It must not receive leafy-vegetable nutrition.
+
+Leafy vegetables
+
+Should have nutrition appropriate to the identified leafy vegetable.
+
+Meat/fish/chicken
+
+Should not receive vegetable-style nutrition.
+
+Rice
+
+Should have carbohydrate-dominant nutrition rather than being classified as a leafy vegetable.
+
+Water
+
+0 calories can be correct.
+
+Sugary beverage
+
+Sugar should be reflected when supported by the product/label/data.
+
+If the food identity and nutrition contradict each other:
+
+REJECT THE RESULT AND RE-ANALYZE BEFORE SHOWING IT TO THE USER.
+
+6. NEVER INVENT INGREDIENTS
+
+Do not claim an ingredient exists simply because it is common in a particular recipe.
+
+Separate:
+
+Visually detected
+
+from:
+
+Likely/common ingredient
+
+and:
+
+Unknown
+
+For example, if a stew appears to contain meat but the exact sauce ingredients cannot be seen, do not confidently invent:
+
+specific oils
+
+spices
+
+sauces
+
+allergens
+
+additives
+
+ingredients hidden inside the dish
+
+
+Use uncertainty where necessary.
+
+7. CONFIDENCE MUST REFLECT REALITY
+
+Do not give artificially high confidence.
+
+Confidence should consider:
+
+image quality
+
+visibility
+
+food complexity
+
+similarity to other foods
+
+number of visible components
+
+regional familiarity
+
+preparation method
+
+hidden ingredients
+
+portion visibility
+
+
+If confidence is insufficient, return something like:
+
+"This food cannot be identified reliably from this image."
+
+or:
+
+"This appears to be cooked beans/cowpeas, but identification confidence is moderate."
+
+A cautious answer is much better than a confidently incorrect answer.
+
+8. PREVENT CACHE CONTAMINATION
+
+The existing cache and scan-history improvements must remain intact.
+
+Ensure:
+
+Reusable product/nutrition knowledge ≠ previous scan result.
+
+A cache may provide known nutritional information for a product, but it must never cause the current image to inherit another scan's:
+
+food identity
+
+ingredients
+
+nutrition
+
+scores
+
+insight
+
+confidence
+
+category
+
+
+Every new scan must receive independent analysis.
+
+9. FOOD-SPECIFIC INSIGHTS
+
+Generate insights only after food identification has been validated.
+
+If the user scans eggs, discuss eggs.
+
+If the user scans cowpeas, discuss cowpeas.
+
+If the user scans sushi, discuss the detected sushi components.
+
+If the user scans pasta, discuss pasta.
+
+If the user scans a mixed meal, discuss the actual detected components.
+
+Never produce generic "vegetable" or "healthy food" text simply because the model is uncertain.
+
+10. DRINK RECOGNITION
+
+Apply the same accuracy principles to drinks worldwide.
+
+Recognize, where possible:
+
+water
+
+soda
+
+juice
+
+coffee
+
+tea
+
+smoothies
+
+milk
+
+energy drinks
+
+sports drinks
+
+alcoholic beverages
+
+traditional beverages
+
+homemade beverages
+
+packaged beverages
+
+regional drinks
+
+
+Do not confuse visually similar drinks.
+
+Use packaging, labels, OCR, barcode information, ingredients, color, container type, and visual evidence where available.
+
+11. FINAL VALIDATION GATE
+
+Before displaying the final report, verify:
+
+1. Does the food/drink identity match the image?
+
+
+2. Does the category match?
+
+
+3. Do the detected ingredients make sense?
+
+
+4. Does the nutrition match the identified food?
+
+
+5. Does the portion estimate make sense?
+
+
+6. Do the scores correspond to the actual nutrition?
+
+
+7. Are the health insights based on the actual item?
+
+
+8. Is confidence sufficient?
+
+
+9. Could the result have inherited information from another scan?
+
+
+
+If any critical check fails:
+
+Re-analyze, downgrade confidence, or return an uncertainty result.
+
+Do not confidently return a contradictory result.
+
+12. TEST WORLDWIDE, NOT JUST AFRICAN FOODS
+
+Create an internal accuracy test covering diverse foods and drinks from different cuisines.
+
+Include examples such as:
+
+cowpeas
+
+sukuma wiki
+
+eggs + tomato + onion
+
+rice
+
+beans
+
+chicken curry
+
+beef stew
+
+sushi
+
+ramen
+
+pasta
+
+pizza
+
+tacos
+
+burrito
+
+hummus
+
+falafel
+
+biryani
+
+dosa
+
+pho
+
+pad thai
+
+kimchi
+
+couscous
+
+paella
+
+fish and chips
+
+burger
+
+pancakes
+
+croissant
+
+curry
+
+dumplings
+
+tofu
+
+avocado
+
+pumpkin
+
+sweet potato
+
+lentils
+
+various fruits
+
+various vegetables
+
+traditional/local dishes
+
+homemade meals
+
+packaged foods
+
+water
+
+coffee
+
+tea
+
+juice
+
+soda
+
+smoothie
+
+energy drinks
+
+milk
+
+regional/traditional beverages
+
+
+The goal is global food recognition, not merely improving recognition of the example foods above.
+
+13. DO NOT CLAIM SUCCESS BECAUSE THE APP BUILDS
+
+A successful TypeScript build, API startup, or Expo startup does NOT prove that the AI accuracy problem is solved.
+
+After implementation, actually test the recognition pipeline with representative food and drink images.
+
+Report:
+
+identification accuracy
+
+nutrition consistency
+
+confidence behavior
+
+mixed-meal performance
+
+cache isolation
+
+examples that still fail
+
+remaining limitations
+
+
+FINAL PRIORITY
+
+Prioritize:
+
+Correct identification > nutrition consistency > honest uncertainty > completeness > speed
+
+Never sacrifice accuracy simply to produce an answer.
+
+It is acceptable for Impact to say:
+
+"I'm not confident enough to identify this food."
+
+It is NOT acceptable for Impact to confidently tell a user:
+
+"This is sukuma wiki"
+
+when they scanned eggs or cowpeas, and then generate completely unrelated nutrition.
+
+Preserve all existing UI, features, subscriptions, scoring, scan history, UUIDs, cloud synchronization, caching, authentication, and other working functionality.
+
+Fix the underlying AI/CV recognition, reasoning, nutrition validation, confidence, and hallucination-prevention system.

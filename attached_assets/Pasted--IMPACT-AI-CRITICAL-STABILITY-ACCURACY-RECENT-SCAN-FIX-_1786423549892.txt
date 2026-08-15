@@ -1,0 +1,1250 @@
+# IMPACT AI - CRITICAL STABILITY, ACCURACY & RECENT SCAN FIX UPDATE
+
+You are a senior Staff Software Engineer, AI Engineer, Nutrition Data Engineer, Computer Vision Engineer, and UX Engineer.
+
+Your task is to improve Impact (formerly Liquid Impact) into a production-ready AI nutrition platform supporting BOTH FOOD and DRINKS.
+
+IMPORTANT:
+Do NOT redesign the application.
+Do NOT remove existing features.
+Do NOT break any working functionality.
+Maintain the existing premium UI.
+Maintain backward compatibility.
+
+The objective is to increase reliability, consistency, AI accuracy, and user trust.
+
+==================================================
+1. FIX RECENT SCAN BUG (HIGHEST PRIORITY)
+==================================================
+
+Current bug:
+
+When the user taps "Recent Scan", the application sometimes opens a completely different scan.
+
+Example:
+
+User scans:
+
+Chicken Stew
+
+Then scans:
+
+White Rice
+
+Recent list correctly displays:
+
+Chicken Stew
+White Rice
+
+But tapping Chicken Stew opens White Rice.
+
+This must NEVER happen.
+
+Requirements:
+
+• Every scan must have a permanent unique scan ID (UUID).
+
+• Store every scan as an independent immutable record.
+
+Example:
+
+scanId
+image
+thumbnail
+timestamp
+analysis
+nutrition
+scores
+ingredients
+confidence
+type
+category
+
+The Recent Scan screen must retrieve data ONLY using scanId.
+
+Never reuse cached analysis from another scan.
+
+Never overwrite previous scans.
+
+Never update older scans after a new scan completes.
+
+Opening a previous scan must reproduce EXACTLY what the user originally scanned.
+
+Including:
+
+✔ image
+
+✔ detected food/drink
+
+✔ confidence
+
+✔ AI insight
+
+✔ nutrition
+
+✔ health scores
+
+✔ short-term effects
+
+✔ medium-term effects
+
+✔ long-term effects
+
+✔ timestamp
+
+✔ ingredients
+
+✔ alternatives
+
+✔ serving estimate
+
+Everything must remain identical.
+
+==================================================
+2. ELIMINATE FALLBACK ZERO NUTRITION
+==================================================
+
+Never return:
+
+0 Calories
+
+0 Protein
+
+0 Fat
+
+0 Sodium
+
+0 Sugar
+
+unless the food genuinely contains none.
+
+If nutrition cannot be estimated:
+
+Return:
+
+"Nutritional estimate unavailable due to insufficient visual confidence."
+
+Do NOT fabricate zeros.
+
+==================================================
+3. FOOD & DRINK ACCURACY
+==================================================
+
+Improve AI reasoning.
+
+Detect:
+
+• food
+
+• beverage
+
+• condiment
+
+• sauce
+
+• mixed meal
+
+• dessert
+
+• fruit
+
+• vegetable
+
+• snack
+
+• alcoholic beverage
+
+• coffee
+
+• tea
+
+• juice
+
+• soda
+
+• smoothie
+
+• milk
+
+• homemade drink
+
+Recognize regional cuisines including:
+
+African
+
+Asian
+
+European
+
+American
+
+Latin American
+
+Middle Eastern
+
+Indian
+
+Traditional local meals
+
+Estimate:
+
+• ingredients
+
+• preparation method
+
+• cooking oil
+
+• serving size
+
+• visible portions
+
+• probable recipe
+
+Use nutrition knowledge to generate realistic estimates.
+
+Never output placeholders.
+
+==================================================
+4. MEAL-SPECIFIC INSIGHTS
+==================================================
+
+Never produce generic text.
+
+Bad:
+
+"Energy estimated."
+
+Good:
+
+"This meal combines lean protein, complex carbohydrates and leafy vegetables, providing sustained energy while supporting satiety."
+
+Every explanation must reference the actual detected food.
+
+==================================================
+5. FIX CONDIMENT BUG
+==================================================
+
+Only display:
+
+"This is a condiment used in small amounts."
+
+IF category == condiment.
+
+Never display this for:
+
+rice
+
+pumpkin
+
+beef stew
+
+chicken
+
+fish
+
+meals
+
+vegetables
+
+fruit
+
+drinks
+
+==================================================
+6. FIX METRIC LOGIC
+==================================================
+
+Do not reuse values.
+
+Every detected item should receive unique calculations.
+
+Examples:
+
+Pumpkin
+
+high fiber
+
+low protein
+
+high Vitamin A
+
+low fat
+
+White Rice
+
+high carbohydrate
+
+low fiber
+
+low protein
+
+Chicken
+
+high protein
+
+low carbohydrate
+
+moderate fat
+
+Water
+
+hydration high
+
+0 calories
+
+Coffee
+
+caffeine
+
+low calories
+
+Juice
+
+natural sugars
+
+fruit nutrients
+
+Every score should reflect the actual detected item.
+
+==================================================
+7. SERVING SIZE ESTIMATION
+==================================================
+
+Estimate serving size using:
+
+plate size
+
+container
+
+cup
+
+glass
+
+bottle
+
+can
+
+bowl
+
+depth
+
+portion dimensions
+
+Generate realistic serving estimates.
+
+Nutrition should scale with serving size.
+
+==================================================
+8. IMPROVE SCORING ENGINE
+==================================================
+
+Avoid repetitive scores.
+
+Current issue:
+
+Impact 62
+
+Digestive 15
+
+Hydration 45
+
+appearing repeatedly.
+
+Scores must dynamically depend on:
+
+ingredients
+
+portion
+
+fiber
+
+protein
+
+fat
+
+added sugar
+
+sodium
+
+processing
+
+caffeine
+
+alcohol
+
+hydration
+
+glycemic response
+
+==================================================
+9. FOOD METRICS
+==================================================
+
+Food should include:
+
+Impact Score
+
+Satiety
+
+Protein Quality
+
+Fiber Score
+
+Micronutrient Density
+
+Healthy Fat Score
+
+Processing Level
+
+Blood Sugar Response
+
+Digestive Load
+
+Meal Balance
+
+Estimated Portion
+
+==================================================
+10. DRINK METRICS
+==================================================
+
+Drinks should include:
+
+Impact Score
+
+Hydration
+
+Sugar Load
+
+Caffeine
+
+Electrolytes
+
+Alcohol
+
+Acidity
+
+Artificial Sweeteners
+
+Energy Response
+
+Dehydration Risk
+
+==================================================
+11. IMPROVE CONFIDENCE SYSTEM
+==================================================
+
+Confidence should reflect reality.
+
+95-100%
+
+Brand visible
+
+Packaging visible
+
+High resolution
+
+90-95%
+
+Meal clearly identifiable
+
+80-90%
+
+Minor uncertainty
+
+60-80%
+
+Homemade food
+
+Hidden ingredients
+
+Below 60%
+
+Unknown object
+
+Poor lighting
+
+Blur
+
+When confidence is low:
+
+Explain WHY.
+
+==================================================
+12. PERFORMANCE
+==================================================
+
+Target perceived scan time:
+
+0-1 second.
+
+Architecture:
+
+Image capture
+
+↓
+
+Local preprocessing
+
+↓
+
+Image compression
+
+↓
+
+Perceptual hashing
+
+↓
+
+Local cache lookup
+
+↓
+
+Barcode lookup (if available)
+
+↓
+
+OCR
+
+↓
+
+Vision AI
+
+↓
+
+Structured JSON
+
+↓
+
+UI rendering
+
+Use:
+
+parallel execution
+
+async processing
+
+lazy loading
+
+memoization
+
+database indexing
+
+response caching
+
+streaming
+
+Do not block UI.
+
+==================================================
+13. ACCURACY
+==================================================
+
+Maximize practical accuracy using:
+
+Computer Vision
+
+OCR
+
+Barcode
+
+Packaging
+
+Ingredient lists
+
+Nutrition databases
+
+AI reasoning
+
+Regional cuisine knowledge
+
+Food composition databases
+
+Portion estimation
+
+Never invent ingredients.
+
+Never hallucinate brands.
+
+Never output impossible nutrition.
+
+If uncertain:
+
+State uncertainty clearly.
+
+==================================================
+14. DATA INTEGRITY
+==================================================
+
+Every scan must remain immutable.
+
+History must always display:
+
+Correct thumbnail
+
+Correct analysis
+
+Correct timestamp
+
+Correct image
+
+Correct nutrition
+
+Correct scores
+
+Correct insights
+
+No scan should ever overwrite another.
+
+==================================================
+15. FINAL OBJECTIVE
+==================================================
+
+Transform Impact into a premium AI nutrition platform that users trust.
+
+Prioritize:
+
+• Data integrity
+• Scan history correctness
+• Fast perceived performance
+• Reliable nutrition estimates
+• Food-specific insights
+• Drink-specific insights
+• Intelligent scoring
+• Professional UX
+• Stable architecture
+• Zero placeholder text
+• Zero incorrect scan history
+• Zero generic fallbacks
+
+The application should feel polished, medically responsible (without giving medical advice), technically robust, and production-ready while maintaining a perceived scan time of 0–1 second wherever technically feasible through optimization, caching, and asynchronous processing.
+# IMPACT (Formerly Liquid Impact) – Critical Scan History & AI Accuracy Upgrade
+
+You are a Senior Staff Software Engineer, AI Engineer, Database Architect, Performance Engineer, and Mobile UX Specialist.
+
+Your task is to upgrade Impact into a production-grade AI wellness platform.
+
+This update must preserve all existing functionality while fixing scan history, improving reliability, increasing AI accuracy, and reducing scan latency.
+
+==================================================
+PRIMARY CRITICAL BUG
+==================================================
+
+Recent Scan is displaying the wrong analysis.
+
+Example:
+
+User scans:
+
+1. Chicken Stew
+2. White Rice
+3. Pumpkin
+
+When opening Recent Scan for Chicken Stew, the application incorrectly displays White Rice or another scan.
+
+This is unacceptable.
+
+==================================================
+EXPECTED BEHAVIOR
+==================================================
+
+Every completed scan must become its own immutable scan record.
+
+Each scan must contain its own unique:
+
+- scanId (UUID)
+- timestamp
+- image
+- imageHash
+- detected item
+- scan type
+- AI analysis
+- nutrition
+- wellness insights
+- confidence
+- impact score
+- processing level
+- ingredient list
+- body indicators
+- serving estimate
+- recommendations
+
+The Recent Scan page MUST load the exact scan that belongs to that scanId.
+
+Never reuse another scan.
+
+Never overwrite previous scan data.
+
+Never display cached data from another scan.
+
+==================================================
+DATABASE REQUIREMENTS
+==================================================
+
+Store every scan independently.
+
+Example
+
+Scan History
+
+scan_001
+Chicken Stew
+
+scan_002
+White Rice
+
+scan_003
+Pumpkin
+
+Opening scan_001 must ALWAYS show Chicken Stew.
+
+Opening scan_002 must ALWAYS show White Rice.
+
+Opening scan_003 must ALWAYS show Pumpkin.
+
+No exceptions.
+
+==================================================
+CACHE REQUIREMENTS
+==================================================
+
+Current cache appears to reuse previous responses.
+
+Replace cache logic with:
+
+Cache Key
+
+userId
++
+scanId
+
+NOT
+
+food name
+
+NOT
+
+last scan
+
+NOT
+
+current session
+
+Cache must never overwrite another scan.
+
+==================================================
+STATE MANAGEMENT
+==================================================
+
+Audit the entire state management.
+
+Possible issues include:
+
+• Zustand
+• Redux
+• React Context
+• React Query
+• AsyncStorage
+• MMKV
+• SQLite
+
+Ensure:
+
+Each scan has isolated state.
+
+History screen loads using scanId.
+
+Detail screen loads using scanId.
+
+No global mutable object.
+
+No stale closures.
+
+No race conditions.
+
+==================================================
+IMAGE STORAGE
+==================================================
+
+Store
+
+Original image
+
+Compressed image
+
+Thumbnail
+
+Image hash
+
+Image URI
+
+Every scan references its own image.
+
+Never replace another image.
+
+==================================================
+AI ANALYSIS
+==================================================
+
+Every scan should generate an independent AI report.
+
+Never reuse previous AI output.
+
+Never copy nutrition from another food.
+
+Never duplicate another scan.
+
+==================================================
+FOOD RECOGNITION
+==================================================
+
+Improve recognition accuracy.
+
+Recognize:
+
+Single foods
+
+Mixed meals
+
+Traditional African meals
+
+Asian meals
+
+European meals
+
+American meals
+
+Street foods
+
+Fast foods
+
+Desserts
+
+Snacks
+
+Sauces
+
+Condiments
+
+Fruits
+
+Vegetables
+
+Protein
+
+Soups
+
+Stews
+
+Beverages
+
+Cocktails
+
+Coffee
+
+Tea
+
+Energy drinks
+
+Juices
+
+Milk
+
+Smoothies
+
+Alcohol
+
+Unknown foods
+
+==================================================
+AI NUTRITION ENGINE
+==================================================
+
+Estimate realistic values.
+
+Never output:
+
+0 Calories
+
+0 Protein
+
+0 Fat
+
+0 Sodium
+
+0 Sugar
+
+unless scientifically true.
+
+If uncertain:
+
+Return estimated range.
+
+Example
+
+Calories
+
+430–520 kcal
+
+Protein
+
+28–35 g
+
+Confidence
+
+82%
+
+Never fabricate certainty.
+
+==================================================
+UNKNOWN ITEMS
+==================================================
+
+If AI confidence <70%
+
+Never generate fake nutrition.
+
+Instead display
+
+"We couldn't confidently estimate this homemade or unidentified food. Nutritional values may vary significantly."
+
+Still identify likely ingredients.
+
+==================================================
+REMOVE FALLBACK PLACEHOLDERS
+==================================================
+
+Remove ALL generic outputs like:
+
+Analysis completed.
+
+Review nutritional details.
+
+Energy estimated.
+
+Blood sugar estimated.
+
+Health trend analyzed.
+
+Replace with personalized analysis.
+
+Every scan should feel uniquely written.
+
+==================================================
+SCORING ENGINE
+==================================================
+
+Increase score variability.
+
+Avoid repetitive outputs like:
+
+62%
+
+65%
+
+45%
+
+15%
+
+Scores should reflect:
+
+Calories
+
+Protein
+
+Fiber
+
+Fat quality
+
+Sugar
+
+Sodium
+
+Processing
+
+Hydration
+
+Alcohol
+
+Caffeine
+
+Artificial additives
+
+Serving size
+
+Micronutrients
+
+Cooking method
+
+==================================================
+FOOD METRICS
+==================================================
+
+For foods prioritize
+
+Satiety
+
+Protein Quality
+
+Fiber
+
+Healthy Fat
+
+Nutrient Density
+
+Meal Balance
+
+Vegetable Content
+
+Whole Grain Score
+
+Micronutrient Density
+
+Digestive Load
+
+==================================================
+BEVERAGE METRICS
+==================================================
+
+For drinks prioritize
+
+Hydration
+
+Electrolytes
+
+Sugar Load
+
+Caffeine
+
+Alcohol
+
+Artificial Sweeteners
+
+Acidity
+
+Energy Impact
+
+==================================================
+CONTEXTUAL UI
+==================================================
+
+Food
+
+Never display
+
+Hydration 50%
+
+Instead display
+
+Satiety
+
+Fiber
+
+Protein
+
+Meal Balance
+
+Drinks
+
+Display
+
+Hydration
+
+Electrolytes
+
+Sugar
+
+Caffeine
+
+Alcohol
+
+==================================================
+CONDIMENT BUG
+==================================================
+
+Current bug
+
+Meals incorrectly display
+
+"This is a condiment."
+
+Fix logic.
+
+Only display condiment warning for:
+
+Sauces
+
+Seasonings
+
+Dressings
+
+Vinegar
+
+Ketchup
+
+Mayonnaise
+
+Mustard
+
+Soy sauce
+
+etc.
+
+==================================================
+PORTION ESTIMATION
+==================================================
+
+Improve portion estimation using:
+
+Plate size
+
+Cup size
+
+Container
+
+Bowl
+
+Bottle
+
+Can
+
+Glass
+
+Known food dimensions
+
+Return confidence.
+
+==================================================
+SERVING CALIBRATION
+==================================================
+
+Calories must match serving.
+
+Example
+
+150 g cooked rice ≠ 130 kcal
+
+Calibrate using trusted nutrition references.
+
+==================================================
+AI WELLNESS ENGINE
+==================================================
+
+Generate unique insights.
+
+Short-term
+
+Medium-term
+
+Long-term
+
+Should reference detected food.
+
+Never generic templates.
+
+==================================================
+HEALTHIER ALTERNATIVES
+==================================================
+
+Generate alternatives based on detected food.
+
+Example
+
+White Rice
+
+→ Brown Rice
+
+→ Quinoa
+
+Sugary Soda
+
+→ Sparkling Water
+
+→ Unsweetened Tea
+
+==================================================
+KEY INGREDIENTS
+==================================================
+
+Extract ingredients.
+
+Explain:
+
+Benefits
+
+Potential risks
+
+Nutritional contribution
+
+==================================================
+PERFORMANCE
+==================================================
+
+Target perceived scan time
+
+0–1 second
+
+Implementation:
+
+Parallel AI pipeline
+
+Image compression
+
+Progressive rendering
+
+Background nutrition lookup
+
+Local food database
+
+Barcode lookup
+
+Redis cache
+
+Image hashing
+
+Optimized prompts
+
+Streaming AI
+
+Lazy loading
+
+Async persistence
+
+Non-blocking UI
+
+==================================================
+RELIABILITY
+==================================================
+
+Target:
+
+99.9% successful scans.
+
+No crashes.
+
+No duplicated scans.
+
+No incorrect scan history.
+
+No overwritten analysis.
+
+==================================================
+FINAL GOAL
+==================================================
+
+Impact should feel like a premium AI wellness platform that users can trust.
+
+Every scan must:
+
+• Display the correct image.
+• Display the correct food or drink.
+• Display the correct AI analysis.
+• Display realistic nutrition.
+• Display unique wellness insights.
+• Display correct history.
+• Never mix scan results.
+• Never return placeholder text.
+• Never return impossible nutrition values.
+• Complete with a perceived scan time of 0–1 second through intelligent optimization.
+
+Important: While optimizing for speed, do not sacrifice accuracy. If exact analysis cannot be completed within the initial second, immediately render the identified food/drink and progressively enrich the scan with verified nutrition and wellness insights without blocking the user interface.

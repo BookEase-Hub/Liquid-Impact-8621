@@ -1,7 +1,32 @@
-export type ScanStatus = "optimal" | "stable" | "risky" | "damaging";
+export type ScanStatus = "optimal" | "stable" | "risky" | "damaging" | "unknown";
 export type GlycemicImpact = "low" | "moderate" | "high" | "very_high";
-export type HealthRole = "positive" | "neutral" | "concerning";
-export type RiskLevel = "low" | "medium" | "high";
+export type HealthRole =
+  | "positive"
+  | "neutral"
+  | "concerning"
+  | "quick-energy"
+  | "alertness"
+  | "zero-calorie"
+  | "antioxidant"
+  | "metabolic-support"
+  | "energy-metabolism"
+  | "liver-support"
+  | "energy"
+  | "immune-support"
+  | "rehydration"
+  | "bone-support"
+  | "muscle-support"
+  | "traditional"
+  | "hydration"
+  | "flavor"
+  | "metabolism-support"
+  | "energy-support"
+  | "gut-health"
+  | "satiety"
+  | "fiber"
+  | "protein";
+export type RiskLevel = "low" | "medium" | "high" | "moderate";
+
 export type LiquidCategory =
   | "beverage"
   | "cooking_oil"
@@ -9,6 +34,27 @@ export type LiquidCategory =
   | "alcohol"
   | "supplement"
   | "other";
+
+export type ConsumableType =
+  | "beverage"
+  | "solid_food"
+  | "mixed_meal"
+  | "snack"
+  | "condiment"
+  | "supplement";
+
+export type ProcessingLevel =
+  | "whole"
+  | "minimally_processed"
+  | "processed"
+  | "ultra_processed";
+
+export type DigestiveLoad = "light" | "moderate" | "heavy";
+export type FiberEstimate = "low" | "medium" | "high";
+export type ProteinQuality = "complete" | "incomplete" | "not_applicable";
+export type BloodSugarTrajectory = "spike" | "sustained" | "gradual" | "crash";
+export type MealTimingRating = "excellent" | "good" | "fair" | "poor";
+
 export type SubscriptionTier =
   | "free"
   | "starter"
@@ -24,20 +70,61 @@ export interface Ingredient {
   riskLevel: RiskLevel;
   description?: string;
   aiNote?: string;
+  source?: string;
+  organic?: boolean;
+  allergen?: boolean;
+}
+
+export type TimeHorizon = 'short' | 'medium' | 'long';
+
+export interface ImpactFluctuation {
+  timestamp: number;
+  value: number;
+  horizon: TimeHorizon;
+}
+
+export interface TimeBasedImpact {
+  current: number;
+  shortTerm: { value: number; trend: 'up' | 'down' | 'stable'; confidence: number };
+  mediumTerm: { value: number; trend: 'up' | 'down' | 'stable'; confidence: number };
+  longTerm: { value: number; trend: 'up' | 'down' | 'stable'; confidence: number };
+  lastUpdated: number;
+  fluctuationHistory: { timestamp: number; value: number; horizon: TimeHorizon }[];
 }
 
 export interface Composition {
-  calories: number;
-  sugarGrams: number;
-  caffeineMg: number;
-  sodiumMg: number;
-  fatGrams: number;
-  proteinGrams: number;
+  calories: number | null;
+  sugarGrams: number | null;
+  caffeineMg: number | null;
+  sodiumMg: number | null;
+  fatGrams: number | null;
+  proteinGrams: number | null;
+  fiberGrams?: number | null;
+  carbsGrams?: number | null;
+  cholesterolMg?: number | null;
   servingSize: number;
   servingUnit: string;
   artificialSweeteners: boolean;
   additives: string[];
   ingredients: Ingredient[];
+}
+
+export interface MealTimingFit {
+  breakfast: MealTimingRating;
+  lunch: MealTimingRating;
+  dinner: MealTimingRating;
+  snack: MealTimingRating;
+}
+
+export interface ComponentBreakdown {
+  component: string;
+  percentage: number;
+  impactScore: number;
+}
+
+export interface ServingContext {
+  typicalServing?: string;
+  caloricDensity?: "low" | "medium" | "high";
 }
 
 export interface ShortTermImpact {
@@ -67,6 +154,7 @@ export interface ScanResult {
   brand?: string | null;
   category: string;
   liquidType: LiquidCategory;
+  consumableType?: ConsumableType;
   confidenceScore: number;
   impactScore: number;
   hydrationLevel: number;
@@ -81,6 +169,37 @@ export interface ScanResult {
   longTermImpact: LongTermImpact;
   composition: Composition;
   scannedAt: number;
+  imageUri?: string;
+
+  satietyScore?: number;
+  digestiveLoad?: DigestiveLoad;
+  nutrientDensity?: number;
+  fiberEstimate?: FiberEstimate;
+  proteinQuality?: ProteinQuality;
+  mealTimingFit?: MealTimingFit;
+  bloodSugarTrajectory?: BloodSugarTrajectory;
+  componentBreakdown?: ComponentBreakdown[];
+  allergenFlags?: string[];
+  processingLevel?: ProcessingLevel;
+  servingContext?: ServingContext;
+  mealType?: "breakfast" | "lunch" | "dinner" | "snack";
+
+  hydrationScore?: number;
+  sugarLoadScore?: number;
+  caffeineScore?: number;
+  electrolyteScore?: number;
+  micronutrientScore?: number;
+  proteinQualityScore?: number;
+  fiberScore?: number;
+  healthyFatScore?: number;
+  alcoholContent?: number | null;
+  acidity?: "low" | "moderate" | "high";
+  uncertaintyNotes?: string[];
+  nutritionEstimateUnavailable?: boolean;
+  originalImageUri?: string;
+  compressedImageUri?: string;
+  thumbnailUri?: string;
+  imageHash?: string;
 }
 
 export interface DailyMission {

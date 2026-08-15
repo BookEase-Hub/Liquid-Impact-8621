@@ -1,0 +1,68 @@
+The hallucinations is too much now than the previously like if I scan cooked cowpeas leave it guesses and hallucinates it's sukuma wiki, if I can cooked eggs with mixture of onion and tomato is guess and hallucinates for vegetable sukuma wiki to extent saying doesn't contain protein, sugar hallucinates to vegetables
+# IMPACT AI — CRITICAL FOOD IDENTIFICATION & HALLUCINATION FIX
+ 
+Act as a senior AI/CV and nutrition engineer. **Do not redesign the UI, remove features, or break existing functionality.** Fix the current food-recognition system so Impact produces reliable, evidence-based results.
+ 
+### CRITICAL PROBLEM
+ 
+The AI is currently hallucinating food identities.
+ 
+Examples:
+ 
+ 
+- Cooked cowpeas/beans → incorrectly identified as sukuma wiki.
+ 
+- Cooked eggs mixed with onion and tomato → incorrectly identified as sukuma wiki.
+ 
+- Eggs are sometimes reported as having no protein.
+ 
+- Foods are incorrectly classified as vegetables and receive unrelated nutrition values.
+ 
+
+ 
+### REQUIRED FIX
+ 
+ 
+1. **Never confidently guess an identifiable food from visual similarity alone.**
+ 
+2. Analyze the entire image before classifying: 
+ 
+  - shape
+ 
+  - texture
+ 
+  - color
+ 
+  - visible ingredients
+ 
+  - cooking method
+ 
+  - plate/container context
+ 
+  - regional cuisine
+ 
+
+ 
+ 
+3. For mixed meals, identify **each visible component separately** instead of labeling the entire plate as one food.
+ 
+4. Use nutrition knowledge to cross-check the identification. For example: 
+ 
+  - Eggs → significant protein.
+ 
+  - Cowpeas/beans → protein + carbohydrates + fiber.
+ 
+  - Sukuma wiki → leafy vegetable with different nutritional characteristics.
+ 
+
+ 
+ 
+5. **Never generate nutrition values that contradict the identified food.**
+ 
+6. Never invent ingredients that cannot reasonably be seen or inferred.
+ 
+7. If confidence is low, say: **"Food identification is uncertain. Please provide a clearer image."** rather than making a confident wrong prediction.
+ 
+8. Add a final **food-vs-nutrition consistency check** before returning results. Reject and re-analyze results where the food identity and nutrition profile contradict each other.
+ 
+9. Ensure every scan receives a fresh analysis. Do not reuse the previous scan's classification, nutrition, scores, or cached result.
